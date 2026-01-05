@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@700&display=swap" rel="stylesheet">
+    <title>思诺 · Gladys</title>
+    <style>
+        /* --- 基础设置 --- */
+        :root {
+            --neon-blue: #00f3ff;
+            --neon-purple: #bc13fe;
+            --bg-color: #050505;
+        }
+        
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden; /* 禁止滚动，打造沉浸式单屏 */
+            color: white;
+        }
+
+        /* --- 容器与图层 --- */
+        #scene {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            perspective: 1000px;
+        }
+
+        .layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            pointer-events: none;
+        }
+
+        /* --- 背景层 --- */
+        .bg-grid {
+            width: 110%;
+            height: 110%;
+            /* 将渐变和图片写在一起，用逗号分隔，图片放在后面 */
+            background: 
+                radial-gradient(circle at center, rgba(26, 26, 46, 0.5) 0%, rgba(0, 0, 0, 1) 100%),
+                url('./imgs/bg_texture.png') no-repeat center center/cover;
+            z-index: 1;
+        }
+
+        /* --- 装饰元素 --- */
+        .circle-decor {
+            width: 70vh;
+            height: 70vh;
+            border: 2px solid var(--neon-blue);
+            border-radius: 50%;
+            opacity: 0.3;
+            z-index: 2;
+            box-shadow: 0 0 20px var(--neon-blue);
+        }
+
+        /* --- 人物层 --- */
+        /* --- 人物层修复：从方块变为圆环显示 --- */
+        .character-img {
+            width: 70vh;           /* 必须与 .circle-decor 的尺寸一致 */
+            height: 70vh;          /* 必须与 .circle-decor 的尺寸一致 */
+            border-radius: 50%;    /* 核心：将方块变为正圆 */
+            overflow: hidden;      /* 核心：裁剪掉圆圈外部的图片部分 */
+            
+            z-index: 3;
+            filter: drop-shadow(0 0 15px rgba(0, 243, 255, 0.4));
+            
+            /* 调整背景图片展示方式 */
+            background: url('./imgs/snow_char.png') no-repeat center center/cover; 
+            
+            /* 增加一个内部阴影，让边缘更有“嵌入”感 */
+            box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.9); 
+            
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        /* 临时占位符样式 (有图后可删除) */
+        .character-placeholder {
+            font-size: 200px;
+            opacity: 0.1;
+            font-weight: bold;
+        }
+
+        /* --- UI 文字层 --- */
+        .ui-layer {
+            z-index: 10;
+            text-align: center;
+            mix-blend-mode: overlay; /* 混合模式增加高级感 */
+        }
+
+        /* 故障文字特效 */
+        .glitch-title {
+            font-size: 8rem;
+            font-weight: 900;
+            letter-spacing: 10px;
+            color: white;
+            position: relative;
+            text-shadow: 2px 2px var(--neon-purple);
+        }
+
+        .glitch-title::before,
+        .glitch-title::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .glitch-title::before {
+            left: 2px;
+            text-shadow: -1px 0 var(--neon-blue);
+            clip: rect(24px, 550px, 90px, 0);
+            animation: glitch-anim-2 3s infinite linear alternate-reverse;
+        }
+
+        .glitch-title::after {
+            left: -2px;
+            text-shadow: -1px 0 var(--neon-purple);
+            clip: rect(85px, 550px, 140px, 0);
+            animation: glitch-anim 2.5s infinite linear alternate-reverse;
+        }
+
+        .subtitle {
+            font-size: 1.5rem;
+            letter-spacing: 5px;
+            margin-top: -20px;
+            color: var(--neon-blue);
+            text-transform: uppercase;
+        }
+
+        /* --- 按钮 --- */
+        /* --- 升级版按钮容器 --- */
+        .cta-container {
+            position: absolute;
+            bottom: 5%; 
+            z-index: 100;
+            pointer-events: auto;
+        }
+
+        /* --- 关注按钮主体 --- */
+        .cta-btn {
+            position: relative;
+            padding: 18px 55px;
+            font-size: 2.2rem; /* 字体加大 */
+            font-family: 'Rajdhani', 'Microsoft YaHei', sans-serif;
+            font-weight: bold;
+            color: var(--neon-blue);
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: 6px; /* 初始字间距 */
+            background: rgba(0, 243, 255, 0.05);
+            border: 2px solid var(--neon-blue);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            display: inline-block;
+            backdrop-filter: blur(5px);
+        }
+
+        /* 按钮悬停特效 */
+        .cta-btn:hover {
+            color: #000;
+            background: var(--neon-blue);
+            box-shadow: 0 0 50px var(--neon-blue);
+            letter-spacing: 12px; /* 悬停时字间距拉伸，非常动漫感 */
+            transform: translateY(-5px);
+        }
+
+        /* 扫过按钮的流光动画 */
+        .cta-btn::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+            transition: 0.5s;
+        }
+        .cta-btn:hover::before { left: 100%; }
+
+        /* --- 动画关键帧 --- */
+        @keyframes glitch-anim {
+            0% { clip: rect(10px, 9999px, 30px, 0); }
+            20% { clip: rect(80px, 9999px, 100px, 0); }
+            40% { clip: rect(10px, 9999px, 60px, 0); }
+            60% { clip: rect(50px, 9999px, 80px, 0); }
+            80% { clip: rect(20px, 9999px, 40px, 0); }
+            100% { clip: rect(70px, 9999px, 90px, 0); }
+        }
+        @keyframes glitch-anim-2 {
+            0% { clip: rect(60px, 9999px, 80px, 0); }
+            20% { clip: rect(10px, 9999px, 40px, 0); }
+            40% { clip: rect(80px, 9999px, 120px, 0); }
+            60% { clip: rect(20px, 9999px, 50px, 0); }
+            80% { clip: rect(90px, 9999px, 110px, 0); }
+            100% { clip: rect(30px, 9999px, 60px, 0); }
+        }
+
+        /* 移动端适配 */
+        @media (max-width: 768px) {
+            .glitch-title { font-size: 4rem; }
+            .character-img { height: 60vh; }
+        }
+
+        /* --- UI 交互层 --- */
+        .ui-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10; pointer-events: none;
+        }
+
+        /* 右上角粉丝计数器 */
+        .stats-panel {
+            position: absolute; top: 5%; right: 5%; width: 220px;
+            background: rgba(0, 0, 0, 0.6); border: 1px solid var(--neon-blue);
+            padding: 15px; text-align: right; border-right: 5px solid var(--neon-blue);
+            pointer-events: auto; backdrop-filter: blur(5px);
+        }
+
+        .stats-label { font-size: 0.8rem; color: #aaa; letter-spacing: 2px; display: block; }
+
+        .stats-number {
+            font-family: 'Courier New', monospace; font-size: 2.5rem;
+            font-weight: bold; color: var(--neon-blue);
+            text-shadow: 0 0 10px var(--neon-blue); display: block;
+        }
+        
+        .live-dot {
+            display: inline-block; width: 8px; height: 8px;
+            background-color: var(--neon-pink); border-radius: 50%;
+            margin-right: 5px; animation: blink 1s infinite;
+        }
+
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    </style>
+</head>
+<body>
+
+    <div id="scene">
+        <div class="layer" data-speed="2">
+            <div class="bg-grid"></div>
+        </div>
+
+        <!-- <div class="layer" data-speed="4">
+            <div class="circle-decor"></div>
+        </div> -->
+
+        <div class="layer ui-layer" data-speed="-2">
+            <h1 class="glitch-title" data-text="思诺 Gladys">思诺 Gladys</h1>
+            <p class="subtitle">Z.J. ENTERTAINMENT</p>
+        </div>
+
+        <div class="layer" data-speed="4">
+            <div class="character-img">
+            </div>
+        </div>
+        
+        <div class="cta-container">
+            <a href="https://space.bilibili.com/3537115310721781" target="_blank" class="cta-btn">
+                关注思诺SNOW
+            </a>
+        </div>
+
+        <div class="ui-overlay">
+            <div class="stats-panel">
+                <span class="stats-label"><span class="live-dot"></span>BILIBILI FOLLOWERS</span>
+                <span class="stats-number" id="fan-count">读取中</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 简单的鼠标视差效果脚本
+        document.addEventListener('mousemove', (e) => {
+            const layers = document.querySelectorAll('.layer');
+            
+            const x = (window.innerWidth - e.pageX * 2) / 100;
+            const y = (window.innerHeight - e.pageY * 2) / 100;
+
+            layers.forEach(layer => {
+                const speed = layer.getAttribute('data-speed');
+                const xPos = x * speed;
+                const yPos = y * speed;
+                
+                // 使用 transform 进行位移
+                layer.style.transform = `translateX(${xPos}px) translateY(${yPos}px)`;
+            });
+        });
+
+        // 手机陀螺仪支持 (可选)
+        window.addEventListener('deviceorientation', (e) => {
+            const layers = document.querySelectorAll('.layer');
+            const x = e.gamma; // -90 to 90
+            const y = e.beta;  // -180 to 180
+            
+            layers.forEach(layer => {
+                const speed = layer.getAttribute('data-speed');
+                layer.style.transform = `translateX(${x * speed * 0.5}px) translateY(${y * speed * 0.5}px)`;
+            });
+        });
+
+        // 获取粉丝数逻辑
+        const fanCountElement = document.getElementById('fan-count');
+        const VMID = '3537115310721781';
+
+        // --- 修改后的获取粉丝数逻辑 ---
+        async function fetchFanCount() {
+            try {
+                // 【关键】这里换成你的 Cloudflare Worker 链接
+                const workerUrl = 'https://snow-api-proxy.pengyiteng0827.workers.dev'; 
+                
+                const response = await fetch(workerUrl);
+                if (!response.ok) throw new Error();
+                
+                const data = await response.json();
+                if (data.code === 0) {
+                    fanCountElement.innerText = data.data.follower.toLocaleString();
+                    fanCountElement.style.color = 'var(--neon-blue)'; // 恢复正常颜色
+                } else {
+                    throw new Error();
+                }
+            } catch (error) {
+                console.error("Worker 代理请求失败");
+                fanCountElement.innerText = 'xxxxx';
+                fanCountElement.style.color = 'rgba(0, 243, 255, 0.5)';
+            }
+        }
+
+        // 初始化加载
+        fetchFanCount();
+
+        // 每60秒刷新
+        setInterval(fetchFanCount, 60000);
+
+    </script>
+</body>
+</html>

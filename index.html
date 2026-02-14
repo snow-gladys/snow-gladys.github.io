@@ -201,14 +201,17 @@
 
         /* --- 统计面板 --- */
         .stats-panel {
-            position: absolute; top: 5%; right: 5%; width: 220px;
+            position: absolute; top: 5%; right: 5%; width: 160px;
             background: rgba(0, 0, 0, 0.6); border: 1px solid var(--neon-blue);
-            padding: 15px; text-align: right; border-right: 5px solid var(--neon-blue);
+            padding: 10px 12px; text-align: right; border-right: 4px solid var(--neon-blue);
             pointer-events: auto; backdrop-filter: blur(5px); z-index: 110;
         }
 
+        .stats-panel .stats-label {
+            font-size: 0.7rem; color: #aaa; display: block;
+        }
         .stats-number {
-            font-family: 'Courier New', monospace; font-size: 2.5rem;
+            font-family: 'Courier New', monospace; font-size: 1.85rem;
             font-weight: bold; color: var(--neon-blue);
         }
 
@@ -440,9 +443,14 @@
         @media (max-width: 768px) {
             .glitch-title { font-size: 3rem; }
             .character-img { width: 42vh; height: 42vh; margin-top: -8vh; }
-            .cta-container { width: 180px; }
-            .cta-btn { font-size: 1.1rem; }
-            .player-controls { bottom: 16%; width: 90%; max-width: none; padding: 10px 14px; gap: 8px; }
+            .cta-container { display: none; }
+            .player-controls {
+                bottom: 16%; width: 90%; max-width: none; padding: 10px 14px; gap: 8px;
+                border-top: 1px solid var(--neon-blue);
+                border-right: 1px solid var(--neon-blue);
+                border-bottom: 1px solid var(--neon-blue);
+                border-left: 5px solid var(--neon-blue);
+            }
             .player-controls .btn-play-pause { width: 42px; height: 42px; font-size: 1.25rem; }
             .player-controls .btn-mode { padding: 6px 10px; font-size: 0.7rem; }
             .player-progress-wrap .time { font-size: 0.7rem; }
@@ -487,7 +495,7 @@
         </div>
 
         <div class="stats-panel">
-            <span style="font-size:0.8rem; color:#aaa;">BILIBILI FOLLOWERS</span>
+            <span class="stats-label">BILIBILI FOLLOWERS</span>
             <span class="stats-number" id="fan-count">loading...</span>
         </div>
 
@@ -510,7 +518,7 @@
 
         <!-- 底部滚动歌名（数据来自 songs.json） -->
         <div class="song-ticker-wrap" id="song-ticker-wrap">
-            <span class="song-ticker-label">♪ TRACK LIST</span>
+            <span class="song-ticker-label" id="song-ticker-label">♪ TRACK LIST</span>
             <div class="song-ticker-track">
                 <div class="song-ticker-inner" id="song-ticker-inner">
                     <span class="song-item">加载中...</span>
@@ -742,6 +750,8 @@
         }
 
         function renderTicker(currentBvid) {
+            const labelEl = document.getElementById('song-ticker-label');
+            if (labelEl) labelEl.textContent = `♪ ${songList.length}首`;
             if (!songList.length) return;
             currentBvid = (currentBvid || '').trim().toUpperCase();
             const sep = '<span class="song-sep">◆</span>';

@@ -259,6 +259,15 @@
             border-radius: 6px; transition: all 0.2s;
         }
         .play-controls .btn-mode-cycle:hover { background: rgba(0, 243, 255, 0.2); }
+
+        /* 网页端：拉大歌名与唱片、进度条与按钮的间距，不影响移动端 */
+        @media (min-width: 769px) {
+            .view-play { padding-bottom: 2%; }
+            .play-song-name { bottom: 20%; }
+            .play-progress-wrap { margin-bottom: 20px; }
+            .play-controls { margin-top: 6px; }
+        }
+
         @media (max-width: 768px) {
             .view-home .home-buttons { flex-direction: column; bottom: 24%; gap: 12px; }
             .view-home .home-btn { padding: 12px 22px; font-size: 1rem; }
@@ -470,27 +479,40 @@
         let favoritesSet = new Set();
 
         function getFavoritesFromCookie() {
-            const raw = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith(FAV_COOKIE + '='));
-            if (!raw) return new Set();
             try {
-                const value = decodeURIComponent(raw.slice(FAV_COOKIE.length + 1).split('=').slice(1).join('='));
+                const raw = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith(FAV_COOKIE + '='));
+                if (!raw) return new Set();
+                const eq = raw.indexOf('=');
+                const valueStr = eq >= 0 ? raw.substring(eq + 1).trim() : '';
+                if (!valueStr) return new Set();
+                const value = decodeURIComponent(valueStr);
                 const arr = JSON.parse(value || '[]');
-                return new Set(Array.isArray(arr) ? arr.map(String) : []);
+                if (!Array.isArray(arr)) return new Set();
+                return new Set(arr.filter(Boolean).map(s => String(s).toUpperCase()));
             } catch (e) { return new Set(); }
         }
 
         function saveFavoritesToCookie() {
-            const arr = Array.from(favoritesSet);
-            const value = encodeURIComponent(JSON.stringify(arr));
-            document.cookie = FAV_COOKIE + '=' + value + '; path=/; max-age=' + FAV_MAX_AGE + '; SameSite=Lax';
+            try {
+                const arr = Array.from(favoritesSet);
+                const value = encodeURIComponent(JSON.stringify(arr));
+                document.cookie = FAV_COOKIE + '=' + value + '; path=/; max-age=' + FAV_MAX_AGE + '; SameSite=Lax';
+                return true;
+            } catch (e) { return false; }
         }
 
         function toggleFavorite(bvid) {
             if (!bvid) return;
             const key = (bvid || '').toUpperCase();
-            if (favoritesSet.has(key)) favoritesSet.delete(key);
+            const wasFav = favoritesSet.has(key);
+            if (wasFav) favoritesSet.delete(key);
             else favoritesSet.add(key);
-            saveFavoritesToCookie();
+            if (!saveFavoritesToCookie()) {
+                if (wasFav) favoritesSet.add(key);
+                else favoritesSet.delete(key);
+                alert('网页缓存在您的设备上是禁用的，无法使用收藏功能。');
+                return;
+            }
             if (favoritesSet.size === 0 && playMode === 'favorites' && btnModeCycle) setPlayMode('list');
         }
 

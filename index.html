@@ -208,11 +208,13 @@
             overflow-y: auto; padding: 4px 0; -webkit-overflow-scrolling: touch;
         }
         .playlist-item {
-            display: block; width: 100%; padding: 8px 16px; text-align: left;
+            display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 8px 16px; text-align: left;
             font-family: 'Rajdhani', 'Microsoft YaHei', sans-serif; font-weight: 700; font-size: 0.95rem;
             color: rgba(255, 255, 255, 0.9); background: transparent; border: none; cursor: pointer;
             transition: background 0.2s, color 0.2s; border-left: 3px solid transparent;
         }
+        .playlist-item .playlist-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .playlist-item .playlist-item-star { flex-shrink: 0; color: var(--neon-blue); font-size: 0.75rem; opacity: 0.9; }
         .playlist-item:hover { background: rgba(0, 243, 255, 0.08); color: var(--neon-blue); }
         .playlist-item.current { color: var(--neon-blue); border-left-color: var(--neon-blue); background: rgba(0, 243, 255, 0.12); }
         .view-play {
@@ -605,7 +607,17 @@
                 btn.className = 'playlist-item' + (isCurrent ? ' current' : '');
                 btn.dataset.bvid = s.bvid || '';
                 btn.dataset.index = i;
-                btn.textContent = s.name || s.title || '';
+                const nameEl = document.createElement('span');
+                nameEl.className = 'playlist-item-name';
+                nameEl.textContent = s.name || s.title || '';
+                btn.appendChild(nameEl);
+                if (isFavorite(s.bvid)) {
+                    const starEl = document.createElement('span');
+                    starEl.className = 'playlist-item-star';
+                    starEl.setAttribute('aria-hidden', 'true');
+                    starEl.textContent = '★';
+                    btn.appendChild(starEl);
+                }
                 btn.addEventListener('click', () => {
                     playMusic(s.bvid || '');
                     closePlaylist();

@@ -350,6 +350,12 @@
         }
         .nav-emoji-link:hover { opacity: 1; }
 
+        /* --- 跳转过渡：从 emoji 位置圆形扩散 --- */
+        .nav-transition-overlay {
+            position: fixed; inset: 0; z-index: 99999; pointer-events: auto;
+            transition: clip-path 0.2s ease-out;
+        }
+
         /* --- 统计面板 --- */
         .stats-panel {
             position: absolute; top: 5%; right: 5%; width: 160px;
@@ -475,6 +481,29 @@
     </div>
 
     <script>
+        (function() {
+            var navLink = document.querySelector('.nav-emoji-link');
+            if (!navLink) return;
+            navLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                var href = navLink.getAttribute('href');
+                if (!href) return;
+                var x = e.clientX, y = e.clientY;
+                var radius = Math.max(window.innerWidth, window.innerHeight) * 1.5;
+                var overlay = document.createElement('div');
+                overlay.className = 'nav-transition-overlay';
+                overlay.style.background = 'rgba(244, 114, 168, 0.5)';
+                overlay.style.clipPath = 'circle(0px at ' + x + 'px ' + y + 'px)';
+                document.body.appendChild(overlay);
+                requestAnimationFrame(function() {
+                    overlay.style.clipPath = 'circle(' + radius + 'px at ' + x + 'px ' + y + 'px)';
+                });
+                overlay.addEventListener('transitionend', function() {
+                    window.location.href = navLink.href;
+                });
+            });
+        })();
+
         // --- 0. 配置中心 ---
         const DEFAULT_TITLE = '思诺 · Gladys';
         // 如果你绑定了 api.snow-gladys.com，请使用下面第一行

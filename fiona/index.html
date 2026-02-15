@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@700&display=swap" rel="stylesheet">
-    <title>思诺 · Gladys</title>
+    <title>Fiona · 心宜</title>
     <style>
-        /* --- 基础设置 --- */
+        /* --- 基础设置（粉色主题）--- */
         :root {
-            --neon-blue: #00f3ff;
-            --neon-purple: #bc13fe;
-            --bg-color: #050505;
+            --theme-pink: #f472a8;
+            --theme-pink-dark: #c45a85;
+            --bg-color: #0d0508;
         }
         
         body, html {
@@ -51,8 +51,8 @@
             width: 100%;
             height: 100%;
             background: 
-                radial-gradient(circle at center, rgba(26, 26, 46, 0.5) 0%, rgba(0, 0, 0, 1) 100%),
-                url('./imgs/bg_texture.png') no-repeat center center/cover;
+                radial-gradient(circle at center, rgba(60, 20, 40, 0.5) 0%, rgba(0, 0, 0, 1) 100%),
+                url('../imgs/bg_xinyi.png') no-repeat center center/cover;
             z-index: 1;
         }
 
@@ -68,8 +68,8 @@
             border-radius: 50%;
             overflow: hidden;
             z-index: 3;
-            filter: drop-shadow(0 0 15px rgba(0, 243, 255, 0.4));
-            background: url('./imgs/snow_char.png') no-repeat center center/cover;
+            filter: drop-shadow(0 0 15px rgba(244, 114, 168, 0.4));
+            background: url('../imgs/xinyi_char.png') no-repeat center center/cover;
             box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.9);
             display: flex;
             align-items: center;
@@ -83,7 +83,7 @@
         /* 旋转动画 + 中心镂空（在唱片上挖洞，中间真正透明） */
         .character-img.is-playing {
             animation: spin-record 10s linear infinite;
-            filter: drop-shadow(0 0 25px rgba(0, 243, 255, 0.7));
+            filter: drop-shadow(0 0 25px rgba(244, 114, 168, 0.7));
             /* 中心约 10% 半径挖空，与下方 .center-hole 大小一致 */
             mask-image: radial-gradient(circle at 50% 50%, transparent 14.3%, black 10%);
             -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 14.3%, black 10%);
@@ -99,12 +99,12 @@
             transform: translate(-50%, -50%) scale(0);
             background: transparent; /* 镂空，中心不涂黑，文字层可透出 */
             border-radius: 50%;
-            border: 2px solid var(--neon-blue);
+            border: 2px solid var(--theme-pink);
             overflow: hidden;
             z-index: 5;
             opacity: 0;
             transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            box-shadow: 0 0 15px var(--neon-blue);
+            box-shadow: 0 0 15px var(--theme-pink);
             pointer-events: none;
         }
 
@@ -141,7 +141,7 @@
             font-weight: 900;
             letter-spacing: 10px;
             color: white;
-            text-shadow: 2px 2px var(--neon-purple);
+            text-shadow: 2px 2px var(--theme-pink-dark);
         }
 
         .subtitle {
@@ -150,7 +150,7 @@
             font-size: 1.5rem;
             letter-spacing: 5px;
             margin-top: -20px;
-            color: var(--neon-blue);
+            color: var(--theme-pink);
             text-transform: uppercase;
         }
 
@@ -159,10 +159,10 @@
         .view-home .home-buttons { position: absolute; bottom: 14%; left: 50%; transform: translateX(-50%); display: flex; flex-direction: row; gap: 16px; z-index: 95; }
         .view-home .home-btn {
             padding: 14px 28px; font-size: 1.1rem; font-family: 'Rajdhani', 'Microsoft YaHei', sans-serif; font-weight: 700;
-            letter-spacing: 3px; color: var(--neon-blue); background: rgba(0, 0, 0, 0.5); border: 1px solid var(--neon-blue);
+            letter-spacing: 3px; color: var(--theme-pink); background: rgba(0, 0, 0, 0.5); border: 1px solid var(--theme-pink);
             border-left-width: 5px; cursor: pointer; transition: all 0.25s; backdrop-filter: blur(5px);
         }
-        .view-home .home-btn:hover { background: var(--neon-blue); color: #000; box-shadow: 0 0 20px var(--neon-blue); }
+        .view-home .home-btn:hover { background: var(--theme-pink); color: #000; box-shadow: 0 0 20px var(--theme-pink); }
         .view-playlist {
             position: fixed; inset: 0; z-index: 500; display: none; align-items: center; justify-content: center;
             padding: 12px; box-sizing: border-box; pointer-events: none;
@@ -173,33 +173,33 @@
         }
         .playlist-panel {
             position: relative; width: 100%; max-width: 420px; max-height: 75vh; overflow: hidden;
-            background: rgba(10, 10, 20, 0.85); border: 1px solid var(--neon-blue); border-left: 5px solid var(--neon-blue);
-            border-radius: 8px; backdrop-filter: blur(12px); box-shadow: 0 0 40px rgba(0, 243, 255, 0.15);
+            background: rgba(10, 10, 20, 0.85); border: 1px solid var(--theme-pink); border-left: 5px solid var(--theme-pink);
+            border-radius: 8px; backdrop-filter: blur(12px); box-shadow: 0 0 40px rgba(244, 114, 168, 0.15);
             display: flex; flex-direction: column; pointer-events: auto;
         }
         .playlist-header {
-            padding: 10px 14px; border-bottom: 1px solid rgba(0, 243, 255, 0.3);
-            font-size: 0.7rem; letter-spacing: 3px; color: var(--neon-blue); text-transform: uppercase;
+            padding: 10px 14px; border-bottom: 1px solid rgba(244, 114, 168, 0.3);
+            font-size: 0.7rem; letter-spacing: 3px; color: var(--theme-pink); text-transform: uppercase;
         }
         .playlist-search-wrap {
-            position: relative; padding: 10px 14px; border-bottom: 1px solid rgba(0, 243, 255, 0.25); flex-shrink: 0;
+            position: relative; padding: 10px 14px; border-bottom: 1px solid rgba(244, 114, 168, 0.25); flex-shrink: 0;
             display: flex; align-items: center; gap: 8px;
         }
         .playlist-search-wrap::before { content: '🔍'; position: absolute; left: 22px; top: 50%; transform: translateY(-50%); font-size: 1rem; opacity: 0.7; pointer-events: none; }
         .playlist-search { flex: 1; min-width: 0;
             padding: 10px 14px; padding-left: 36px; box-sizing: border-box;
             font-size: 0.95rem; font-family: 'Rajdhani', 'Microsoft YaHei', sans-serif;
-            color: #fff; background: rgba(0, 243, 255, 0.06); border: 1px solid rgba(0, 243, 255, 0.4);
+            color: #fff; background: rgba(244, 114, 168, 0.06); border: 1px solid rgba(244, 114, 168, 0.4);
             border-radius: 6px; outline: none; transition: border-color 0.2s, box-shadow 0.2s;
         }
         .playlist-search::placeholder { color: rgba(255, 255, 255, 0.4); }
-        .playlist-search:focus { border-color: var(--neon-blue); box-shadow: 0 0 12px rgba(0, 243, 255, 0.2); }
+        .playlist-search:focus { border-color: var(--theme-pink); box-shadow: 0 0 12px rgba(244, 114, 168, 0.2); }
         .playlist-filter-btn {
-            flex-shrink: 0; width: 40px; height: 40px; border-radius: 6px; border: 1px solid rgba(0, 243, 255, 0.4);
-            background: rgba(0, 243, 255, 0.06); color: var(--neon-blue); cursor: pointer; display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0; width: 40px; height: 40px; border-radius: 6px; border: 1px solid rgba(244, 114, 168, 0.4);
+            background: rgba(244, 114, 168, 0.06); color: var(--theme-pink); cursor: pointer; display: flex; align-items: center; justify-content: center;
             transition: all 0.2s;
         }
-        .playlist-filter-btn:hover { background: rgba(0, 243, 255, 0.15); }
+        .playlist-filter-btn:hover { background: rgba(244, 114, 168, 0.15); }
         .playlist-filter-btn .icon-svg { width: 20px; height: 20px; }
         .playlist-filter-btn .icon-star-filled { display: none; }
         .playlist-filter-btn.active .icon-star-outline { display: none; }
@@ -214,9 +214,9 @@
             transition: background 0.2s, color 0.2s; border-left: 3px solid transparent;
         }
         .playlist-item .playlist-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .playlist-item .playlist-item-star { flex-shrink: 0; color: var(--neon-blue); font-size: 0.75rem; opacity: 0.9; }
-        .playlist-item:hover { background: rgba(0, 243, 255, 0.08); color: var(--neon-blue); }
-        .playlist-item.current { color: var(--neon-blue); border-left-color: var(--neon-blue); background: rgba(0, 243, 255, 0.12); }
+        .playlist-item .playlist-item-star { flex-shrink: 0; color: var(--theme-pink); font-size: 0.75rem; opacity: 0.9; }
+        .playlist-item:hover { background: rgba(244, 114, 168, 0.08); color: var(--theme-pink); }
+        .playlist-item.current { color: var(--theme-pink); border-left-color: var(--theme-pink); background: rgba(244, 114, 168, 0.12); }
         .view-play {
             position: absolute; inset: 0; z-index: 20; display: none; flex-direction: column; align-items: center; justify-content: flex-end;
             padding-bottom: 8%; pointer-events: none;
@@ -226,43 +226,43 @@
         .play-song-name {
             position: absolute; left: 50%; transform: translateX(-50%); width: 92%; text-align: center;
             bottom: 24%; font-family: 'Rajdhani', 'Microsoft YaHei', sans-serif; font-weight: 700; font-size: 1.85rem;
-            color: var(--neon-blue); text-shadow: 0 0 20px rgba(0, 243, 255, 0.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            color: var(--theme-pink); text-shadow: 0 0 20px rgba(244, 114, 168, 0.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
         .play-progress-wrap {
             width: 88%; max-width: 380px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
         }
-        .play-progress-wrap .time { font-family: 'Courier New', monospace; font-size: 0.8rem; color: var(--neon-blue); min-width: 2.8em; text-align: center; }
+        .play-progress-wrap .time { font-family: 'Courier New', monospace; font-size: 0.8rem; color: var(--theme-pink); min-width: 2.8em; text-align: center; }
         .play-progress-wrap .progress-bar {
             flex: 1; min-width: 0; height: 6px; -webkit-appearance: none; appearance: none;
             background: transparent; border-radius: 3px; outline: none; padding: 0; margin: 0;
         }
         .play-progress-wrap .progress-bar::-webkit-slider-runnable-track {
             height: 6px; border-radius: 3px; margin: 0;
-            background: linear-gradient(to right, var(--neon-blue) 0%, var(--neon-blue) var(--progress, 0%), rgba(0, 243, 255, 0.15) var(--progress, 0%));
+            background: linear-gradient(to right, var(--theme-pink) 0%, var(--theme-pink) var(--progress, 0%), rgba(244, 114, 168, 0.15) var(--progress, 0%));
         }
         .play-progress-wrap .progress-bar::-webkit-slider-thumb {
             -webkit-appearance: none; width: 14px; height: 14px; margin-top: -4px; border-radius: 50%;
-            background: var(--neon-blue); cursor: pointer; box-shadow: 0 0 8px var(--neon-blue);
+            background: var(--theme-pink); cursor: pointer; box-shadow: 0 0 8px var(--theme-pink);
         }
         .play-progress-wrap .progress-bar::-moz-range-track {
-            height: 6px; border-radius: 3px; background: rgba(0, 243, 255, 0.15);
+            height: 6px; border-radius: 3px; background: rgba(244, 114, 168, 0.15);
         }
         .play-progress-wrap .progress-bar::-moz-range-progress {
-            height: 6px; border-radius: 3px; background: var(--neon-blue);
+            height: 6px; border-radius: 3px; background: var(--theme-pink);
         }
         .play-progress-wrap .progress-bar::-moz-range-thumb {
-            width: 14px; height: 14px; border-radius: 50%; background: var(--neon-blue); cursor: pointer; border: none;
-            box-shadow: 0 0 8px var(--neon-blue);
+            width: 14px; height: 14px; border-radius: 50%; background: var(--theme-pink); cursor: pointer; border: none;
+            box-shadow: 0 0 8px var(--theme-pink);
         }
         .play-controls {
             display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap;
         }
         .play-controls .btn-icon {
-            width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--neon-blue); background: rgba(0, 243, 255, 0.08);
-            color: var(--neon-blue); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+            width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--theme-pink); background: rgba(244, 114, 168, 0.08);
+            color: var(--theme-pink); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;
         }
         .play-controls .btn-icon .icon-svg { width: 22px; height: 22px; flex-shrink: 0; }
-        .play-controls .btn-icon:hover { background: var(--neon-blue); color: #000; }
+        .play-controls .btn-icon:hover { background: var(--theme-pink); color: #000; }
         .play-controls .btn-icon.btn-play { width: 52px; height: 52px; }
         .play-controls .btn-icon.btn-play .icon-svg { width: 28px; height: 28px; }
         .play-controls .btn-icon.btn-play .icon-pause { display: none; }
@@ -273,10 +273,10 @@
         .play-controls .btn-icon.btn-fav.is-fav .icon-star-filled { display: block; }
         .play-controls .btn-mode-cycle {
             padding: 8px 14px; min-width: 56px; font-size: 0.75rem; font-family: 'Rajdhani', sans-serif; font-weight: 700;
-            border: 1px solid var(--neon-blue); background: rgba(0, 243, 255, 0.1); color: var(--neon-blue); cursor: pointer;
+            border: 1px solid var(--theme-pink); background: rgba(244, 114, 168, 0.1); color: var(--theme-pink); cursor: pointer;
             border-radius: 6px; transition: all 0.2s;
         }
-        .play-controls .btn-mode-cycle:hover { background: rgba(0, 243, 255, 0.2); }
+        .play-controls .btn-mode-cycle:hover { background: rgba(244, 114, 168, 0.2); }
 
         /* 网页端：拉大歌名与唱片、进度条与按钮的间距，不影响移动端 */
         @media (min-width: 769px) {
@@ -306,8 +306,8 @@
             z-index: 110;
             pointer-events: auto;
             background: rgba(0, 0, 0, 0.6);
-            border: 1px solid var(--neon-blue);
-            border-left: 5px solid var(--neon-blue);
+            border: 1px solid var(--theme-pink);
+            border-left: 5px solid var(--theme-pink);
             padding: 5px;
             text-align: left;
             backdrop-filter: blur(5px);
@@ -319,7 +319,7 @@
             font-size: 1.4rem;
             font-family: 'Rajdhani', 'Microsoft YaHei', sans-serif;
             font-weight: bold;
-            color: var(--neon-blue);
+            color: var(--theme-pink);
             text-decoration: none;
             text-transform: uppercase;
             letter-spacing: 4px;
@@ -330,11 +330,11 @@
 
         .cta-btn:hover {
             color: #000;
-            background: var(--neon-blue);
+            background: var(--theme-pink);
             margin: 0 -15px;
             padding-left: 15px;
             padding-right: 15px;
-            box-shadow: 0 0 20px rgba(0, 243, 255, 0.4);
+            box-shadow: 0 0 20px rgba(244, 114, 168, 0.4);
         }
 
         @keyframes spin-record {
@@ -345,8 +345,8 @@
         /* --- 统计面板 --- */
         .stats-panel {
             position: absolute; top: 5%; right: 5%; width: 160px;
-            background: rgba(0, 0, 0, 0.6); border: 1px solid var(--neon-blue);
-            padding: 10px 12px; text-align: right; border-right: 4px solid var(--neon-blue);
+            background: rgba(0, 0, 0, 0.6); border: 1px solid var(--theme-pink);
+            padding: 10px 12px; text-align: right; border-right: 4px solid var(--theme-pink);
             pointer-events: auto; backdrop-filter: blur(5px); z-index: 110;
         }
 
@@ -355,7 +355,7 @@
         }
         .stats-number {
             font-family: 'Courier New', monospace; font-size: 1.85rem;
-            font-weight: bold; color: var(--neon-blue);
+            font-weight: bold; color: var(--theme-pink);
         }
 
         /* --- 移动端适配 --- */
@@ -403,7 +403,7 @@
         <!-- 主页面：图片、文字、粉丝数、两个按钮 -->
         <div class="view-home" id="view-home">
             <div class="layer ui-layer">
-                <h1 class="glitch-title">思诺 Gladys</h1>
+                <h1 class="glitch-title">Fiona 心宜</h1>
                 <p class="subtitle">Z.J. ENTERTAINMENT</p>
             </div>
             <div class="stats-panel">
@@ -476,8 +476,8 @@
         
         async function fetchFanCount() {
             try {
-                const VMID_SINUO = '3537115310721781';
-                const response = await fetch(`${API_BASE}/fans?vmid=${VMID_SINUO}`);
+                const VMID_XINYI = '3537115310721181';
+                const response = await fetch(`${API_BASE}/fans?vmid=${VMID_XINYI}`);
                 if (!response.ok) throw new Error();
                 
                 const data = await response.json();
@@ -492,7 +492,7 @@
         fetchFanCount(); // 立即运行一次
 
         // --- 1.5 收藏 Cookie（尽量长久保存：每次进入与每次改动都重写 cookie 续期）---
-        const FAV_COOKIE = 'sg_fav';
+        const FAV_COOKIE = 'sg_fav_fiona';
         const FAV_MAX_AGE = 365 * 24 * 60 * 60; // 1 年
         let favoritesSet = new Set();
 
@@ -630,116 +630,88 @@
         async function loadSongs() {
             const fallbackList = [
   {
-    "name": "探窗",
-    "bvid": "BV1Sf421Q7Rt"
+    "name": "Enchanted",
+    "bvid": "BV1ZTZ7B9ERQ"
   },
   {
-    "name": "如果可以",
-    "bvid": "BV1Cn4y1o7yG"
+    "name": "麦恩莉",
+    "bvid": "BV1kfZjBFE29"
   },
   {
-    "name": "天空没有极限",
-    "bvid": "BV1SM4m1U7SL"
+    "name": "今天你要嫁给我",
+    "bvid": "BV1wFZ7B8Exe"
   },
   {
-    "name": "开往早晨的午夜",
-    "bvid": "BV1MM4m1U7ve"
+    "name": "十七岁",
+    "bvid": "BV1qHFLzWEdx"
   },
   {
-    "name": "明月天涯",
-    "bvid": "BV1E1421b7h9"
+    "name": "四季",
+    "bvid": "BV1BHFLzWEbg"
   },
   {
-    "name": "乘风",
-    "bvid": "BV1K6421f7kA"
+    "name": "K歌之王",
+    "bvid": "BV1qpFLzXEcj"
   },
   {
-    "name": "风情万种",
-    "bvid": "BV1s6421f7Pj"
+    "name": "My Love",
+    "bvid": "BV17pFLzXEEn"
   },
   {
-    "name": "百利甜",
-    "bvid": "BV1x2421Z7tm"
+    "name": "Bésame Mucho",
+    "bvid": "BV17pFLzXEHx"
   },
   {
-    "name": "绝不绝",
-    "bvid": "BV1Ef421B7SU"
+    "name": "la vie en rose",
+    "bvid": "BV1jpFLzXEZo"
   },
   {
-    "name": "像你这样的朋友",
-    "bvid": "BV1U4421Z7Yj"
+    "name": "Take Me To Your Heart",
+    "bvid": "BV1FEFLz4EwH"
   },
   {
-    "name": "画心",
-    "bvid": "BV1Qf421q76D"
+    "name": "开不了口",
+    "bvid": "BV1t16tBoEn3"
   },
   {
-    "name": "苦茶（男声版）",
-    "bvid": "BV1n5steeET8"
+    "name": "人质",
+    "bvid": "BV1yP62BqEzM"
   },
   {
-    "name": "苦茶（女声版）",
-    "bvid": "BV1r5steeEKU"
+    "name": "Back to December",
+    "bvid": "BV1pK6GBuEXo"
   },
   {
-    "name": "女儿情",
-    "bvid": "BV1FLsNevENy"
+    "name": "下一站天后",
+    "bvid": "BV1pK6GBuE6z"
   },
   {
-    "name": "暮色回响",
-    "bvid": "BV1S7pteyEUc"
+    "name": "雪落下的声音",
+    "bvid": "BV1CK6GBMEeE"
   },
   {
-    "name": "水星记",
-    "bvid": "BV1TotneYEuJ"
+    "name": "冬天里的一把火",
+    "bvid": "BV1rT6GBqEoi"
   },
   {
-    "name": "如愿",
-    "bvid": "BV1qhx4eoEWV"
+    "name": "不如跳舞",
+    "bvid": "BV1fhzxBvEVQ"
   },
   {
-    "name": "小美满",
-    "bvid": "BV1X2SBYfEeg"
+    "name": "小步舞曲",
+    "bvid": "BV1GokEBLEJA"
   },
   {
-    "name": "爱情",
-    "bvid": "BV1T3zmYJEz9"
+    "name": "偿还",
+    "bvid": "BV1cJkJB8EHe"
   },
   {
-    "name": "11",
-    "bvid": "BV1BtqdYQEae"
-  },
-  {
-    "name": "圣诞结",
-    "bvid": "BV1GskZYcEfp"
-  },
-  {
-    "name": "虚构",
-    "bvid": "BV1zzc2edEyX"
-  },
-  {
-    "name": "世界赠予我的",
-    "bvid": "BV19JwoeVEuw"
-  },
-  {
-    "name": "绝世舞姬",
-    "bvid": "BV1hMTvzJEo9"
-  },
-  {
-    "name": "起风了",
-    "bvid": "BV1WvK2zqEBo"
-  },
-  {
-    "name": "爱的天灵灵",
-    "bvid": "BV1TPgPzYE4S"
-  },
-  {
-    "name": "逆光",
-    "bvid": "BV1fv61B4Evn"
+    "name": "遇见你的时候所有星星都落在我头上",
+    "bvid": "BV1H9k4BJEBG"
   }
 ];
             try {
-                const res = await fetch('./songs.json');
+                const res = await fetch('./songs_fiona.json');
                 if (!res.ok) throw new Error(res.status);
                 const data = await res.json();
                 if (Array.isArray(data) && data.length > 0) {
@@ -749,7 +721,7 @@
                 }
                 renderPlaylist();
             } catch (e) {
-                console.warn('歌单加载失败，使用默认列表:', e);
+                console.warn('Fiona 歌单加载失败，使用空列表:', e);
                 songList = fallbackList;
                 renderPlaylist();
             }

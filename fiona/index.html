@@ -342,6 +342,14 @@
             to { transform: rotate(calc(var(--start-deg, 0deg) + 360deg)); }
         }
 
+        /* --- 左上角：跳转另一播放器 --- */
+        .nav-emoji-link {
+            position: absolute; top: 5%; left: 5%; z-index: 200;
+            font-size: 1.8rem; line-height: 1; text-decoration: none; cursor: pointer;
+            opacity: 0.85; transition: opacity 0.2s;
+        }
+        .nav-emoji-link:hover { opacity: 1; }
+
         /* --- 统计面板 --- */
         .stats-panel {
             position: absolute; top: 5%; right: 5%; width: 160px;
@@ -399,6 +407,8 @@
                 </div>
             </div>
         </div>
+
+        <a class="nav-emoji-link" href="../" title="去思诺">🦁</a>
 
         <!-- 主页面：图片、文字、粉丝数、两个按钮 -->
         <div class="view-home" id="view-home">

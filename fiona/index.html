@@ -156,7 +156,8 @@
 
         /* --- 视图切换：首页 z-index 高于唱片层，文字叠在图片上且唱片不可点 --- */
         .view-home { position: absolute; inset: 0; z-index: 20; pointer-events: auto; }
-        .view-home .home-buttons { position: absolute; bottom: 14%; left: 50%; transform: translateX(-50%); display: flex; flex-direction: row; gap: 16px; z-index: 95; }
+        .view-home .home-buttons { position: absolute; bottom: 14%; left: 50%; transform: translateX(-50%); display: flex; flex-direction: row; align-items: center; gap: 16px; z-index: 95; }
+        .view-home .home-btn-fav { margin-left: auto; }
         .view-home .home-btn {
             padding: 14px 28px; font-size: 1.1rem; font-family: 'Rajdhani', 'Microsoft YaHei', sans-serif; font-weight: 700;
             letter-spacing: 3px; color: var(--theme-pink); background: rgba(0, 0, 0, 0.5); border: 1px solid var(--theme-pink);
@@ -288,6 +289,7 @@
 
         @media (max-width: 768px) {
             .view-home .home-buttons { flex-direction: column; bottom: 24%; gap: 12px; }
+            .view-home .home-btn-fav { margin-left: 0; }
             .view-home .home-btn { padding: 12px 22px; font-size: 1rem; }
             .view-play { padding-bottom: 30%; }
             .play-song-name { font-size: 1.5rem; bottom: 36%; }
@@ -381,6 +383,7 @@
             .stats-panel .stats-label { font-size: 0.6rem; }
             .stats-number { font-size: 1.35rem; }
             .view-home .home-buttons { flex-direction: column; bottom: 24%; gap: 12px; }
+            .view-home .home-btn-fav { margin-left: 0; }
             .view-home .home-btn { padding: 10px 20px; font-size: 0.95rem; min-width: 160px; }
             .view-play { padding-bottom: 30%; }
             .view-play .play-song-name { font-size: 1.35rem; bottom: 36%; }
@@ -429,6 +432,7 @@
             <div class="home-buttons">
                 <button type="button" class="home-btn" id="btn-open-playlist">查看歌单</button>
                 <button type="button" class="home-btn" id="btn-play-random">随机一首</button>
+                <button type="button" class="home-btn home-btn-fav" id="btn-play-favorites" style="display: none;">播放收藏</button>
             </div>
         </div>
 
@@ -572,15 +576,22 @@
                 return;
             }
             if (favoritesSet.size === 0 && playMode === 'favorites' && btnModeCycle) setPlayMode('list');
+            updatePlayFavoritesButton();
         }
 
         function isFavorite(bvid) {
             return !!(bvid && favoritesSet.has((bvid || '').toUpperCase()));
         }
 
+        function updatePlayFavoritesButton() {
+            const btn = document.getElementById('btn-play-favorites');
+            if (btn) btn.style.display = favoritesSet.size > 0 ? '' : 'none';
+        }
+
         // 进入网站时读 cookie 并重写一次以延长过期
         favoritesSet = getFavoritesFromCookie();
         if (favoritesSet.size) saveFavoritesToCookie();
+        updatePlayFavoritesButton();
 
         // --- 1.6 歌单与视图 ---
         let songList = [];
@@ -774,6 +785,13 @@
             if (!songList.length) return;
             const i = getRandomIndex(songList.length, -1);
             playMusic(songList[i].bvid || '');
+            showView('play');
+        });
+        document.getElementById('btn-play-favorites').addEventListener('click', () => {
+            const favList = getFavoritesList();
+            if (!favList.length) return;
+            setPlayMode('favorites');
+            playMusic(favList[0].bvid || '');
             showView('play');
         });
         playlistBackdrop.addEventListener('click', closePlaylist);

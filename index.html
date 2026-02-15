@@ -476,6 +476,7 @@
 
     <script>
         // --- 0. 配置中心 ---
+        const DEFAULT_TITLE = '思诺 · Gladys';
         // 如果你绑定了 api.snow-gladys.com，请使用下面第一行
         const API_BASE = 'https://api.snow-gladys.com'; 
         // 如果没绑定成功，暂时用 Worker 原生地址：
@@ -930,6 +931,7 @@
                 btnPlayPause.classList.toggle('is-playing', !bgmAudio.paused);
                 btnPlayPause.title = bgmAudio.paused ? '播放' : '暂停';
             }
+            updateDocumentTitle();
         }
 
         function updatePlaySongName() {
@@ -941,6 +943,17 @@
                 playSongNameEl.textContent = currentPlayingBvid ? '…' : '—';
             }
             updateFavButton();
+            updateDocumentTitle();
+        }
+
+        function updateDocumentTitle() {
+            if (currentPlayingBvid && !bgmAudio.paused) {
+                const idx = getCurrentIndex();
+                const name = (idx >= 0 && songList[idx]) ? (songList[idx].name || songList[idx].title || '—') : '…';
+                document.title = name + ' · 思诺';
+            } else {
+                document.title = DEFAULT_TITLE;
+            }
         }
 
         // 播放函数

@@ -703,11 +703,11 @@
         function getSettingsFromCookie() {
             try {
                 const raw = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith(SETTINGS_COOKIE + '='));
-                if (!raw) return { showMain: true, showLive: true, showCustom: false };
+                if (!raw) return { showMain: true, showLive: false, showCustom: false };
                 const value = decodeURIComponent((raw.indexOf('=') >= 0 ? raw.substring(raw.indexOf('=') + 1) : '').trim());
                 const o = JSON.parse(value || '{}');
-                return { showMain: o.showMain !== false, showLive: o.showLive !== false, showCustom: !!o.showCustom };
-            } catch (e) { return { showMain: true, showLive: true, showCustom: false }; }
+                return { showMain: o.showMain !== false, showLive: o.showLive === true, showCustom: !!o.showCustom };
+            } catch (e) { return { showMain: true, showLive: false, showCustom: false }; }
         }
 
         function saveSettingsToCookie(settings) {

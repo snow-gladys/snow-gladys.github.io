@@ -1011,14 +1011,15 @@
             return /^BV[a-zA-Z0-9]{10}$/.test(String(bvid || '').trim());
         }
 
+        /** 通过 Worker /valid 校验 BVID 是否存在。返回值: 'valid' | 'invalid' | 'unknown' */
         async function validateBvidExists(bvid) {
             const b = String(bvid || '').trim().toUpperCase();
             if (!isValidBvidFormat(b)) return 'invalid';
             try {
-                const res = await fetch('https://api.bilibili.com/x/web-interface/view?bvid=' + encodeURIComponent(b), { method: 'GET' });
+                const res = await fetch(`${API_BASE}/valid?bvid=${encodeURIComponent(b)}`, { method: 'GET' });
                 const json = await res.json().catch(() => ({}));
-                if (json && json.code === 0) return 'valid';
-                if (json && json.code !== undefined) return 'invalid';
+                if (json && json.valid === true) return 'valid';
+                if (json && json.valid === false) return 'invalid';
                 return 'unknown';
             } catch (e) { return 'unknown'; }
         }

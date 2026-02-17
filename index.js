@@ -955,8 +955,33 @@
         }
 
         // --- 2. 纯音乐播放逻辑 (核心) ---
-        const bgmAudio = new Audio();
+        let bgmAudio = new Audio();
         bgmAudio.crossOrigin = "anonymous"; // 允许跨域
+        let globalPreloadAudio = new Audio(); // 全局预加载对象
+
+        // 封装事件监听绑定逻辑，因为每次"偷梁换柱"后都需要重新绑定
+        function bindAudioEvents(audioObj) {
+            // 移除旧的监听器（虽然新对象没有监听器，但这是一个好习惯）
+            audioObj.removeEventListener('timeupdate', updateProgressDisplay);
+            audioObj.removeEventListener('loadedmetadata', updateProgressDisplay);
+            audioObj.removeEventListener('ended', handleAudioEnded); // 注意这里抽离了 ended
+
+            // 绑定新的
+            audioObj.addEventListener('timeupdate', updateProgressDisplay);
+            audioObj.addEventListener('loadedmetadata', updateProgressDisplay);
+            audioObj.addEventListener('ended', handleAudioEnded);
+        }
+
+        // 单独抽离 ended 处理函数，方便绑定
+        function handleAudioEnded() {
+            updateProgressDisplay();
+            stopVisuals();
+            updatePlayPauseIcon();
+            playNextByMode();
+        }
+
+        // 初始化绑定
+        bindAudioEvents(bgmAudio);
         
         const characterImg = document.querySelector('.character-img');
         let currentPlayingBvid = '';  // 当前播放的 bvid
@@ -966,6 +991,8 @@
         let preloadCache = null;
         let preloadInFlight = null;
         let preloadScheduledForBvid = null;
+        /** 随机模式下「已确定的下一首」bvid，与预加载一致，保证能命中缓存 */
+        let nextRandomBvid = null;
 
         /** 延时 ms 毫秒 */
         function sleep(ms) {
@@ -1088,6 +1115,7 @@
         const MODE_LABELS = { list: '列表循环', single: '单曲循环', random: '随机播放', favorites: '播放收藏' };
         function setPlayMode(mode) {
             playMode = mode;
+            if (mode !== 'random') nextRandomBvid = null;
             if (btnModeCycle) {
                 btnModeCycle.textContent = MODE_LABELS[mode] || mode;
                 btnModeCycle.title = mode === 'favorites' ? '收藏列表循环' : mode === 'list' ? '列表循环' : mode === 'single' ? '单曲循环' : '随机播放';
@@ -1158,6 +1186,7 @@
         function clearPreload() {
             preloadCache = null;
             preloadInFlight = null;
+            nextRandomBvid = null;
         }
 
         /**
@@ -1171,19 +1200,32 @@
             if (preloadCache && preloadCache.bvid === nextBvid) return;
             if (preloadInFlight === nextBvid) return;
             preloadInFlight = nextBvid;
+            if (playMode === 'random') nextRandomBvid = nextBvid;
             (async function () {
                 let result = null;
                 for (let attempt = 1; attempt <= 2; attempt++) {
                     result = await fetchResolveHtml(nextBvid);
-                    if (result && result.url) break;
+                    if (result && result.url) {
+                        try {
+                            var res = await fetch(result.url, { method: 'HEAD' });
+                            if (res.status !== 403) break;
+                            console.warn('重试网址:', result.url, '返回码:', res.status);
+                        } catch (e) {
+                            console.warn('重试网址:', result.url, '返回码: 请求异常', e);
+                        }
+                    }
                     await sleep(500 + Math.random() * 500);
                 }
                 const url = result && result.url;
                 if (url && preloadInFlight === nextBvid) {
                     preloadCache = { bvid: nextBvid, url: url };
-                    var preloadAudio = new Audio();
-                    preloadAudio.preload = 'auto';
-                    preloadAudio.src = url;
+                    // var preloadAudio = new Audio();
+                    // preloadAudio.preload = 'auto';
+                    // preloadAudio.src = url;
+                    
+                    // 只加载，不播放
+                    globalPreloadAudio.src = url;
+                    globalPreloadAudio.load();
                 }
             })().catch(function () {}).then(function () {
                 if (preloadInFlight === nextBvid) preloadInFlight = null;
@@ -1217,9 +1259,15 @@
                 return;
             }
             if (playMode === 'random') {
-                const idx = getCurrentIndex();
-                const i = getRandomIndex(songList.length, idx);
-                playMusic(songList[i].bvid || '');
+                if (nextRandomBvid) {
+                    const b = nextRandomBvid;
+                    nextRandomBvid = null;
+                    playMusic(b);
+                } else {
+                    const idx = getCurrentIndex();
+                    const i = getRandomIndex(songList.length, idx);
+                    playMusic(songList[i].bvid || '');
+                }
                 return;
             }
             if (playMode === 'favorites') {
@@ -1266,15 +1314,20 @@
         async function playMusic(bvid) {
             if (!bvid) return;
             preloadScheduledForBvid = null;
+
+            // 标记：是否使用了预加载对象
+            let usePreloadObject = false;
             var initialUrl = null;
 
             if (preloadCache && (preloadCache.bvid || '').toUpperCase() === (bvid || '').toUpperCase()) {
                 initialUrl = preloadCache.url;
                 preloadCache = null;
+                usePreloadObject = true; // 命中缓存
             }
             clearPreload();
 
             var realUrl = await getLoadableRealUrl(bvid, initialUrl);
+
             if (!realUrl) {
                 handlePlayError(bvid);
                 return;
@@ -1282,8 +1335,30 @@
 
             currentPlayingBvid = bvid;
 
-            bgmAudio.src = realUrl;
-            bgmAudio.volume = 0.5;
+            if (usePreloadObject && realUrl === initialUrl) {
+                bgmAudio.pause();
+                let oldAudio = bgmAudio;
+                bgmAudio = globalPreloadAudio;
+
+                bindAudioEvents(bgmAudio);
+
+                bgmAudio.volume = 0.5;
+                bgmAudio.crossOrigin = "anonymous";
+
+                globalPreloadAudio = new Audio();
+
+                // 销毁旧对象前先移除其事件监听，否则清空 src 时可能触发 ended，导致多切一首
+                oldAudio.removeEventListener('timeupdate', updateProgressDisplay);
+                oldAudio.removeEventListener('loadedmetadata', updateProgressDisplay);
+                oldAudio.removeEventListener('ended', handleAudioEnded);
+                oldAudio.src = "";
+                oldAudio.load();
+                oldAudio = null;
+            } else {
+                // 没命中预加载
+                bgmAudio.src = realUrl;
+                bgmAudio.volume = 0.5;
+            }
             
             updateProgressDisplay();
             updatePlaySongName();
@@ -1293,7 +1368,7 @@
                 startVisuals(bvid);
                 updatePlayPauseIcon();
             } catch (err) {
-                console.error("播放失败，尝试救急处理:", err);
+                console.error("播放失败:", err);
                 // 预加载的链接失效了，尝试重新获取一次 Proxy 链接
                 if (realUrl === initialUrl) {
                     console.log("预加载链接似乎失效，尝试重新获取链接...");
@@ -1337,9 +1412,7 @@
             characterImg.style.setProperty('transform', 'rotate(' + deg + 'deg)');
         }
 
-        // 播放条与时间
-        bgmAudio.addEventListener('timeupdate', updateProgressDisplay);
-        bgmAudio.addEventListener('loadedmetadata', updateProgressDisplay);
+        // 播放条与时间（timeupdate/loadedmetadata/ended 已由 bindAudioEvents 统一绑定，此处不再重复）
 
         // 拖动进度条跳转
         if (progressBarEl) progressBarEl.addEventListener('input', () => {
@@ -1349,14 +1422,6 @@
                 bgmAudio.currentTime = p * d;
                 progressBarEl.style.setProperty('--progress', progressBarEl.value + '%');
             }
-        });
-
-        // 音频结束
-        bgmAudio.addEventListener('ended', () => {
-            updateProgressDisplay();
-            stopVisuals();
-            updatePlayPauseIcon();
-            playNextByMode();
         });
 
         // 播放/暂停按钮
@@ -1441,9 +1506,15 @@
             if (!list.length) return;
             const idxEff = getCurrentIndexInEffectiveList();
             if (playMode === 'random') {
-                const idx = getCurrentIndex();
-                const i = getRandomIndex(songList.length, idx);
-                playMusic(songList[i].bvid || '');
+                if (nextRandomBvid) {
+                    const b = nextRandomBvid;
+                    nextRandomBvid = null;
+                    playMusic(b);
+                } else {
+                    const idx = getCurrentIndex();
+                    const i = getRandomIndex(songList.length, idx);
+                    playMusic(songList[i].bvid || '');
+                }
             } else {
                 const nextIdx = idxEff < 0 ? 0 : (idxEff + 1) % list.length;
                 playMusic(list[nextIdx].bvid || '');

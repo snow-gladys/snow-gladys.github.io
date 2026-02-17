@@ -23,7 +23,7 @@
 
         // --- 0. 配置中心 ---
         const DEFAULT_TITLE = '心宜 · Fiona';
-        const CURRENT_VERSION = '0.0.3(测)';
+        const CURRENT_VERSION = '0.0.4(测)';
         // 如果你绑定了 api.snow-gladys.com，请使用下面第一行
         const API_BASE = 'https://api.snow-gladys.com'; 
         // 如果没绑定成功，暂时用 Worker 原生地址：
@@ -664,6 +664,87 @@
 
         let hasNewVersionFlag = false;
 
+        // 定时关闭：最长 24 小时
+        let sleepTimerDeadline = null;      // 时间戳（ms），null 表示未设置
+        let sleepTimerTimeoutId = null;     // 真正触发关闭的定时器
+        let sleepTimerIntervalId = null;    // 每秒刷新剩余时间显示
+        const SLEEP_TIMER_MAX_MS = 24 * 60 * 60 * 1000;
+
+        function clearSleepTimerJobs() {
+            if (sleepTimerTimeoutId != null) {
+                clearTimeout(sleepTimerTimeoutId);
+                sleepTimerTimeoutId = null;
+            }
+            if (sleepTimerIntervalId != null) {
+                clearInterval(sleepTimerIntervalId);
+                sleepTimerIntervalId = null;
+            }
+        }
+
+        function updateSleepTimerLabel() {
+            const label = document.getElementById('sleep-timer-label');
+            if (!label) return;
+            if (!sleepTimerDeadline) {
+                label.textContent = '定时关闭';
+                return;
+            }
+            const remaining = sleepTimerDeadline - Date.now();
+            if (remaining <= 0) {
+                sleepTimerDeadline = null;
+                label.textContent = '定时关闭';
+                return;
+            }
+            const totalSeconds = Math.floor(remaining / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            label.textContent =
+                '定时关闭(剩余: ' +
+                minutes +
+                ' 分钟 ' +
+                (seconds < 10 ? '0' : '') +
+                seconds +
+                ' 秒)';
+        }
+
+        function applySleepTimerMs(ms) {
+            clearSleepTimerJobs();
+            sleepTimerDeadline = null;
+            if (!ms || ms <= 0) {
+                updateSleepTimerLabel();
+                return;
+            }
+            if (ms > SLEEP_TIMER_MAX_MS) ms = SLEEP_TIMER_MAX_MS;
+            sleepTimerDeadline = Date.now() + ms;
+            updateSleepTimerLabel();
+
+            sleepTimerTimeoutId = setTimeout(function () {
+                clearSleepTimerJobs();
+                sleepTimerDeadline = null;
+                updateSleepTimerLabel();
+                if (!bgmAudio.paused) {
+                    bgmAudio.pause();
+                    stopVisuals();
+                    updatePlayPauseIcon();
+                }
+                alert('定时关闭时间已到，播放已自动暂停。');
+            }, ms);
+
+            sleepTimerIntervalId = setInterval(function () {
+                if (!sleepTimerDeadline) {
+                    clearSleepTimerJobs();
+                    updateSleepTimerLabel();
+                    return;
+                }
+                if (sleepTimerDeadline - Date.now() <= 0) {
+                    clearSleepTimerJobs();
+                    sleepTimerDeadline = null;
+                    updateSleepTimerLabel();
+                    return;
+                }
+                updateSleepTimerLabel();
+            }, 1000);
+        }
+
         function initVersionIndicators() {
             const storedVersion = settings && settings.version;
             if (!storedVersion || storedVersion !== CURRENT_VERSION) {
@@ -735,6 +816,62 @@
             flipToggle('toggle-show-main', 'showMain');
             flipToggle('toggle-show-live', 'showLive');
             flipToggle('toggle-show-custom', 'showCustom');
+            // 定时关闭弹窗
+            (function initSleepTimerDialog() {
+                const btnOpen = document.getElementById('btn-open-sleep-timer');
+                const backdrop = document.getElementById('sleep-timer-backdrop');
+                const box = document.getElementById('sleep-timer-box');
+                const inputHours = document.getElementById('sleep-hours-input');
+                const inputMinutes = document.getElementById('sleep-minutes-input');
+                const btnCancel = document.getElementById('sleep-timer-cancel');
+                const btnConfirm = document.getElementById('sleep-timer-confirm');
+                if (!btnOpen || !backdrop || !box || !inputHours || !inputMinutes || !btnCancel || !btnConfirm) return;
+
+                function openDialog() {
+                    if (sleepTimerDeadline) {
+                        const remaining = Math.max(0, sleepTimerDeadline - Date.now());
+                        const totalMinutes = Math.floor(remaining / 60000);
+                        inputHours.value = Math.floor(totalMinutes / 60);
+                        inputMinutes.value = totalMinutes % 60;
+                    } else {
+                        inputHours.value = '';
+                        inputMinutes.value = '';
+                    }
+                    backdrop.classList.add('is-open');
+                    setTimeout(function () { inputMinutes.focus(); }, 0);
+                }
+
+                function closeDialog() {
+                    backdrop.classList.remove('is-open');
+                }
+
+                btnOpen.addEventListener('click', openDialog);
+                btnCancel.addEventListener('click', function () { closeDialog(); });
+                backdrop.addEventListener('click', function (e) { if (e.target === backdrop) closeDialog(); });
+                box.addEventListener('click', function (e) { e.stopPropagation(); });
+
+                const presetButtons = backdrop.querySelectorAll('.sleep-timer-preset');
+                presetButtons.forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        const mins = parseInt(btn.getAttribute('data-minutes'), 10) || 0;
+                        inputHours.value = Math.floor(mins / 60);
+                        inputMinutes.value = mins % 60;
+                    });
+                });
+
+                btnConfirm.addEventListener('click', function () {
+                    let h = parseInt(inputHours.value, 10) || 0;
+                    let m = parseInt(inputMinutes.value, 10) || 0;
+                    if (h < 0) h = 0;
+                    if (m < 0) m = 0;
+                    let totalMs = (h * 60 + m) * 60 * 1000;
+                    if (totalMs > SLEEP_TIMER_MAX_MS) {
+                        totalMs = SLEEP_TIMER_MAX_MS;
+                    }
+                    applySleepTimerMs(totalMs);
+                    closeDialog();
+                });
+            })();
 
             const btnChangelog = document.getElementById('btn-changelog');
             if (btnChangelog) btnChangelog.addEventListener('click', openChangelog);

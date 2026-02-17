@@ -456,6 +456,108 @@
         .custom-form-box .form-actions .btn-submit { background: var(--neon-blue); color: #000; border: none; }
         .custom-form-box .form-actions .btn-cancel { background: transparent; color: #aaa; border: 1px solid #666; }
 
+        /* 定时关闭 弹窗 */
+        .sleep-timer-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 615;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            box-sizing: border-box;
+        }
+        .sleep-timer-backdrop.is-open { display: flex; }
+
+        .sleep-timer-box {
+            width: 100%;
+            max-width: 320px;
+            background: rgba(10, 10, 20, 0.98);
+            border: 1px solid var(--neon-blue);
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 0 24px rgba(0, 243, 255, 0.3);
+            color: #fff;
+            font-size: 0.9rem;
+        }
+        .sleep-timer-box h4 {
+            margin: 0 0 12px;
+            font-size: 0.95rem;
+            color: var(--neon-blue);
+        }
+        .sleep-timer-input-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .sleep-timer-input-row input {
+            width: 64px;
+            padding: 6px 8px;
+            box-sizing: border-box;
+            background: rgba(0, 243, 255, 0.06);
+            border: 1px solid rgba(0, 243, 255, 0.4);
+            border-radius: 4px;
+            color: #fff;
+        }
+        .sleep-timer-presets {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+        .sleep-timer-preset {
+            padding: 4px 10px;
+            font-size: 0.8rem;
+            background: rgba(0, 243, 255, 0.08);
+            border: 1px solid var(--neon-blue);
+            color: var(--neon-blue);
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .sleep-timer-preset:hover {
+            background: var(--neon-blue);
+            color: #000;
+        }
+        .sleep-timer-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 4px;
+        }
+        .sleep-timer-btn-cancel,
+        .sleep-timer-btn-confirm {
+            padding: 6px 14px;
+            font-size: 0.85rem;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .sleep-timer-btn-cancel {
+            background: transparent;
+            color: #aaa;
+            border: 1px solid #666;
+        }
+        .sleep-timer-btn-confirm {
+            background: var(--neon-blue);
+            color: #000;
+            border: none;
+        }
+
+        .btn-sleep-open {
+            padding: 6px 12px;
+            font-size: 0.85rem;
+            background: rgba(0, 243, 255, 0.15);
+            border: 1px solid var(--neon-blue);
+            color: var(--neon-blue);
+            cursor: pointer;
+            border-radius: 6px;
+        }
+        .btn-sleep-open:hover {
+            background: var(--neon-blue);
+            color: #000;
+        }
+
         /* 自定义歌单导入导出按钮（复用添加按钮样式） */
         .btn-export-custom,
         .btn-import-custom {

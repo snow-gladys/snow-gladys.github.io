@@ -123,6 +123,10 @@
                         <label>显示自定义歌单</label>
                         <button type="button" class="settings-toggle" id="toggle-show-custom" aria-label="显示自定义歌单"></button>
                     </div>
+                    <div class="settings-row">
+                        <label id="sleep-timer-label">定时关闭</label>
+                        <button type="button" class="btn-sleep-open" id="btn-open-sleep-timer">设定时间</button>
+                    </div>
                     <div class="settings-row settings-row-changelog">
                         <button type="button" class="btn-changelog" id="btn-changelog">更新日志</button>
                     </div>
@@ -162,6 +166,27 @@
             </div>
         </div>
 
+        <!-- 定时关闭 弹窗 -->
+        <div class="sleep-timer-backdrop" id="sleep-timer-backdrop">
+            <div class="sleep-timer-box" id="sleep-timer-box">
+                <h4>设定定时关闭</h4>
+                <div class="sleep-timer-input-row">
+                    <input type="number" id="sleep-hours-input" min="0" max="24" placeholder="0"> 小时
+                    <input type="number" id="sleep-minutes-input" min="0" max="59" placeholder="0"> 分钟
+                </div>
+                <div class="sleep-timer-presets">
+                    <button type="button" class="sleep-timer-preset" data-minutes="15">15 mins</button>
+                    <button type="button" class="sleep-timer-preset" data-minutes="30">30 mins</button>
+                    <button type="button" class="sleep-timer-preset" data-minutes="45">45 mins</button>
+                    <button type="button" class="sleep-timer-preset" data-minutes="60">60 mins</button>
+                </div>
+                <div class="sleep-timer-actions">
+                    <button type="button" class="sleep-timer-btn-cancel" id="sleep-timer-cancel">取消</button>
+                    <button type="button" class="sleep-timer-btn-confirm" id="sleep-timer-confirm">设定</button>
+                </div>
+            </div>
+        </div>
+
         <!-- 更新日志弹层 -->
         <div class="changelog-backdrop" id="changelog-backdrop">
             <div class="changelog-panel">
@@ -173,7 +198,7 @@
 
     </div>
 
-    <script src="../changelog-data.js"></script>
-    <script src="index.js"></script>
+    <script src="../changelog-data.js?v=0.0.4"></script>
+    <script src="index.js?v=0.0.4"></script>
 </body>
 </html>

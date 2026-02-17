@@ -199,7 +199,17 @@
             viewHome.classList.toggle('view-home', true);
             viewHome.style.display = which === 'home' ? 'block' : 'none';
             viewPlaylist.classList.toggle('is-open', which === 'playlist');
-            viewPlay.classList.toggle('is-active', which === 'play');
+            const isPlay = which === 'play';
+            viewPlay.classList.toggle('is-active', isPlay);
+
+            // 播放页才展示黑胶并允许旋转；离开播放页时停止旋转
+            if (characterImg) {
+                characterImg.classList.toggle('in-play-view', isPlay);
+                if (!isPlay) {
+                    stopVisuals();
+                    characterImg.classList.remove('is-playing');
+                }
+            }
         }
 
         const playlistSearchEl = document.getElementById('playlist-search');
@@ -808,6 +818,7 @@
         bgmAudio.crossOrigin = "anonymous"; // 允许跨域
         
         const characterImg = document.querySelector('.character-img');
+        const vinylRing = document.querySelector('.vinyl-ring');
         let currentPlayingBvid = '';  // 当前播放的 bvid
 
         // --- 预加载：提前约 5 秒获取下一首资源，用户操作时以用户为准 ---
@@ -1109,8 +1120,9 @@
             updatePlayPauseIcon();
         }
 
-        // 视觉效果联动：暂停时保持当前角度，播放时从该角度继续转
+        // 视觉效果联动：暂停时保持当前角度，播放时从该角度继续转（整张唱片一起转）
         function startVisuals(bvid) {
+            if (!characterImg) return;
             const deg = getRecordRotationDeg(characterImg);
             characterImg.style.setProperty('--start-deg', deg + 'deg');
             characterImg.style.removeProperty('transform');
@@ -1118,6 +1130,7 @@
         }
 
         function stopVisuals() {
+            if (!characterImg) return;
             const deg = getRecordRotationDeg(characterImg);
             characterImg.classList.remove('is-playing');
             characterImg.style.setProperty('transform', 'rotate(' + deg + 'deg)');
@@ -1151,10 +1164,7 @@
                 if (bgmAudio.src) {
                     bgmAudio.play();
                     if (currentPlayingBvid) {
-                        const deg = getRecordRotationDeg(characterImg);
-                        characterImg.style.setProperty('--start-deg', deg + 'deg');
-                        characterImg.style.removeProperty('transform');
-                        characterImg.classList.add('is-playing');
+                        startVisuals(currentPlayingBvid);
                         updatePlaySongName();
                     }
                     updatePlayPauseIcon();
@@ -1240,15 +1250,16 @@
 
         // 点击圆环：暂停 / 继续（播放页）
         characterImg.addEventListener('click', () => {
+            // 只在播放页处理点击
+            if (!viewPlay.classList.contains('is-active')) return;
             if (!bgmAudio.paused) {
                 bgmAudio.pause();
                 stopVisuals();
             } else if (bgmAudio.src) {
                 bgmAudio.play();
-                const deg = getRecordRotationDeg(characterImg);
-                characterImg.style.setProperty('--start-deg', deg + 'deg');
-                characterImg.style.removeProperty('transform');
-                characterImg.classList.add('is-playing');
+                if (currentPlayingBvid) {
+                    startVisuals(currentPlayingBvid);
+                }
             }
             updatePlayPauseIcon();
         });

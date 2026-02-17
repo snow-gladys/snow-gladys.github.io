@@ -61,6 +61,7 @@
             overflow: hidden;
             z-index: 3;
             filter: drop-shadow(0 0 15px rgba(0, 243, 255, 0.4));
+            /* 首页等默认状态：整张人物图铺满圆形 */
             background: url('./imgs/snow_char.png') no-repeat center center/cover;
             box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.9);
             display: flex;
@@ -70,15 +71,53 @@
             transition: all 0.5s ease;
             position: relative;
             pointer-events: auto; /* 允许点击人物 */
+            transform-origin: 50% 50%;
         }
 
-        /* 旋转动画 + 中心镂空（在唱片上挖洞，中间真正透明） */
-        .character-img.is-playing {
+        /* 播放页时稍微缩小唱片整体尺寸 */
+        .character-img.in-play-view {
+            width: 45vh;
+            height: 45vh;
+            /* 播放页改为用内层 .character-photo 承载人物图 */
+            background: none;
+        }
+
+        /* 人物图本身：在唱片中间，再往里缩一点 */
+        .character-photo {
+            position: relative;
+            width: 70%;
+            height: 70%;
+            border-radius: 50%;
+            background: url('./imgs/snow_char.png') no-repeat center center/cover;
+            box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.9);
+            z-index: 2;
+        }
+
+        /* 首页 / 非播放页：不需要内层人物圈，直接用外层背景图 */
+        .character-img:not(.in-play-view) .character-photo {
+            display: none;
+        }
+        
+        /* 黑胶外环：包裹人物，内圈透明；默认在首页等视图隐藏，仅播放页显示 */
+        .vinyl-ring {
+            position: absolute;
+            inset: 2%;
+            background: url('./imgs/vinyl.png') no-repeat center center/contain;
+            pointer-events: none; /* 不挡点击 */
+            z-index: 1;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        /* 仅在播放页展示黑胶外环 */
+        .character-img.in-play-view .vinyl-ring {
+            opacity: 1;
+        }
+
+        /* 播放时旋转整张唱片（黑胶 + 人物一起转） */
+        .character-img.in-play-view.is-playing {
             animation: spin-record 10s linear infinite;
             filter: drop-shadow(0 0 25px rgba(0, 243, 255, 0.7));
-            /* 中心约 10% 半径挖空，与下方 .center-hole 大小一致 */
-            mask-image: radial-gradient(circle at 50% 50%, transparent 14.3%, black 10%);
-            -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 14.3%, black 10%);
         }
 
         /* 中心孔洞：镂空（透明）+ 蓝色描边，不挡文字层 */
@@ -100,10 +139,9 @@
             pointer-events: none;
         }
 
-        /* 播放时显示孔洞 */
-        .character-img.is-playing .center-hole {
-            transform: translate(-50%, -50%) scale(1);
-            opacity: 1;
+        /* 目前不再使用中心孔洞，直接隐藏 */
+        .center-hole {
+            display: none;
         }
 
         /* 视频 iframe */

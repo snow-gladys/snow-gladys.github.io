@@ -821,8 +821,8 @@
         const vinylRing = document.querySelector('.vinyl-ring');
         let currentPlayingBvid = '';  // 当前播放的 bvid
 
-        // --- 预加载：提前约 5 秒获取下一首资源，用户操作时以用户为准 ---
-        const PRELOAD_AHEAD_SEC = 5;
+        // --- 预加载：提前约 10 秒获取下一首资源，用户操作时以用户为准 ---
+        const PRELOAD_AHEAD_SEC = 10;
         let preloadCache = null;       // { bvid, url } 或 null
         let preloadInFlight = null;    // 当前正在预取的目标 bvid
         let preloadScheduledForBvid = null;  // 本首已触发过预加载，避免重复
@@ -889,65 +889,57 @@
         }
 
         /**
-         * 获取可用的 realUrl：403 来自「对 realUrl 的请求」而非 API。
-         * 策略：
-         *  - 第 1 / 2 次：用 /resolvehtml 拿直链，HEAD 探测 403，失败则重试
-         *  - 第 3 次：用 /resolve + /proxy 拿代理地址，直接返回（不再 HEAD 探测）
-         *  最多 3 次，每次间隔 400～500ms 随机。
+         * 获取可播放的 realUrl。
+         *  - 若有 initialUrl（预加载得到的直链），先对该地址做一次 HEAD 探测，非 403 则直接使用；
+         *  - 其他情况（无预加载 / 直链不可用）直接使用 resolve + proxy，保证稳定性。
          * @returns Promise<string | null> 可用的 realUrl 或 null
          */
         async function getLoadableRealUrl(bvid, initialUrl) {
             var realUrl = initialUrl || null;
-            for (var attempt = 1; attempt <= 3; attempt++) {
-                if (!realUrl) {
-                    var result;
-                    if (attempt < 3) {
-                        // 前两次：直接用 resolvehtml
-                        result = await fetchResolveHtml(bvid);
-                    } else {
-                        // 第三次：走 resolve + proxy，返回代理地址，直接给前端使用
-                        result = await fetchResolveViaProxy(bvid);
-                    }
-                    if (!result || !result.url) return null;
-                    realUrl = result.url;
-
-                    // 使用 proxy 的地址时，认为已经是自己域名上的转发，不再做 HEAD 探测
-                    if (attempt === 3) return realUrl;
-                }
+            if (realUrl) {
                 try {
                     var res = await fetch(realUrl, { method: 'HEAD' });
                     if (res.status !== 403) return realUrl;
-                    console.warn('重试网址:', realUrl, '返回码:', res.status);
+                    console.warn('预加载直链不可用，状态码:', res.status);
                 } catch (e) {
-                    console.warn('重试网址:', realUrl, '返回码: 请求异常', e);
+                    console.warn('预加载直链探测异常，将回退 proxy:', e);
                 }
                 realUrl = null;
-                if (attempt < 3) await sleep(400 + Math.random() * 100);
             }
-            return null;
+            // 无预加载或预加载直链不可用：直接走 proxy
+            var result = await fetchResolveViaProxy(bvid);
+            if (!result || !result.url) return null;
+            return result.url;
         }
 
-        /** 异步预取下一首的播放地址并缓存；若用户已切歌则结果会丢弃（预加载不探 403，实际播放时再探测与重试） */
+        /**
+         * 异步预取下一首的播放地址并缓存；
+         * 使用 resolvehtml 直链方式，最多尝试 2 次，不做 403 探测，
+         * 实际播放时若直链不可用会自动回退到 proxy。
+         */
         function tryPreloadNext() {
             const nextBvid = getNextBvid();
             if (!nextBvid || nextBvid === currentPlayingBvid) return;
             if (preloadCache && preloadCache.bvid === nextBvid) return;
             if (preloadInFlight === nextBvid) return;
             preloadInFlight = nextBvid;
-            fetchResolveHtml(nextBvid)
-                .then(function (result) {
-                    var url = result && result.url;
-                    if (url && preloadInFlight === nextBvid) {
-                        preloadCache = { bvid: nextBvid, url: url };
-                        var preloadAudio = new Audio();
-                        preloadAudio.preload = 'auto';
-                        preloadAudio.src = url;
-                    }
-                })
-                .catch(function () {})
-                .then(function () {
-                    if (preloadInFlight === nextBvid) preloadInFlight = null;
-                });
+            (async function () {
+                let result = null;
+                for (let attempt = 1; attempt <= 2; attempt++) {
+                    result = await fetchResolveHtml(nextBvid);
+                    if (result && result.url) break;
+                    await sleep(500 + Math.random() * 500);
+                }
+                const url = result && result.url;
+                if (url && preloadInFlight === nextBvid) {
+                    preloadCache = { bvid: nextBvid, url: url };
+                    var preloadAudio = new Audio();
+                    preloadAudio.preload = 'auto';
+                    preloadAudio.src = url;
+                }
+            })().catch(function () {}).then(function () {
+                if (preloadInFlight === nextBvid) preloadInFlight = null;
+            });
         }
 
         /** 在 timeupdate 中调用：剩余时间 ≤ 3 秒时触发一次预加载 */

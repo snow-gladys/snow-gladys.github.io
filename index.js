@@ -961,8 +961,8 @@
         const characterImg = document.querySelector('.character-img');
         let currentPlayingBvid = '';  // 当前播放的 bvid
 
-        // --- 预加载与 API 调用（resolvehtml + realUrl 探测 403 重试）---
-        const PRELOAD_AHEAD_SEC = 5;
+        // --- 预加载与 API 调用（在结束前一定时间尝试直链预加载）---
+        const PRELOAD_AHEAD_SEC = 10;
         let preloadCache = null;
         let preloadInFlight = null;
         let preloadScheduledForBvid = null;
@@ -1004,42 +1004,36 @@
         }
 
         /**
-         * 获取可用的 realUrl：403 来自「对 realUrl 的请求」而非 API。
-         * 策略：
-         *  - 第 1 / 2 次：用 /resolvehtml 拿直链，HEAD 探测 403，失败则重试
-         *  - 第 3 次：用 /resolve + /proxy 拿代理地址，直接返回（不再 HEAD 探测）
-         *  最多 3 次，每次间隔 400～500ms 随机。
+         * 获取可播放的 realUrl。
+         *  - 若有 initialUrl（预加载得到的直链），先对该地址做一次 HEAD 探测，非 403 则直接使用；
+         *  - 其他情况（无预加载 / 直链不可用）直接使用 resolve + proxy，保证稳定性。
          * @returns Promise<string | null> 可用的 realUrl 或 null
          */
         async function getLoadableRealUrl(bvid, initialUrl) {
-            var realUrl = initialUrl || null;
-            for (var attempt = 1; attempt <= 3; attempt++) {
-                if (!realUrl) {
-                    var result;
-                    if (attempt < 3) {
-                        // 前两次：直接用 resolvehtml
-                        result = await fetchResolveHtml(bvid);
-                    } else {
-                        // 第三次：走 resolve + proxy，返回代理地址，直接给前端使用
-                        result = await fetchResolveViaProxy(bvid);
-                    }
-                    if (!result || !result.url) return null;
-                    realUrl = result.url;
-
-                    // 使用 proxy 的地址时，认为已经是自己域名上的转发，不再做 HEAD 探测
-                    if (attempt === 3) return realUrl;
-                }
-                try {
-                    var res = await fetch(realUrl, { method: 'HEAD' });
-                    if (res.status !== 403) return realUrl;
-                    console.warn('重试网址:', realUrl, '返回码:', res.status);
-                } catch (e) {
-                    console.warn('重试网址:', realUrl, '返回码: 请求异常', e);
-                }
-                realUrl = null;
-                if (attempt < 3) await sleep(400 + Math.random() * 100);
+            // var realUrl = initialUrl || null;
+            // if (realUrl) {
+            //     try {
+            //         var res = await fetch(realUrl, { method: 'HEAD' });
+            //         if (res.status !== 403) return realUrl;
+            //         console.warn('预加载直链不可用，状态码:', res.status);
+            //     } catch (e) {
+            //         console.warn('预加载直链探测异常，将回退 proxy:', e);
+            //     }
+            //     realUrl = null;
+            // }
+            // // 无预加载或预加载直链不可用：直接走 proxy
+            // var result = await fetchResolveViaProxy(bvid);
+            // if (!result || !result.url) return null;
+            // return result.url;
+            // 1. 如果有预加载的链接，直接使用（无条件信任，消除卡顿）
+            if (initialUrl) {
+                return initialUrl; 
             }
-            return null;
+            
+            // 2. 如果没有预加载，才去请求新的地址
+            var result = await fetchResolveViaProxy(bvid);
+            if (!result || !result.url) return null;
+            return result.url;
         }
 
         /** 从元素的 computed transform 或 inline style 得到当前旋转角度（度） */
@@ -1166,27 +1160,34 @@
             preloadInFlight = null;
         }
 
-        /** 异步预取下一首的播放地址并缓存；若用户已切歌则结果会丢弃（预加载不探 403，实际播放时再探测与重试） */
+        /**
+         * 异步预取下一首的播放地址并缓存；
+         * 使用 resolvehtml 直链方式，最多尝试 2 次，不做 403 探测，
+         * 实际播放时若直链不可用会自动回退到 proxy。
+         */
         function tryPreloadNext() {
             const nextBvid = getNextBvid();
             if (!nextBvid || nextBvid === currentPlayingBvid) return;
             if (preloadCache && preloadCache.bvid === nextBvid) return;
             if (preloadInFlight === nextBvid) return;
             preloadInFlight = nextBvid;
-            fetchResolveHtml(nextBvid)
-                .then(function (result) {
-                    var url = result && result.url;
-                    if (url && preloadInFlight === nextBvid) {
-                        preloadCache = { bvid: nextBvid, url: url };
-                        var preloadAudio = new Audio();
-                        preloadAudio.preload = 'auto';
-                        preloadAudio.src = url;
-                    }
-                })
-                .catch(function () {})
-                .then(function () {
-                    if (preloadInFlight === nextBvid) preloadInFlight = null;
-                });
+            (async function () {
+                let result = null;
+                for (let attempt = 1; attempt <= 2; attempt++) {
+                    result = await fetchResolveHtml(nextBvid);
+                    if (result && result.url) break;
+                    await sleep(500 + Math.random() * 500);
+                }
+                const url = result && result.url;
+                if (url && preloadInFlight === nextBvid) {
+                    preloadCache = { bvid: nextBvid, url: url };
+                    var preloadAudio = new Audio();
+                    preloadAudio.preload = 'auto';
+                    preloadAudio.src = url;
+                }
+            })().catch(function () {}).then(function () {
+                if (preloadInFlight === nextBvid) preloadInFlight = null;
+            });
         }
 
         /** 剩余时间 ≤ PRELOAD_AHEAD_SEC 时触发一次预加载 */
@@ -1266,26 +1267,60 @@
             if (!bvid) return;
             preloadScheduledForBvid = null;
             var initialUrl = null;
+
             if (preloadCache && (preloadCache.bvid || '').toUpperCase() === (bvid || '').toUpperCase()) {
                 initialUrl = preloadCache.url;
                 preloadCache = null;
             }
             clearPreload();
+
             var realUrl = await getLoadableRealUrl(bvid, initialUrl);
             if (!realUrl) {
-                var songName = getSongNameByBvid(bvid);
-                alert('对不起小伙伴，神秘阿B力量暂时拒绝了歌曲《' + songName + '》的访问，之后可再重试，现在为你自动播放下一首歌喵。');
-                playNextByMode();
+                handlePlayError(bvid);
                 return;
             }
+
             currentPlayingBvid = bvid;
+
             bgmAudio.src = realUrl;
             bgmAudio.volume = 0.5;
+            
             updateProgressDisplay();
             updatePlaySongName();
+
+        try {
+                await bgmAudio.play();
+                startVisuals(bvid);
+                updatePlayPauseIcon();
+            } catch (err) {
+                console.error("播放失败，尝试救急处理:", err);
+                // 预加载的链接失效了，尝试重新获取一次 Proxy 链接
+                if (realUrl === initialUrl) {
+                    console.log("预加载链接似乎失效，尝试重新获取链接...");
+                    // 强制不传 initialUrl，让它去服务器重新拿
+                    var retryUrl = await getLoadableRealUrl(bvid, null);
+                    if (retryUrl) {
+                        // 递归调用自己，再试一次
+                        playMusic(bvid); 
+                        return; 
+                    }
+                }
+                handlePlayError(bvid);
+                updatePlayPauseIcon(); 
+            }
+
             await bgmAudio.play();
             startVisuals(bvid);
             updatePlayPauseIcon();
+        }
+
+        function handlePlayError(bvid) {
+            var songName = getSongNameByBvid(bvid);
+            // 停止视觉旋转
+            stopVisuals(); 
+            alert('对不起小伙伴，神秘阿B力量暂时拒绝了歌曲《' + songName + '》的访问，之后可再重试喵。');
+            // 自动切下一首
+            // playNextByMode();
         }
 
         // 视觉效果联动：暂停时保持当前角度，播放时从该角度继续转

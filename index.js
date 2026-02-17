@@ -199,7 +199,17 @@
             viewHome.classList.toggle('view-home', true);
             viewHome.style.display = which === 'home' ? 'block' : 'none';
             viewPlaylist.classList.toggle('is-open', which === 'playlist');
-            viewPlay.classList.toggle('is-active', which === 'play');
+            const isPlay = which === 'play';
+            viewPlay.classList.toggle('is-active', isPlay);
+
+            // 播放页才展示黑胶并允许旋转；离开播放页时停止旋转
+            if (characterImg) {
+                characterImg.classList.toggle('in-play-view', isPlay);
+                if (!isPlay) {
+                    stopVisuals();
+                    characterImg.classList.remove('is-playing');
+                }
+            }
         }
 
         const playlistSearchEl = document.getElementById('playlist-search');
@@ -700,6 +710,10 @@
         function openChangelog() {
             const backdrop = document.getElementById('changelog-backdrop');
             if (!backdrop) return;
+            const body = backdrop.querySelector('.changelog-body');
+            if (body && window.SG_CHANGELOG_HTML) {
+                body.innerHTML = window.SG_CHANGELOG_HTML;
+            }
             backdrop.classList.add('is-open');
             const btnChangelog = document.getElementById('btn-changelog');
             if (btnChangelog) btnChangelog.classList.remove('has-new');
@@ -827,8 +841,8 @@
             return s ? (s.name || s.title || bvid) : (bvid || '未知');
         }
 
-        /** 只调用一次 resolvehtml API，返回 { url } 或 null */
-        function fetchResolve(bvid) {
+        /** 只调用一次 resolvehtml API（不处理 403），返回 { url } 或 null */
+        function fetchResolveHtml(bvid) {
             var apiUrl = API_BASE + '/resolvehtml?bvid=' + encodeURIComponent(bvid);
             return fetch(apiUrl).then(function (res) { return res.json(); }).then(function (data) {
                 return data && data.url ? { url: data.url } : null;
@@ -836,15 +850,47 @@
         }
 
         /**
-         * 获取可用的 realUrl：对 realUrl 请求若返回 403 则重新要新网址再探测，最多 5 次，每次间隔 400～500ms 随机。
+         * 使用 resolve + proxy 的方式获取最终可播放地址：
+         * 1) /resolve 拿到 B 站真实音频地址
+         * 2) 前端通过 /proxy 转发该地址，避免直接命中 B 站 403
+         * 返回 { url }（此 url 已经是 proxy 地址）
+         */
+        function fetchResolveViaProxy(bvid) {
+            var apiUrl = API_BASE + '/resolve?bvid=' + encodeURIComponent(bvid);
+            return fetch(apiUrl).then(function (res) { return res.json(); }).then(function (data) {
+                if (data && data.url) {
+                    var proxied = API_BASE + '/proxy?url=' + encodeURIComponent(data.url);
+                    return { url: proxied };
+                }
+                return null;
+            }).catch(function () { return null; });
+        }
+
+        /**
+         * 获取可用的 realUrl：403 来自「对 realUrl 的请求」而非 API。
+         * 策略：
+         *  - 第 1 / 2 次：用 /resolvehtml 拿直链，HEAD 探测 403，失败则重试
+         *  - 第 3 次：用 /resolve + /proxy 拿代理地址，直接返回（不再 HEAD 探测）
+         *  最多 3 次，每次间隔 400～500ms 随机。
+         * @returns Promise<string | null> 可用的 realUrl 或 null
          */
         async function getLoadableRealUrl(bvid, initialUrl) {
             var realUrl = initialUrl || null;
-            for (var attempt = 1; attempt <= 5; attempt++) {
+            for (var attempt = 1; attempt <= 3; attempt++) {
                 if (!realUrl) {
-                    var result = await fetchResolve(bvid);
+                    var result;
+                    if (attempt < 3) {
+                        // 前两次：直接用 resolvehtml
+                        result = await fetchResolveHtml(bvid);
+                    } else {
+                        // 第三次：走 resolve + proxy，返回代理地址，直接给前端使用
+                        result = await fetchResolveViaProxy(bvid);
+                    }
                     if (!result || !result.url) return null;
                     realUrl = result.url;
+
+                    // 使用 proxy 的地址时，认为已经是自己域名上的转发，不再做 HEAD 探测
+                    if (attempt === 3) return realUrl;
                 }
                 try {
                     var res = await fetch(realUrl, { method: 'HEAD' });
@@ -854,7 +900,7 @@
                     console.warn('重试网址:', realUrl, '返回码: 请求异常', e);
                 }
                 realUrl = null;
-                if (attempt < 5) await sleep(400 + Math.random() * 100);
+                if (attempt < 3) await sleep(400 + Math.random() * 100);
             }
             return null;
         }
@@ -983,14 +1029,14 @@
             preloadInFlight = null;
         }
 
-        /** 异步预取下一首的播放地址并缓存；实际播放时再探测 403 与重试 */
+        /** 异步预取下一首的播放地址并缓存；若用户已切歌则结果会丢弃（预加载不探 403，实际播放时再探测与重试） */
         function tryPreloadNext() {
             const nextBvid = getNextBvid();
             if (!nextBvid || nextBvid === currentPlayingBvid) return;
             if (preloadCache && preloadCache.bvid === nextBvid) return;
             if (preloadInFlight === nextBvid) return;
             preloadInFlight = nextBvid;
-            fetchResolve(nextBvid)
+            fetchResolveHtml(nextBvid)
                 .then(function (result) {
                     var url = result && result.url;
                     if (url && preloadInFlight === nextBvid) {
@@ -1234,17 +1280,17 @@
         if (btnPrev) btnPrev.addEventListener('click', goPrev);
         if (btnNext) btnNext.addEventListener('click', goNext);
 
-        // 点击圆环：暂停 / 继续（播放页）
+        // 点击圆环：暂停 / 继续（只在播放页生效）
         characterImg.addEventListener('click', () => {
+            if (!viewPlay.classList.contains('is-active')) return;
             if (!bgmAudio.paused) {
                 bgmAudio.pause();
                 stopVisuals();
             } else if (bgmAudio.src) {
                 bgmAudio.play();
-                const deg = getRecordRotationDeg(characterImg);
-                characterImg.style.setProperty('--start-deg', deg + 'deg');
-                characterImg.style.removeProperty('transform');
-                characterImg.classList.add('is-playing');
+                if (currentPlayingBvid) {
+                    startVisuals(currentPlayingBvid);
+                }
             }
             updatePlayPauseIcon();
         });

@@ -863,8 +863,8 @@
             return s ? (s.name || s.title || bvid) : (bvid || '未知');
         }
 
-        /** 只调用一次 resolvehtml API（API 稳定，不处理 403），返回 { url } 或 null */
-        function fetchResolve(bvid) {
+        /** 只调用一次 resolvehtml API（不处理 403），返回 { url } 或 null */
+        function fetchResolveHtml(bvid) {
             var apiUrl = API_BASE + '/resolvehtml?bvid=' + encodeURIComponent(bvid);
             return fetch(apiUrl).then(function (res) { return res.json(); }).then(function (data) {
                 return data && data.url ? { url: data.url } : null;
@@ -872,18 +872,47 @@
         }
 
         /**
+         * 使用 resolve + proxy 的方式获取最终可播放地址：
+         * 1) /resolve 拿到 B 站真实音频地址
+         * 2) 前端通过 /proxy 转发该地址，避免直接命中 B 站 403
+         * 返回 { url }（此 url 已经是 proxy 地址）
+         */
+        function fetchResolveViaProxy(bvid) {
+            var apiUrl = API_BASE + '/resolve?bvid=' + encodeURIComponent(bvid);
+            return fetch(apiUrl).then(function (res) { return res.json(); }).then(function (data) {
+                if (data && data.url) {
+                    var proxied = API_BASE + '/proxy?url=' + encodeURIComponent(data.url);
+                    return { url: proxied };
+                }
+                return null;
+            }).catch(function () { return null; });
+        }
+
+        /**
          * 获取可用的 realUrl：403 来自「对 realUrl 的请求」而非 API。
-         * 先探测 initialUrl（或先调 API 取 url），若 realUrl 返回 403 则重新调 API 拿新网址再探测，最多 5 次，每次间隔 400～500ms 随机。
-         * 每次 403 在控制台输出重试网址（realUrl）和返回码。
+         * 策略：
+         *  - 第 1 / 2 次：用 /resolvehtml 拿直链，HEAD 探测 403，失败则重试
+         *  - 第 3 次：用 /resolve + /proxy 拿代理地址，直接返回（不再 HEAD 探测）
+         *  最多 3 次，每次间隔 400～500ms 随机。
          * @returns Promise<string | null> 可用的 realUrl 或 null
          */
         async function getLoadableRealUrl(bvid, initialUrl) {
             var realUrl = initialUrl || null;
-            for (var attempt = 1; attempt <= 5; attempt++) {
+            for (var attempt = 1; attempt <= 3; attempt++) {
                 if (!realUrl) {
-                    var result = await fetchResolve(bvid);
+                    var result;
+                    if (attempt < 3) {
+                        // 前两次：直接用 resolvehtml
+                        result = await fetchResolveHtml(bvid);
+                    } else {
+                        // 第三次：走 resolve + proxy，返回代理地址，直接给前端使用
+                        result = await fetchResolveViaProxy(bvid);
+                    }
                     if (!result || !result.url) return null;
                     realUrl = result.url;
+
+                    // 使用 proxy 的地址时，认为已经是自己域名上的转发，不再做 HEAD 探测
+                    if (attempt === 3) return realUrl;
                 }
                 try {
                     var res = await fetch(realUrl, { method: 'HEAD' });
@@ -893,7 +922,7 @@
                     console.warn('重试网址:', realUrl, '返回码: 请求异常', e);
                 }
                 realUrl = null;
-                if (attempt < 5) await sleep(400 + Math.random() * 100);
+                if (attempt < 3) await sleep(400 + Math.random() * 100);
             }
             return null;
         }
@@ -905,7 +934,7 @@
             if (preloadCache && preloadCache.bvid === nextBvid) return;
             if (preloadInFlight === nextBvid) return;
             preloadInFlight = nextBvid;
-            fetchResolve(nextBvid)
+            fetchResolveHtml(nextBvid)
                 .then(function (result) {
                     var url = result && result.url;
                     if (url && preloadInFlight === nextBvid) {

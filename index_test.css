@@ -74,7 +74,7 @@
             transform-origin: 50% 50%;
         }
 
-        /* 播放页时稍微缩小唱片整体尺寸 */
+        /* 播放页时缩小唱片整体尺寸（PC 端 45vh） */
         .character-img.in-play-view {
             width: 45vh;
             height: 45vh;
@@ -101,7 +101,7 @@
         /* 黑胶外环：包裹人物，内圈透明；默认在首页等视图隐藏，仅播放页显示 */
         .vinyl-ring {
             position: absolute;
-            inset: 2%;
+            inset: 0%;
             background: url('./imgs/vinyl.png') no-repeat center center/contain;
             pointer-events: none; /* 不挡点击 */
             z-index: 1;
@@ -584,7 +584,9 @@
         @media (max-width: 768px) {
             .glitch-title { font-size: 3rem; margin-top: -20vh; }
             .subtitle { margin-top: -20px; }
+            /* 移动端：整体再缩小到 40vh */
             .character-img { width: 42vh; height: 42vh; margin-top: -26vh; }
+            .character-img.in-play-view { width: 40vh; height: 40vh; }
             .stats-panel { width: 120px; padding: 6px 10px; border-right-width: 3px; }
             .stats-panel .stats-label { font-size: 0.6rem; }
             .stats-number { font-size: 1.35rem; }

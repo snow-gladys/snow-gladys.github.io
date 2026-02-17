@@ -23,7 +23,7 @@
 
         // --- 0. 配置中心 ---
         const DEFAULT_TITLE = '心宜 · Fiona';
-        const CURRENT_VERSION = '0.0.2(测)';
+        const CURRENT_VERSION = '0.0.3(测)';
         // 如果你绑定了 api.snow-gladys.com，请使用下面第一行
         const API_BASE = 'https://api.snow-gladys.com'; 
         // 如果没绑定成功，暂时用 Worker 原生地址：
@@ -49,30 +49,24 @@
         }
         fetchFanCount(); // 立即运行一次
 
-        // --- 1.5 收藏 Cookie（尽量长久保存：每次进入与每次改动都重写 cookie 续期）---
-        const FAV_COOKIE = 'sg_fav_fiona';
-        const FAV_MAX_AGE = 365 * 24 * 60 * 60; // 1 年
+        // --- 1.5 收藏（Local Storage，容量大、无 cookie 上限）---
+        const FAV_STORAGE_KEY = 'sg_fav_fiona';
         let favoritesSet = new Set();
 
-        function getFavoritesFromCookie() {
+        function getFavoritesFromStorage() {
             try {
-                const raw = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith(FAV_COOKIE + '='));
+                const raw = localStorage.getItem(FAV_STORAGE_KEY);
                 if (!raw) return new Set();
-                const eq = raw.indexOf('=');
-                const valueStr = eq >= 0 ? raw.substring(eq + 1).trim() : '';
-                if (!valueStr) return new Set();
-                const value = decodeURIComponent(valueStr);
-                const arr = JSON.parse(value || '[]');
+                const arr = JSON.parse(raw);
                 if (!Array.isArray(arr)) return new Set();
                 return new Set(arr.filter(Boolean).map(s => String(s).toUpperCase()));
             } catch (e) { return new Set(); }
         }
 
-        function saveFavoritesToCookie() {
+        function saveFavoritesToStorage() {
             try {
                 const arr = Array.from(favoritesSet);
-                const value = encodeURIComponent(JSON.stringify(arr));
-                document.cookie = FAV_COOKIE + '=' + value + '; path=/; max-age=' + FAV_MAX_AGE + '; SameSite=Lax';
+                localStorage.setItem(FAV_STORAGE_KEY, JSON.stringify(arr));
                 return true;
             } catch (e) { return false; }
         }
@@ -83,10 +77,10 @@
             const wasFav = favoritesSet.has(key);
             if (wasFav) favoritesSet.delete(key);
             else favoritesSet.add(key);
-            if (!saveFavoritesToCookie()) {
+            if (!saveFavoritesToStorage()) {
                 if (wasFav) favoritesSet.add(key);
                 else favoritesSet.delete(key);
-                alert('网页缓存在您的设备上是禁用的，无法使用收藏功能。');
+                alert('浏览器本地存储(Local Storage)不可用，无法使用收藏功能。');
                 return;
             }
             if (favoritesSet.size === 0 && playMode === 'favorites' && btnModeCycle) setPlayMode('list');
@@ -102,15 +96,10 @@
             if (btn) btn.style.display = favoritesSet.size > 0 ? '' : 'none';
         }
 
-        // 进入网站时读 cookie 并重写一次以延长过期
-        favoritesSet = getFavoritesFromCookie();
-        if (favoritesSet.size) saveFavoritesToCookie();
-        updatePlayFavoritesButton();
-
-        // --- 1.5.2 设置与自定义歌单 Cookie（心宜独立）---
+        // --- 1.5.2 设置（Cookie）与自定义歌单（Local Storage，心宜独立）---
         const SETTINGS_COOKIE = 'sg_settings_fiona';
-        const CUSTOM_COOKIE = 'sg_custom_songs_fiona';
         const SETTINGS_MAX_AGE = 365 * 24 * 60 * 60;
+        const CUSTOM_STORAGE_KEY = 'sg_custom_songs_fiona';
 
         function getSettingsFromCookie() {
             try {
@@ -135,23 +124,61 @@
             } catch (e) { return false; }
         }
 
-        function getCustomFromCookie() {
+        function getCustomFromStorage() {
             try {
-                const raw = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith(CUSTOM_COOKIE + '='));
+                const raw = localStorage.getItem(CUSTOM_STORAGE_KEY);
                 if (!raw) return [];
-                const value = decodeURIComponent((raw.indexOf('=') >= 0 ? raw.substring(raw.indexOf('=') + 1) : '').trim());
-                const arr = JSON.parse(value || '[]');
+                const arr = JSON.parse(raw);
                 return Array.isArray(arr) ? arr.filter(x => x && (x.name || x.bvid)) : [];
             } catch (e) { return []; }
         }
 
-        function saveCustomToCookie(list) {
+        function saveCustomToStorage(list) {
             try {
-                const value = encodeURIComponent(JSON.stringify(list));
-                document.cookie = CUSTOM_COOKIE + '=' + value + '; path=/; max-age=' + SETTINGS_MAX_AGE + '; SameSite=Lax';
+                localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(list));
                 return true;
             } catch (e) { return false; }
         }
+
+        /**
+         * 从旧版 Cookie 迁移到 Local Storage（仅当新存储为空且旧 Cookie 有数据时执行）。
+         * 下一版推送可注释掉下方调用即可关闭迁移。
+         */
+        function migrateCookieToLocalStorage() {
+            var favRaw = document.cookie.split(';').map(function (s) { return s.trim(); }).find(function (s) { return s.startsWith('sg_fav_fiona='); });
+            var customRaw = document.cookie.split(';').map(function (s) { return s.trim(); }).find(function (s) { return s.startsWith('sg_custom_songs_fiona='); });
+            var oldFavArr = [];
+            var oldCustomArr = [];
+            try {
+                if (favRaw) {
+                    var favVal = decodeURIComponent((favRaw.indexOf('=') >= 0 ? favRaw.substring(favRaw.indexOf('=') + 1) : '').trim());
+                    var arr = JSON.parse(favVal || '[]');
+                    if (Array.isArray(arr)) oldFavArr = arr.filter(Boolean);
+                }
+            } catch (e) {}
+            try {
+                if (customRaw) {
+                    var customVal = decodeURIComponent((customRaw.indexOf('=') >= 0 ? customRaw.substring(customRaw.indexOf('=') + 1) : '').trim());
+                    var arr = JSON.parse(customVal || '[]');
+                    if (Array.isArray(arr)) oldCustomArr = arr.filter(function (x) { return x && (x.name || x.bvid); });
+                }
+            } catch (e) {}
+            var newFavEmpty = !localStorage.getItem(FAV_STORAGE_KEY) || localStorage.getItem(FAV_STORAGE_KEY) === '[]' || localStorage.getItem(FAV_STORAGE_KEY) === '';
+            var newCustomEmpty = !localStorage.getItem(CUSTOM_STORAGE_KEY) || localStorage.getItem(CUSTOM_STORAGE_KEY) === '[]' || localStorage.getItem(CUSTOM_STORAGE_KEY) === '';
+            var hasOldData = oldFavArr.length > 0 || oldCustomArr.length > 0;
+            if (newFavEmpty && newCustomEmpty && hasOldData) {
+                if (oldFavArr.length > 0) localStorage.setItem(FAV_STORAGE_KEY, JSON.stringify(oldFavArr));
+                if (oldCustomArr.length > 0) localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(oldCustomArr));
+                var favCount = oldFavArr.length;
+                var customCount = oldCustomArr.length;
+                console.log('[存储迁移-心宜] 已从 Cookie 迁移至 Local Storage：收藏 ' + favCount + ' 首，自定义歌曲 ' + customCount + ' 首。');
+                alert('站点已更新存储方式，检测到旧存储方式，已成功将' + favCount + '首收藏歌曲，' + customCount + '首自定义歌曲转移为新存储方式。更新详情见日志。');
+            }
+        }
+        migrateCookieToLocalStorage(); // 下一版推送可注释掉本行以关闭迁移
+
+        favoritesSet = getFavoritesFromStorage();
+        updatePlayFavoritesButton();
 
         // --- 1.6 歌单与视图 ---
         let songList = [];
@@ -370,7 +397,7 @@
                     liveList = Array.isArray(data) ? data : [];
                 } else liveList = [];
             } catch (e) { liveList = []; }
-            customList = getCustomFromCookie();
+            customList = getCustomFromStorage();
             buildSongList();
             renderPlaylist();
         }
@@ -490,7 +517,7 @@
 
                     if (toAppend.length) {
                         Array.prototype.push.apply(customList, toAppend);
-                        saveCustomToCookie(customList);
+                        saveCustomToStorage(customList);
                         buildSongList();
                         renderPlaylist();
                         renderCustomSectionInSettings();
@@ -547,7 +574,7 @@
                 row.querySelector('.btn-del').addEventListener('click', function (e) {
                     e.stopPropagation();
                     customList.splice(x.idx, 1);
-                    saveCustomToCookie(customList);
+                    saveCustomToStorage(customList);
                     buildSongList();
                     renderPlaylist();
                     renderCustomManageList(document.getElementById('custom-manage-search').value);
@@ -615,7 +642,7 @@
                 } else {
                     customList.push({ name, bvid });
                 }
-                saveCustomToCookie(customList);
+                saveCustomToStorage(customList);
                 buildSongList();
                 renderPlaylist();
                 renderCustomSectionInSettings();
@@ -751,6 +778,55 @@
         const characterImg = document.querySelector('.character-img');
         let currentPlayingBvid = '';  // 当前播放的 bvid
 
+        // --- 预加载与 API 调用（resolvehtml + realUrl 探测 403 重试）---
+        const PRELOAD_AHEAD_SEC = 5;
+        let preloadCache = null;
+        let preloadInFlight = null;
+        let preloadScheduledForBvid = null;
+
+        /** 延时 ms 毫秒 */
+        function sleep(ms) {
+            return new Promise(function (r) { setTimeout(r, ms); });
+        }
+
+        /** 根据 bvid 取歌名（用于弹窗提示） */
+        function getSongNameByBvid(bvid) {
+            var s = songList.find(function (x) { return (x.bvid || '') === (bvid || ''); });
+            return s ? (s.name || s.title || bvid) : (bvid || '未知');
+        }
+
+        /** 只调用一次 resolvehtml API，返回 { url } 或 null */
+        function fetchResolve(bvid) {
+            var apiUrl = API_BASE + '/resolvehtml?bvid=' + encodeURIComponent(bvid);
+            return fetch(apiUrl).then(function (res) { return res.json(); }).then(function (data) {
+                return data && data.url ? { url: data.url } : null;
+            }).catch(function () { return null; });
+        }
+
+        /**
+         * 获取可用的 realUrl：对 realUrl 请求若返回 403 则重新要新网址再探测，最多 5 次，每次间隔 400～500ms 随机。
+         */
+        async function getLoadableRealUrl(bvid, initialUrl) {
+            var realUrl = initialUrl || null;
+            for (var attempt = 1; attempt <= 5; attempt++) {
+                if (!realUrl) {
+                    var result = await fetchResolve(bvid);
+                    if (!result || !result.url) return null;
+                    realUrl = result.url;
+                }
+                try {
+                    var res = await fetch(realUrl, { method: 'HEAD' });
+                    if (res.status !== 403) return realUrl;
+                    console.warn('重试网址:', realUrl, '返回码:', res.status);
+                } catch (e) {
+                    console.warn('重试网址:', realUrl, '返回码: 请求异常', e);
+                }
+                realUrl = null;
+                if (attempt < 5) await sleep(400 + Math.random() * 100);
+            }
+            return null;
+        }
+
         /** 从元素的 computed transform 或 inline style 得到当前旋转角度（度） */
         function getRecordRotationDeg(el) {
             if (!el) return 0;
@@ -792,6 +868,7 @@
                 const p = (t / d) * 100;
                 progressBarEl.value = p;
                 progressBarEl.style.setProperty('--progress', p + '%');
+                onTimeUpdateForPreload();
             } else {
                 timeTotalEl.textContent = '0:00';
                 progressBarEl.value = 0;
@@ -848,6 +925,64 @@
             }
             if (needExclude) return k >= excludeIndex ? k + 1 : k;
             return k;
+        }
+
+        function getNextBvid() {
+            const list = getEffectiveList();
+            if (!list.length) return null;
+            const idxEff = getCurrentIndexInEffectiveList();
+            if (playMode === 'single') return currentPlayingBvid;
+            if (playMode === 'random') {
+                const idx = getCurrentIndex();
+                const i = getRandomIndex(songList.length, idx);
+                return songList[i].bvid || null;
+            }
+            if (playMode === 'favorites') {
+                const nextIdx = idxEff < 0 ? 0 : (idxEff + 1) % list.length;
+                return list[nextIdx].bvid || null;
+            }
+            const idx = getCurrentIndex();
+            const nextIdx = idx < 0 ? 0 : (idx + 1) % songList.length;
+            return songList[nextIdx].bvid || null;
+        }
+
+        function clearPreload() {
+            preloadCache = null;
+            preloadInFlight = null;
+        }
+
+        /** 异步预取下一首的播放地址并缓存；实际播放时再探测 403 与重试 */
+        function tryPreloadNext() {
+            const nextBvid = getNextBvid();
+            if (!nextBvid || nextBvid === currentPlayingBvid) return;
+            if (preloadCache && preloadCache.bvid === nextBvid) return;
+            if (preloadInFlight === nextBvid) return;
+            preloadInFlight = nextBvid;
+            fetchResolve(nextBvid)
+                .then(function (result) {
+                    var url = result && result.url;
+                    if (url && preloadInFlight === nextBvid) {
+                        preloadCache = { bvid: nextBvid, url: url };
+                        var preloadAudio = new Audio();
+                        preloadAudio.preload = 'auto';
+                        preloadAudio.src = url;
+                    }
+                })
+                .catch(function () {})
+                .then(function () {
+                    if (preloadInFlight === nextBvid) preloadInFlight = null;
+                });
+        }
+
+        /** 剩余时间 ≤ PRELOAD_AHEAD_SEC 时触发一次预加载 */
+        function onTimeUpdateForPreload() {
+            var d = bgmAudio.duration;
+            var t = bgmAudio.currentTime;
+            if (!isFinite(d) || d <= 0) return;
+            if (d - t > PRELOAD_AHEAD_SEC) return;
+            if (currentPlayingBvid === preloadScheduledForBvid) return;
+            preloadScheduledForBvid = currentPlayingBvid;
+            tryPreloadNext();
         }
 
         function playNextByMode() {
@@ -911,30 +1046,31 @@
             }
         }
 
-        // 播放函数
+        // 播放函数（预加载缓存 + getLoadableRealUrl 探测 403 重试，失败则弹窗并自动下一首）
         async function playMusic(bvid) {
             if (!bvid) return;
-            try {
-                const res = await fetch(`${API_BASE}/resolve?bvid=${bvid}`);
-                const data = await res.json();
-                const realUrl = data.url;
-
-                if (realUrl) {
-                    currentPlayingBvid = bvid;
-                    const proxyUrl = `${API_BASE}/proxy?url=${encodeURIComponent(realUrl)}`;
-                    bgmAudio.src = proxyUrl;
-                    // bgmAudio.src = realUrl;
-                    // console.log(bgmAudio.src);
-                    bgmAudio.volume = 0.5;
-                    updateProgressDisplay();
-                    updatePlaySongName();
-                    await bgmAudio.play();
-                    startVisuals(bvid);
-                    updatePlayPauseIcon();
-                }
-            } catch (e) {
-                console.error(e);
+            preloadScheduledForBvid = null;
+            var initialUrl = null;
+            if (preloadCache && (preloadCache.bvid || '').toUpperCase() === (bvid || '').toUpperCase()) {
+                initialUrl = preloadCache.url;
+                preloadCache = null;
             }
+            clearPreload();
+            var realUrl = await getLoadableRealUrl(bvid, initialUrl);
+            if (!realUrl) {
+                var songName = getSongNameByBvid(bvid);
+                alert('对不起小伙伴，神秘阿B力量暂时拒绝了歌曲《' + songName + '》的访问，之后可再重试，现在为你自动播放下一首歌喵。');
+                playNextByMode();
+                return;
+            }
+            currentPlayingBvid = bvid;
+            bgmAudio.src = realUrl;
+            bgmAudio.volume = 0.5;
+            updateProgressDisplay();
+            updatePlaySongName();
+            await bgmAudio.play();
+            startVisuals(bvid);
+            updatePlayPauseIcon();
         }
 
         // 视觉效果联动：暂停时保持当前角度，播放时从该角度继续转

@@ -921,7 +921,9 @@
 
                 if (realUrl) {
                     currentPlayingBvid = bvid;
-                    bgmAudio.src = realUrl;
+                    const proxyUrl = `${API_BASE}/proxy?url=${encodeURIComponent(realUrl)}`;
+                    bgmAudio.src = proxyUrl;
+                    // bgmAudio.src = realUrl;
                     // console.log(bgmAudio.src);
                     bgmAudio.volume = 0.5;
                     updateProgressDisplay();

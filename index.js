@@ -1311,7 +1311,7 @@
             }
         }
 
-        // 播放函数（预加载缓存+getLoadableRealUrl 探测 403 重试，失败则弹窗并自动下一首）
+        // 播放函数（预加载缓存 + getLoadableRealUrl 探测 403 重试，失败则弹窗并自动下一首）
         async function playMusic(bvid) {
             if (!bvid) return;
             preloadScheduledForBvid = null;

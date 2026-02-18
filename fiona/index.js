@@ -1167,7 +1167,8 @@
             (async function () {
                 let result = null;
                 for (let attempt = 1; attempt <= 2; attempt++) {
-                    result = await fetchResolveHtml(nextBvid);
+                    // result = await fetchResolveHtml(nextBvid);
+                    result = await fetchResolveViaProxy(nextBvid);
                     if (result && result.url) {
                         try {
                             var res = await fetch(result.url, { method: 'HEAD' });

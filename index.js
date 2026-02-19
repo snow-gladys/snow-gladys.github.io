@@ -23,7 +23,7 @@
 
         // --- 0. 配置中心 ---
         const DEFAULT_TITLE = '思诺 · Gladys';
-        const CURRENT_VERSION = '0.0.5(测)';
+        const CURRENT_VERSION = '0.0.6(测)';
         // 如果你绑定了 api.snow-gladys.com，请使用下面第一行
         const API_BASE = 'https://api.snow-gladys.com'; 
         // 如果没绑定成功，暂时用 Worker 原生地址：

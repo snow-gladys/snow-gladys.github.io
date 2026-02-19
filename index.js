@@ -964,12 +964,15 @@
             // 移除旧的监听器（虽然新对象没有监听器，但这是一个好习惯）
             audioObj.removeEventListener('timeupdate', updateProgressDisplay);
             audioObj.removeEventListener('loadedmetadata', updateProgressDisplay);
-            audioObj.removeEventListener('ended', handleAudioEnded); // 注意这里抽离了 ended
+            audioObj.removeEventListener('ended', handleAudioEnded);
+            audioObj.removeEventListener('play', handleAudioPlay);
+            audioObj.removeEventListener('pause', handleAudioPause);
 
-            // 绑定新的
             audioObj.addEventListener('timeupdate', updateProgressDisplay);
             audioObj.addEventListener('loadedmetadata', updateProgressDisplay);
             audioObj.addEventListener('ended', handleAudioEnded);
+            audioObj.addEventListener('play', handleAudioPlay);
+            audioObj.addEventListener('pause', handleAudioPause);
         }
 
         // 单独抽离 ended 处理函数，方便绑定
@@ -978,6 +981,16 @@
             stopVisuals();
             updatePlayPauseIcon();
             playNextByMode();
+        }
+
+        /** 外部控制播放/暂停（如控制中心、锁屏）时同步按钮与视觉效果 */
+        function handleAudioPlay() {
+            updatePlayPauseIcon();
+            if (currentPlayingBvid) startVisuals(currentPlayingBvid);
+        }
+        function handleAudioPause() {
+            updatePlayPauseIcon();
+            stopVisuals();
         }
 
         // 初始化绑定
@@ -1352,6 +1365,8 @@
                 oldAudio.removeEventListener('timeupdate', updateProgressDisplay);
                 oldAudio.removeEventListener('loadedmetadata', updateProgressDisplay);
                 oldAudio.removeEventListener('ended', handleAudioEnded);
+                oldAudio.removeEventListener('play', handleAudioPlay);
+                oldAudio.removeEventListener('pause', handleAudioPause);
                 oldAudio.src = "";
                 oldAudio.load();
                 oldAudio = null;

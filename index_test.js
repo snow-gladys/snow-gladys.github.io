@@ -25,9 +25,9 @@
         const DEFAULT_TITLE = '思诺 · Gladys';
         const CURRENT_VERSION = '0.0.5(测)';
         // 如果你绑定了 api.snow-gladys.com，请使用下面第一行
-        const API_BASE = 'https://api.snow-gladys.com'; 
+        // const API_BASE = 'https://api.snow-gladys.com'; 
         // 如果没绑定成功，暂时用 Worker 原生地址：
-        // const API_BASE = 'https://snow-api-proxy.pengyiteng0827.workers.dev'; 
+        const API_BASE = 'https://snow-gladys-api-zone-3msnp1a62hlu-1304656834.eo-edgefunctions.com'; 
 
         // --- 1. 获取粉丝数逻辑 ---
         const fanCountElement = document.getElementById('fan-count');

@@ -116,29 +116,55 @@
             <div class="settings-modal" id="settings-modal">
                 <div class="settings-modal-header">设置</div>
                 <div class="settings-modal-body">
-                    <div class="settings-row">
-                        <label>显示精选歌单</label>
-                        <button type="button" class="settings-toggle is-on" id="toggle-show-main" aria-label="显示精选歌单"></button>
+                    <!-- 1. 歌单选择 -->
+                    <div class="settings-section settings-section-playlists">
+                        <div class="settings-row">
+                            <label>显示精选歌单</label>
+                            <button type="button" class="settings-toggle is-on" id="toggle-show-main" aria-label="显示精选歌单"></button>
+                        </div>
+                        <div class="settings-row">
+                            <label>显示Live歌单</label>
+                            <button type="button" class="settings-toggle" id="toggle-show-live" aria-label="显示Live歌单"></button>
+                        </div>
+                        <div class="settings-row">
+                            <label>显示自定义歌单</label>
+                            <button type="button" class="settings-toggle" id="toggle-show-custom" aria-label="显示自定义歌单"></button>
+                        </div>
                     </div>
-                    <div class="settings-row">
-                        <label>显示Live歌单</label>
-                        <button type="button" class="settings-toggle" id="toggle-show-live" aria-label="显示Live歌单"></button>
+
+                    <!-- 2. 定时关闭 -->
+                    <div class="settings-section settings-section-sleep">
+                        <div class="settings-row">
+                            <label id="sleep-timer-label">定时关闭</label>
+                            <button type="button" class="btn-sleep-open" id="btn-open-sleep-timer">设定时间</button>
+                        </div>
                     </div>
-                    <div class="settings-row">
-                        <label>显示自定义歌单</label>
-                        <button type="button" class="settings-toggle" id="toggle-show-custom" aria-label="显示自定义歌单"></button>
-                    </div>
-                    <div class="settings-row">
-                        <label id="sleep-timer-label">定时关闭</label>
-                        <button type="button" class="btn-sleep-open" id="btn-open-sleep-timer">设定时间</button>
-                    </div>
-                    <div class="settings-row settings-row-changelog">
-                        <button type="button" class="btn-changelog" id="btn-changelog">更新日志</button>
-                    </div>
+
+                    <!-- 3. 自定义歌曲 -->
                     <div class="settings-section" id="settings-custom-section">
-                        <!-- <div class="settings-section-title">自定义歌曲</div> -->
                         <div id="custom-section-buttons">
                             <button type="button" class="btn-add-custom" id="btn-add-custom">添加自定义歌曲</button>
+                        </div>
+                    </div>
+
+                    <!-- 4. 音质选择 -->
+                    <div class="settings-section settings-section-quality">
+                        <div class="settings-section-title">音质选择</div>
+                        <div class="settings-quality-row">
+                            <button type="button" class="btn-quality" data-mode="low">流畅优先</button>
+                            <button type="button" class="btn-quality" data-mode="medium">平衡模式</button>
+                            <button type="button" class="btn-quality" data-mode="high">音质优先</button>
+                        </div>
+                    </div>
+
+                    <!-- 5. 联系方式 与 更新日志 -->
+                    <div class="settings-section settings-section-about">
+                        <div class="settings-row settings-row-contact">
+                            <label>联系方式</label>
+                            <span class="settings-contact-text">snowgladys@163.com</span>
+                        </div>
+                        <div class="settings-row settings-row-changelog">
+                            <button type="button" class="btn-changelog" id="btn-changelog">更新日志</button>
                         </div>
                     </div>
                 </div>

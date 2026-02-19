@@ -410,7 +410,7 @@
         }
         .settings-modal-backdrop.is-open { display: flex; }
         .settings-modal {
-            width: 100%; max-width: 380px; max-height: 85vh; overflow: hidden;
+            width: 100%; max-width: 380px; max-height: 70vh; overflow: hidden;
             background: rgba(10, 10, 20, 0.95); border: 1px solid var(--theme-pink); border-radius: 8px;
             display: flex; flex-direction: column; pointer-events: auto;
         }
@@ -423,6 +423,7 @@
         .settings-toggle::after { content: ''; position: absolute; width: 18px; height: 18px; border-radius: 50%; background: #fff; top: 2px; left: 2px; transition: transform 0.2s; }
         .settings-toggle.is-on::after { transform: translateX(20px); }
         .settings-section { margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(244, 114, 168, 0.2); }
+        .settings-modal-body > .settings-section:first-of-type { margin-top: 0; padding-top: 0; border-top: none; }
         .settings-section-title { font-size: 0.8rem; color: var(--theme-pink); margin-bottom: 10px; }
         .custom-list { max-height: 200px; overflow-y: auto; margin-bottom: 10px; }
         .custom-list-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 0.85rem; }
@@ -436,6 +437,44 @@
         .custom-buttons-row .btn-manage-custom:hover { background: var(--theme-pink); color: #000; }
         .btn-add-custom { padding: 8px 14px; font-size: 0.85rem; background: rgba(244, 114, 168, 0.15); border: 1px solid var(--theme-pink); color: var(--theme-pink); cursor: pointer; border-radius: 6px; width: 100%; }
         .btn-add-custom:hover { background: var(--theme-pink); color: #000; }
+
+        /* 音质选择 */
+        .settings-section-quality .settings-quality-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 6px;
+        }
+        .btn-quality {
+            flex: 1;
+            padding: 6px 8px;
+            font-size: 0.8rem;
+            background: rgba(244, 114, 168, 0.08);
+            border: 1px solid rgba(244, 114, 168, 0.5);
+            color: var(--theme-pink);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s;
+            text-align: center;
+            white-space: nowrap;
+        }
+        .btn-quality:hover {
+            background: rgba(244, 114, 168, 0.2);
+        }
+        .btn-quality.is-active {
+            background: var(--theme-pink);
+            color: #000;
+            border-color: var(--theme-pink);
+        }
+
+        /* 联系方式与更新日志 */
+        .settings-row-contact label {
+            font-size: 0.8rem;
+            color: #aaa;
+        }
+        .settings-contact-text {
+            font-size: 0.8rem;
+            color: #ccc;
+        }
         .custom-manage-backdrop { position: fixed; inset: 0; z-index: 620; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }
         .custom-manage-backdrop.is-open { display: flex; }
         .custom-manage-panel { width: 100%; max-width: 420px; max-height: 80vh; background: rgba(10,10,20,0.95); border: 1px solid var(--theme-pink); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; }

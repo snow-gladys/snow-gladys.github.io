@@ -23,7 +23,7 @@
 
         // --- 0. 配置中心 ---
         const DEFAULT_TITLE = '思诺 · Gladys';
-        const CURRENT_VERSION = '0.0.2(测)';
+        const CURRENT_VERSION = '0.0.5(测)';
         // 如果你绑定了 api.snow-gladys.com，请使用下面第一行
         const API_BASE = 'https://api.snow-gladys.com'; 
         // 如果没绑定成功，暂时用 Worker 原生地址：
@@ -51,6 +51,7 @@
 
         // --- 1.5 收藏（Local Storage，容量大、无 cookie 上限）---
         const FAV_STORAGE_KEY = 'sg_fav';
+        const PLAY_MODE_STORAGE_KEY = 'sg_play_mode';
         let favoritesSet = new Set();
 
         function getFavoritesFromStorage() {
@@ -102,18 +103,20 @@
         const CUSTOM_STORAGE_KEY = 'sg_custom_songs';
 
         function getSettingsFromCookie() {
+            const fallback = { showMain: true, showLive: false, showCustom: false, version: null, audioMode: 'medium' };
             try {
                 const raw = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith(SETTINGS_COOKIE + '='));
-                if (!raw) return { showMain: true, showLive: false, showCustom: false, version: null };
+                if (!raw) return fallback;
                 const value = decodeURIComponent((raw.indexOf('=') >= 0 ? raw.substring(raw.indexOf('=') + 1) : '').trim());
                 const o = JSON.parse(value || '{}');
                 return {
                     showMain: o.showMain !== false,
                     showLive: o.showLive === true,
                     showCustom: !!o.showCustom,
-                    version: o.version || null
+                    version: o.version || null,
+                    audioMode: ['low', 'medium', 'high'].indexOf(o.audioMode) >= 0 ? o.audioMode : 'medium'
                 };
-            } catch (e) { return { showMain: true, showLive: false, showCustom: false, version: null }; }
+            } catch (e) { return fallback; }
         }
 
         function saveSettingsToCookie(settings) {
@@ -449,6 +452,15 @@
             if (tCustom) tCustom.classList.toggle('is-on', settings.showCustom);
         }
 
+        function syncQualityButtons() {
+            const mode = (settings && settings.audioMode) || 'medium';
+            const buttons = document.querySelectorAll('.btn-quality');
+            buttons.forEach(function (btn) {
+                const m = btn.getAttribute('data-mode') || 'medium';
+                btn.classList.toggle('is-active', m === mode);
+            });
+        }
+
         /** 设置页「自定义歌曲」区：无歌曲时只显示添加 + 导入/导出；有歌曲时 添加/管理 + 导入/导出 并排 */
         function renderCustomSectionInSettings() {
             const container = document.getElementById('custom-section-buttons');
@@ -696,6 +708,87 @@
 
         let hasNewVersionFlag = false;
 
+        // 定时关闭：最长 24 小时
+        let sleepTimerDeadline = null;      // 时间戳（ms），null 表示未设置
+        let sleepTimerTimeoutId = null;     // 真正触发关闭的定时器
+        let sleepTimerIntervalId = null;    // 每秒刷新剩余时间显示
+        const SLEEP_TIMER_MAX_MS = 24 * 60 * 60 * 1000;
+
+        function clearSleepTimerJobs() {
+            if (sleepTimerTimeoutId != null) {
+                clearTimeout(sleepTimerTimeoutId);
+                sleepTimerTimeoutId = null;
+            }
+            if (sleepTimerIntervalId != null) {
+                clearInterval(sleepTimerIntervalId);
+                sleepTimerIntervalId = null;
+            }
+        }
+
+        function updateSleepTimerLabel() {
+            const label = document.getElementById('sleep-timer-label');
+            if (!label) return;
+            if (!sleepTimerDeadline) {
+                label.textContent = '定时关闭';
+                return;
+            }
+            const remaining = sleepTimerDeadline - Date.now();
+            if (remaining <= 0) {
+                sleepTimerDeadline = null;
+                label.textContent = '定时关闭';
+                return;
+            }
+            const totalSeconds = Math.floor(remaining / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            label.textContent =
+                '定时关闭(剩余: ' +
+                minutes +
+                ' 分钟 ' +
+                (seconds < 10 ? '0' : '') +
+                seconds +
+                ' 秒)';
+        }
+
+        function applySleepTimerMs(ms) {
+            clearSleepTimerJobs();
+            sleepTimerDeadline = null;
+            if (!ms || ms <= 0) {
+                updateSleepTimerLabel();
+                return;
+            }
+            if (ms > SLEEP_TIMER_MAX_MS) ms = SLEEP_TIMER_MAX_MS;
+            sleepTimerDeadline = Date.now() + ms;
+            updateSleepTimerLabel();
+
+            sleepTimerTimeoutId = setTimeout(function () {
+                clearSleepTimerJobs();
+                sleepTimerDeadline = null;
+                updateSleepTimerLabel();
+                if (!bgmAudio.paused) {
+                    bgmAudio.pause();
+                    stopVisuals();
+                    updatePlayPauseIcon();
+                }
+                alert('定时关闭时间已到，播放已自动暂停。');
+            }, ms);
+
+            sleepTimerIntervalId = setInterval(function () {
+                if (!sleepTimerDeadline) {
+                    clearSleepTimerJobs();
+                    updateSleepTimerLabel();
+                    return;
+                }
+                if (sleepTimerDeadline - Date.now() <= 0) {
+                    clearSleepTimerJobs();
+                    sleepTimerDeadline = null;
+                    updateSleepTimerLabel();
+                    return;
+                }
+                updateSleepTimerLabel();
+            }, 1000);
+        }
+
         function initVersionIndicators() {
             const storedVersion = settings && settings.version;
             if (!storedVersion || storedVersion !== CURRENT_VERSION) {
@@ -710,6 +803,10 @@
         function openChangelog() {
             const backdrop = document.getElementById('changelog-backdrop');
             if (!backdrop) return;
+            const body = backdrop.querySelector('.changelog-body');
+            if (body && window.SG_CHANGELOG_HTML) {
+                body.innerHTML = window.SG_CHANGELOG_HTML;
+            }
             backdrop.classList.add('is-open');
             const btnChangelog = document.getElementById('btn-changelog');
             if (btnChangelog) btnChangelog.classList.remove('has-new');
@@ -732,6 +829,7 @@
                 settings = getSettingsFromCookie();
                 syncSettingsToggles();
                 renderCustomSectionInSettings();
+                syncQualityButtons();
                 modalBackdrop.classList.add('is-open');
 
                 if (hasNewVersionFlag) {
@@ -763,6 +861,75 @@
             flipToggle('toggle-show-main', 'showMain');
             flipToggle('toggle-show-live', 'showLive');
             flipToggle('toggle-show-custom', 'showCustom');
+
+            (function initQualityButtons() {
+                const buttons = document.querySelectorAll('.btn-quality');
+                if (!buttons.length) return;
+                buttons.forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        const mode = btn.getAttribute('data-mode') || 'medium';
+                        settings.audioMode = mode;
+                        saveSettingsToCookie(settings);
+                        syncQualityButtons();
+                    });
+                });
+            })();
+            // 定时关闭弹窗
+            (function initSleepTimerDialog() {
+                const btnOpen = document.getElementById('btn-open-sleep-timer');
+                const backdrop = document.getElementById('sleep-timer-backdrop');
+                const box = document.getElementById('sleep-timer-box');
+                const inputHours = document.getElementById('sleep-hours-input');
+                const inputMinutes = document.getElementById('sleep-minutes-input');
+                const btnCancel = document.getElementById('sleep-timer-cancel');
+                const btnConfirm = document.getElementById('sleep-timer-confirm');
+                if (!btnOpen || !backdrop || !box || !inputHours || !inputMinutes || !btnCancel || !btnConfirm) return;
+
+                function openDialog() {
+                    if (sleepTimerDeadline) {
+                        const remaining = Math.max(0, sleepTimerDeadline - Date.now());
+                        const totalMinutes = Math.floor(remaining / 60000);
+                        inputHours.value = Math.floor(totalMinutes / 60);
+                        inputMinutes.value = totalMinutes % 60;
+                    } else {
+                        inputHours.value = '';
+                        inputMinutes.value = '';
+                    }
+                    backdrop.classList.add('is-open');
+                    setTimeout(function () { inputMinutes.focus(); }, 0);
+                }
+
+                function closeDialog() {
+                    backdrop.classList.remove('is-open');
+                }
+
+                btnOpen.addEventListener('click', openDialog);
+                btnCancel.addEventListener('click', function () { closeDialog(); });
+                backdrop.addEventListener('click', function (e) { if (e.target === backdrop) closeDialog(); });
+                box.addEventListener('click', function (e) { e.stopPropagation(); });
+
+                const presetButtons = backdrop.querySelectorAll('.sleep-timer-preset');
+                presetButtons.forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        const mins = parseInt(btn.getAttribute('data-minutes'), 10) || 0;
+                        inputHours.value = Math.floor(mins / 60);
+                        inputMinutes.value = mins % 60;
+                    });
+                });
+
+                btnConfirm.addEventListener('click', function () {
+                    let h = parseInt(inputHours.value, 10) || 0;
+                    let m = parseInt(inputMinutes.value, 10) || 0;
+                    if (h < 0) h = 0;
+                    if (m < 0) m = 0;
+                    let totalMs = (h * 60 + m) * 60 * 1000;
+                    if (totalMs > SLEEP_TIMER_MAX_MS) {
+                        totalMs = SLEEP_TIMER_MAX_MS;
+                    }
+                    applySleepTimerMs(totalMs);
+                    closeDialog();
+                });
+            })();
 
             const btnChangelog = document.getElementById('btn-changelog');
             if (btnChangelog) btnChangelog.addEventListener('click', openChangelog);
@@ -814,43 +981,59 @@
         }
 
         // --- 2. 纯音乐播放逻辑 (核心) ---
-        const bgmAudio = new Audio();
+        let bgmAudio = new Audio();
         bgmAudio.crossOrigin = "anonymous"; // 允许跨域
+        let globalPreloadAudio = new Audio(); // 全局预加载对象
+
+        // 封装事件监听绑定逻辑，因为每次"偷梁换柱"后都需要重新绑定
+        function bindAudioEvents(audioObj) {
+            // 移除旧的监听器（虽然新对象没有监听器，但这是一个好习惯）
+            audioObj.removeEventListener('timeupdate', updateProgressDisplay);
+            audioObj.removeEventListener('loadedmetadata', updateProgressDisplay);
+            audioObj.removeEventListener('ended', handleAudioEnded);
+            audioObj.removeEventListener('play', handleAudioPlay);
+            audioObj.removeEventListener('pause', handleAudioPause);
+
+            audioObj.addEventListener('timeupdate', updateProgressDisplay);
+            audioObj.addEventListener('loadedmetadata', updateProgressDisplay);
+            audioObj.addEventListener('ended', handleAudioEnded);
+            audioObj.addEventListener('play', handleAudioPlay);
+            audioObj.addEventListener('pause', handleAudioPause);
+        }
+
+        // 单独抽离 ended 处理函数，方便绑定
+        function handleAudioEnded() {
+            updateProgressDisplay();
+            stopVisuals();
+            updatePlayPauseIcon();
+            playNextByMode();
+        }
+
+        /** 外部控制播放/暂停（如控制中心、锁屏）时同步按钮与视觉效果 */
+        function handleAudioPlay() {
+            updatePlayPauseIcon();
+            if (currentPlayingBvid) startVisuals(currentPlayingBvid);
+            updateMediaSession();
+        }
+        function handleAudioPause() {
+            updatePlayPauseIcon();
+            stopVisuals();
+            updateMediaSession();
+        }
+
+        // 初始化绑定
+        bindAudioEvents(bgmAudio);
         
         const characterImg = document.querySelector('.character-img');
-        const vinylRing = document.querySelector('.vinyl-ring');
         let currentPlayingBvid = '';  // 当前播放的 bvid
 
-        // --- 预加载：提前约 10 秒获取下一首资源，用户操作时以用户为准 ---
+        // --- 预加载与 API 调用（在结束前一定时间尝试直链预加载）---
         const PRELOAD_AHEAD_SEC = 10;
-        let preloadCache = null;       // { bvid, url } 或 null
-        let preloadInFlight = null;    // 当前正在预取的目标 bvid
-        let preloadScheduledForBvid = null;  // 本首已触发过预加载，避免重复
-
-        /** 按当前播放模式计算「下一首」的 bvid（不实际播放） */
-        function getNextBvid() {
-            const list = getEffectiveList();
-            if (!list.length) return null;
-            const idxEff = getCurrentIndexInEffectiveList();
-            if (playMode === 'single') return currentPlayingBvid;
-            if (playMode === 'random') {
-                const idx = getCurrentIndex();
-                const i = getRandomIndex(songList.length, idx);
-                return songList[i].bvid || null;
-            }
-            if (playMode === 'favorites') {
-                const nextIdx = idxEff < 0 ? 0 : (idxEff + 1) % list.length;
-                return list[nextIdx].bvid || null;
-            }
-            const idx = getCurrentIndex();
-            const nextIdx = idx < 0 ? 0 : (idx + 1) % songList.length;
-            return songList[nextIdx].bvid || null;
-        }
-
-        function clearPreload() {
-            preloadCache = null;
-            preloadInFlight = null;
-        }
+        let preloadCache = null;
+        let preloadInFlight = null;
+        let preloadScheduledForBvid = null;
+        /** 随机模式下「已确定的下一首」bvid，与预加载一致，保证能命中缓存 */
+        let nextRandomBvid = null;
 
         /** 延时 ms 毫秒 */
         function sleep(ms) {
@@ -863,9 +1046,30 @@
             return s ? (s.name || s.title || bvid) : (bvid || '未知');
         }
 
+        /** 页面内 Toast 提示，若干秒后自动消失，无需用户确认 */
+        var toastTimer = null;
+        function showToast(text, durationMs) {
+            var el = document.getElementById('toast');
+            if (!el) return;
+            if (toastTimer) clearTimeout(toastTimer);
+            el.textContent = text;
+            el.classList.add('is-visible');
+            toastTimer = setTimeout(function () {
+                el.classList.remove('is-visible');
+                toastTimer = null;
+            }, durationMs || 3500);
+        }
+
+        function getCurrentAudioMode() {
+            var m = (settings && settings.audioMode) || 'medium';
+            if (['low', 'medium', 'high'].indexOf(m) < 0) m = 'medium';
+            return m;
+        }
+
         /** 只调用一次 resolvehtml API（不处理 403），返回 { url } 或 null */
         function fetchResolveHtml(bvid) {
-            var apiUrl = API_BASE + '/resolvehtml?bvid=' + encodeURIComponent(bvid);
+            var mode = getCurrentAudioMode();
+            var apiUrl = API_BASE + '/resolvehtml?bvid=' + encodeURIComponent(bvid) + '&mode=' + encodeURIComponent(mode);
             return fetch(apiUrl).then(function (res) { return res.json(); }).then(function (data) {
                 return data && data.url ? { url: data.url } : null;
             }).catch(function () { return null; });
@@ -878,7 +1082,8 @@
          * 返回 { url }（此 url 已经是 proxy 地址）
          */
         function fetchResolveViaProxy(bvid) {
-            var apiUrl = API_BASE + '/resolve?bvid=' + encodeURIComponent(bvid);
+            var mode = getCurrentAudioMode();
+            var apiUrl = API_BASE + '/resolve?bvid=' + encodeURIComponent(bvid) + '&mode=' + encodeURIComponent(mode);
             return fetch(apiUrl).then(function (res) { return res.json(); }).then(function (data) {
                 if (data && data.url) {
                     var proxied = API_BASE + '/proxy?url=' + encodeURIComponent(data.url);
@@ -895,62 +1100,30 @@
          * @returns Promise<string | null> 可用的 realUrl 或 null
          */
         async function getLoadableRealUrl(bvid, initialUrl) {
-            var realUrl = initialUrl || null;
-            if (realUrl) {
-                try {
-                    var res = await fetch(realUrl, { method: 'HEAD' });
-                    if (res.status !== 403) return realUrl;
-                    console.warn('预加载直链不可用，状态码:', res.status);
-                } catch (e) {
-                    console.warn('预加载直链探测异常，将回退 proxy:', e);
-                }
-                realUrl = null;
+            // var realUrl = initialUrl || null;
+            // if (realUrl) {
+            //     try {
+            //         var res = await fetch(realUrl, { method: 'HEAD' });
+            //         if (res.status !== 403) return realUrl;
+            //         console.warn('预加载直链不可用，状态码:', res.status);
+            //     } catch (e) {
+            //         console.warn('预加载直链探测异常，将回退 proxy:', e);
+            //     }
+            //     realUrl = null;
+            // }
+            // // 无预加载或预加载直链不可用：直接走 proxy
+            // var result = await fetchResolveViaProxy(bvid);
+            // if (!result || !result.url) return null;
+            // return result.url;
+            // 1. 如果有预加载的链接，直接使用（无条件信任，消除卡顿）
+            if (initialUrl) {
+                return initialUrl; 
             }
-            // 无预加载或预加载直链不可用：直接走 proxy
+            
+            // 2. 如果没有预加载，才去请求新的地址
             var result = await fetchResolveViaProxy(bvid);
             if (!result || !result.url) return null;
             return result.url;
-        }
-
-        /**
-         * 异步预取下一首的播放地址并缓存；
-         * 使用 resolvehtml 直链方式，最多尝试 2 次，不做 403 探测，
-         * 实际播放时若直链不可用会自动回退到 proxy。
-         */
-        function tryPreloadNext() {
-            const nextBvid = getNextBvid();
-            if (!nextBvid || nextBvid === currentPlayingBvid) return;
-            if (preloadCache && preloadCache.bvid === nextBvid) return;
-            if (preloadInFlight === nextBvid) return;
-            preloadInFlight = nextBvid;
-            (async function () {
-                let result = null;
-                for (let attempt = 1; attempt <= 2; attempt++) {
-                    result = await fetchResolveHtml(nextBvid);
-                    if (result && result.url) break;
-                    await sleep(500 + Math.random() * 500);
-                }
-                const url = result && result.url;
-                if (url && preloadInFlight === nextBvid) {
-                    preloadCache = { bvid: nextBvid, url: url };
-                    var preloadAudio = new Audio();
-                    preloadAudio.preload = 'auto';
-                    preloadAudio.src = url;
-                }
-            })().catch(function () {}).then(function () {
-                if (preloadInFlight === nextBvid) preloadInFlight = null;
-            });
-        }
-
-        /** 在 timeupdate 中调用：剩余时间 ≤ 3 秒时触发一次预加载 */
-        function onTimeUpdateForPreload() {
-            var d = bgmAudio.duration;
-            var t = bgmAudio.currentTime;
-            if (!isFinite(d) || d <= 0) return;
-            if (d - t > PRELOAD_AHEAD_SEC) return;
-            if (currentPlayingBvid === preloadScheduledForBvid) return;
-            preloadScheduledForBvid = currentPlayingBvid;
-            tryPreloadNext();
         }
 
         /** 从元素的 computed transform 或 inline style 得到当前旋转角度（度） */
@@ -1002,13 +1175,16 @@
             }
         }
 
-        const MODE_LABELS = { list: '列表循环', single: '单曲循环', random: '随机播放', favorites: '播放收藏' };
+        const MODE_TITLES = { list: '列表循环', single: '单曲循环', random: '随机播放', favorites: '收藏列表循环' };
         function setPlayMode(mode) {
             playMode = mode;
+            if (mode !== 'random') nextRandomBvid = null;
             if (btnModeCycle) {
-                btnModeCycle.textContent = MODE_LABELS[mode] || mode;
-                btnModeCycle.title = mode === 'favorites' ? '收藏列表循环' : mode === 'list' ? '列表循环' : mode === 'single' ? '单曲循环' : '随机播放';
+                btnModeCycle.classList.remove('is-mode-list', 'is-mode-single', 'is-mode-random', 'is-mode-favorites');
+                btnModeCycle.classList.add('is-mode-' + (mode || 'list'));
+                btnModeCycle.title = MODE_TITLES[mode] || MODE_TITLES.list;
             }
+            try { localStorage.setItem(PLAY_MODE_STORAGE_KEY, mode || 'list'); } catch (e) {}
         }
 
         /** 收藏列表（保持 songList 顺序） */
@@ -1053,6 +1229,86 @@
             return k;
         }
 
+        function getNextBvid() {
+            const list = getEffectiveList();
+            if (!list.length) return null;
+            const idxEff = getCurrentIndexInEffectiveList();
+            if (playMode === 'single') return currentPlayingBvid;
+            if (playMode === 'random') {
+                const idx = getCurrentIndex();
+                const i = getRandomIndex(songList.length, idx);
+                return songList[i].bvid || null;
+            }
+            if (playMode === 'favorites') {
+                const nextIdx = idxEff < 0 ? 0 : (idxEff + 1) % list.length;
+                return list[nextIdx].bvid || null;
+            }
+            const idx = getCurrentIndex();
+            const nextIdx = idx < 0 ? 0 : (idx + 1) % songList.length;
+            return songList[nextIdx].bvid || null;
+        }
+
+        function clearPreload() {
+            preloadCache = null;
+            preloadInFlight = null;
+            nextRandomBvid = null;
+        }
+
+        /**
+         * 异步预取下一首的播放地址并缓存；
+         * 使用 resolvehtml 直链方式，最多尝试 2 次，不做 403 探测，
+         * 实际播放时若直链不可用会自动回退到 proxy。
+         */
+        function tryPreloadNext() {
+            const nextBvid = getNextBvid();
+            if (!nextBvid || nextBvid === currentPlayingBvid) return;
+            if (preloadCache && preloadCache.bvid === nextBvid) return;
+            if (preloadInFlight === nextBvid) return;
+            preloadInFlight = nextBvid;
+            if (playMode === 'random') nextRandomBvid = nextBvid;
+            (async function () {
+                let result = null;
+                for (let attempt = 1; attempt <= 2; attempt++) {
+                    // result = await fetchResolveHtml(nextBvid);
+                    result = await fetchResolveViaProxy(nextBvid);
+                    if (result && result.url) {
+                        try {
+                            var res = await fetch(result.url, { method: 'HEAD' });
+                            if (res.status !== 403) break;
+                            console.warn('重试网址:', result.url, '返回码:', res.status);
+                        } catch (e) {
+                            console.warn('重试网址:', result.url, '返回码: 请求异常', e);
+                        }
+                    }
+                    await sleep(500 + Math.random() * 500);
+                }
+                const url = result && result.url;
+                if (url && preloadInFlight === nextBvid) {
+                    preloadCache = { bvid: nextBvid, url: url };
+                    // var preloadAudio = new Audio();
+                    // preloadAudio.preload = 'auto';
+                    // preloadAudio.src = url;
+                    
+                    // 只加载，不播放
+                    globalPreloadAudio.src = url;
+                    globalPreloadAudio.load();
+                }
+            })().catch(function () {}).then(function () {
+                if (preloadInFlight === nextBvid) preloadInFlight = null;
+            });
+        }
+
+        /** 剩余时间 ≤ PRELOAD_AHEAD_SEC 时触发一次预加载 */
+        function onTimeUpdateForPreload() {
+            var d = bgmAudio.duration;
+            var t = bgmAudio.currentTime;
+            if (!isFinite(d) || d <= 0) return;
+            if (d - t > PRELOAD_AHEAD_SEC) return;
+            if (currentPlayingBvid === preloadScheduledForBvid) return;
+            preloadScheduledForBvid = currentPlayingBvid;
+            tryPreloadNext();
+        }
+
         function playNextByMode() {
             const list = getEffectiveList();
             if (!list.length) return;
@@ -1069,9 +1325,15 @@
                 return;
             }
             if (playMode === 'random') {
-                const idx = getCurrentIndex();
-                const i = getRandomIndex(songList.length, idx);
-                playMusic(songList[i].bvid || '');
+                if (nextRandomBvid) {
+                    const b = nextRandomBvid;
+                    nextRandomBvid = null;
+                    playMusic(b);
+                } else {
+                    const idx = getCurrentIndex();
+                    const i = getRandomIndex(songList.length, idx);
+                    playMusic(songList[i].bvid || '');
+                }
                 return;
             }
             if (playMode === 'favorites') {
@@ -1114,36 +1376,122 @@
             }
         }
 
-        // 播放函数（有预加载缓存时先试用，否则请求 API；对 realUrl 探测，遇 403 则重新要新网址并重试最多 5 次，仍失败则弹窗并自动下一首）
+        /** 同步控制中心/锁屏的媒体会话：元数据、播放状态、以及 play/pause/上一首/下一首 的响应（iOS 暂停后点播放需由此恢复） */
+        function updateMediaSession() {
+            if (typeof navigator === 'undefined' || !navigator.mediaSession) return;
+            try {
+                navigator.mediaSession.playbackState = bgmAudio.paused ? 'paused' : 'playing';
+                if (currentPlayingBvid) {
+                    const idx = getCurrentIndex();
+                    const name = (idx >= 0 && songList[idx]) ? (songList[idx].name || songList[idx].title || '—') : '—';
+                    navigator.mediaSession.metadata = new MediaMetadata({
+                        title: name,
+                        artist: '思诺',
+                        album: ''
+                    });
+                }
+                navigator.mediaSession.setActionHandler('play', function () {
+                    if (bgmAudio.src) bgmAudio.play();
+                });
+                navigator.mediaSession.setActionHandler('pause', function () {
+                    bgmAudio.pause();
+                });
+                navigator.mediaSession.setActionHandler('previoustrack', function () { goPrev(); });
+                navigator.mediaSession.setActionHandler('nexttrack', function () { goNext(); });
+            } catch (e) { /* 部分环境不支持或 setActionHandler 不可用 */ }
+        }
+
+        // 播放函数（预加载缓存 + getLoadableRealUrl 探测 403 重试，失败则弹窗并自动下一首）
         async function playMusic(bvid) {
             if (!bvid) return;
             preloadScheduledForBvid = null;
+
+            // 标记：是否使用了预加载对象
+            let usePreloadObject = false;
             var initialUrl = null;
+
             if (preloadCache && (preloadCache.bvid || '').toUpperCase() === (bvid || '').toUpperCase()) {
                 initialUrl = preloadCache.url;
                 preloadCache = null;
+                usePreloadObject = true; // 命中缓存
             }
             clearPreload();
+
             var realUrl = await getLoadableRealUrl(bvid, initialUrl);
+
             if (!realUrl) {
-                var songName = getSongNameByBvid(bvid);
-                alert('对不起小伙伴，神秘阿B力量暂时拒绝了歌曲《' + songName + '》的访问，之后可再重试，现在为你自动播放下一首歌喵。');
-                playNextByMode();
+                handlePlayError(bvid);
                 return;
             }
+
             currentPlayingBvid = bvid;
-            bgmAudio.src = realUrl;
-            bgmAudio.volume = 0.5;
+
+            if (usePreloadObject && realUrl === initialUrl) {
+                bgmAudio.pause();
+                let oldAudio = bgmAudio;
+                bgmAudio = globalPreloadAudio;
+
+                bindAudioEvents(bgmAudio);
+
+                bgmAudio.volume = 0.5;
+                bgmAudio.crossOrigin = "anonymous";
+
+                globalPreloadAudio = new Audio();
+
+                // 销毁旧对象前先移除其事件监听，否则清空 src 时可能触发 ended，导致多切一首
+                oldAudio.removeEventListener('timeupdate', updateProgressDisplay);
+                oldAudio.removeEventListener('loadedmetadata', updateProgressDisplay);
+                oldAudio.removeEventListener('ended', handleAudioEnded);
+                oldAudio.removeEventListener('play', handleAudioPlay);
+                oldAudio.removeEventListener('pause', handleAudioPause);
+                oldAudio.src = "";
+                oldAudio.load();
+                oldAudio = null;
+            } else {
+                // 没命中预加载
+                bgmAudio.src = realUrl;
+                bgmAudio.volume = 0.5;
+            }
+            
             updateProgressDisplay();
             updatePlaySongName();
+
+        try {
+                await bgmAudio.play();
+                startVisuals(bvid);
+                updatePlayPauseIcon();
+                updateMediaSession();
+            } catch (err) {
+                console.error("播放失败:", err);
+                // 预加载的链接失效了，尝试重新获取一次 Proxy 链接
+                if (realUrl === initialUrl) {
+                    console.log("预加载链接似乎失效，尝试重新获取链接...");
+                    // 强制不传 initialUrl，让它去服务器重新拿
+                    var retryUrl = await getLoadableRealUrl(bvid, null);
+                    if (retryUrl) {
+                        // 递归调用自己，再试一次
+                        playMusic(bvid); 
+                        return; 
+                    }
+                }
+                handlePlayError(bvid);
+                updatePlayPauseIcon(); 
+            }
+
             await bgmAudio.play();
             startVisuals(bvid);
             updatePlayPauseIcon();
+            updateMediaSession();
         }
 
-        // 视觉效果联动：暂停时保持当前角度，播放时从该角度继续转（整张唱片一起转）
+        function handlePlayError(bvid) {
+            var songName = getSongNameByBvid(bvid);
+            stopVisuals();
+            showToast('对不起小伙伴，出现了一些错误。可能是点击过快，也可能是神秘阿B力量暂时拒绝了歌曲《' + songName + '》的访问，之后可再重试喵。');
+        }
+
+        // 视觉效果联动：暂停时保持当前角度，播放时从该角度继续转
         function startVisuals(bvid) {
-            if (!characterImg) return;
             const deg = getRecordRotationDeg(characterImg);
             characterImg.style.setProperty('--start-deg', deg + 'deg');
             characterImg.style.removeProperty('transform');
@@ -1151,15 +1499,12 @@
         }
 
         function stopVisuals() {
-            if (!characterImg) return;
             const deg = getRecordRotationDeg(characterImg);
             characterImg.classList.remove('is-playing');
             characterImg.style.setProperty('transform', 'rotate(' + deg + 'deg)');
         }
 
-        // 播放条与时间
-        bgmAudio.addEventListener('timeupdate', updateProgressDisplay);
-        bgmAudio.addEventListener('loadedmetadata', updateProgressDisplay);
+        // 播放条与时间（timeupdate/loadedmetadata/ended 已由 bindAudioEvents 统一绑定，此处不再重复）
 
         // 拖动进度条跳转
         if (progressBarEl) progressBarEl.addEventListener('input', () => {
@@ -1171,21 +1516,16 @@
             }
         });
 
-        // 音频结束
-        bgmAudio.addEventListener('ended', () => {
-            updateProgressDisplay();
-            stopVisuals();
-            updatePlayPauseIcon();
-            playNextByMode();
-        });
-
         // 播放/暂停按钮
         btnPlayPause.addEventListener('click', () => {
             if (bgmAudio.paused) {
                 if (bgmAudio.src) {
                     bgmAudio.play();
                     if (currentPlayingBvid) {
-                        startVisuals(currentPlayingBvid);
+                        const deg = getRecordRotationDeg(characterImg);
+                        characterImg.style.setProperty('--start-deg', deg + 'deg');
+                        characterImg.style.removeProperty('transform');
+                        characterImg.classList.add('is-playing');
                         updatePlaySongName();
                     }
                     updatePlayPauseIcon();
@@ -1212,7 +1552,13 @@
                 setPlayMode(next);
             });
         }
-        setPlayMode('list');
+        (function initPlayMode() {
+            var saved = '';
+            try { saved = localStorage.getItem(PLAY_MODE_STORAGE_KEY) || ''; } catch (e) {}
+            if (['list', 'single', 'random', 'favorites'].indexOf(saved) < 0) saved = 'list';
+            if (saved === 'favorites' && favoritesSet.size === 0) saved = 'list';
+            setPlayMode(saved);
+        })();
         updatePlayPauseIcon();
 
         // 初始化版本小红点提示
@@ -1258,9 +1604,15 @@
             if (!list.length) return;
             const idxEff = getCurrentIndexInEffectiveList();
             if (playMode === 'random') {
-                const idx = getCurrentIndex();
-                const i = getRandomIndex(songList.length, idx);
-                playMusic(songList[i].bvid || '');
+                if (nextRandomBvid) {
+                    const b = nextRandomBvid;
+                    nextRandomBvid = null;
+                    playMusic(b);
+                } else {
+                    const idx = getCurrentIndex();
+                    const i = getRandomIndex(songList.length, idx);
+                    playMusic(songList[i].bvid || '');
+                }
             } else {
                 const nextIdx = idxEff < 0 ? 0 : (idxEff + 1) % list.length;
                 playMusic(list[nextIdx].bvid || '');
@@ -1269,9 +1621,8 @@
         if (btnPrev) btnPrev.addEventListener('click', goPrev);
         if (btnNext) btnNext.addEventListener('click', goNext);
 
-        // 点击圆环：暂停 / 继续（播放页）
+        // 点击圆环：暂停 / 继续（只在播放页生效）
         characterImg.addEventListener('click', () => {
-            // 只在播放页处理点击
             if (!viewPlay.classList.contains('is-active')) return;
             if (!bgmAudio.paused) {
                 bgmAudio.pause();
@@ -1285,3 +1636,5 @@
             updatePlayPauseIcon();
         });
 
+        // 尽早注册控制中心/锁屏的 play/pause/上一首/下一首，避免 iOS 暂停后点播放无响应
+        updateMediaSession();

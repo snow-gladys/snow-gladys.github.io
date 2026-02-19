@@ -97,7 +97,7 @@
         .character-img:not(.in-play-view) .character-photo {
             display: none;
         }
-        
+
         /* 黑胶外环：包裹人物，内圈透明；默认在首页等视图隐藏，仅播放页显示 */
         .vinyl-ring {
             position: absolute;
@@ -120,26 +120,7 @@
             filter: drop-shadow(0 0 25px rgba(0, 243, 255, 0.7));
         }
 
-        /* 中心孔洞：镂空（透明）+ 蓝色描边，不挡文字层 */
-        .center-hole {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 20%;
-            height: 20%;
-            transform: translate(-50%, -50%) scale(0);
-            background: transparent; /* 镂空，中心不涂黑，文字层可透出 */
-            border-radius: 50%;
-            border: 2px solid var(--neon-blue);
-            overflow: hidden;
-            z-index: 5;
-            opacity: 0;
-            transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            box-shadow: 0 0 15px var(--neon-blue);
-            pointer-events: none;
-        }
-
-        /* 目前不再使用中心孔洞，直接隐藏 */
+        /* 中心孔洞：以前用来挖洞，现在整体隐藏 */
         .center-hole {
             display: none;
         }
@@ -307,10 +288,16 @@
         .play-controls .btn-icon.btn-fav.is-fav .icon-star-outline { display: none; }
         .play-controls .btn-icon.btn-fav.is-fav .icon-star-filled { display: block; }
         .play-controls .btn-mode-cycle {
-            padding: 8px 14px; min-width: 56px; font-size: 0.75rem; font-family: 'Rajdhani', sans-serif; font-weight: 700;
-            border: 1px solid var(--neon-blue); background: rgba(0, 243, 255, 0.1); color: var(--neon-blue); cursor: pointer;
-            border-radius: 6px; transition: all 0.2s;
+            width: 44px; height: 44px; padding: 0; min-width: 0;
+            border-radius: 50%; border: 2px solid var(--neon-blue); background: rgba(0, 243, 255, 0.08);
+            color: var(--neon-blue); cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
         }
+        .play-controls .btn-mode-cycle .icon-mode { width: 22px; height: 22px; flex-shrink: 0; display: none; }
+        .play-controls .btn-mode-cycle.is-mode-list .icon-mode-list,
+        .play-controls .btn-mode-cycle.is-mode-single .icon-mode-single,
+        .play-controls .btn-mode-cycle.is-mode-random .icon-mode-random,
+        .play-controls .btn-mode-cycle.is-mode-favorites .icon-mode-favorites { display: block; }
         .play-controls .btn-mode-cycle:hover { background: rgba(0, 243, 255, 0.2); }
 
         /* 网页端：拉大歌名与唱片、进度条与按钮的间距，不影响移动端 */
@@ -424,7 +411,7 @@
         }
         .settings-modal-backdrop.is-open { display: flex; }
         .settings-modal {
-            width: 100%; max-width: 380px; max-height: 85vh; overflow: hidden;
+            width: 100%; max-width: 380px; max-height: 70vh; overflow: hidden;
             background: rgba(10, 10, 20, 0.95); border: 1px solid var(--neon-blue); border-radius: 8px;
             display: flex; flex-direction: column; pointer-events: auto;
         }
@@ -437,6 +424,7 @@
         .settings-toggle::after { content: ''; position: absolute; width: 18px; height: 18px; border-radius: 50%; background: #fff; top: 2px; left: 2px; transition: transform 0.2s; }
         .settings-toggle.is-on::after { transform: translateX(20px); }
         .settings-section { margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(0, 243, 255, 0.2); }
+        .settings-modal-body > .settings-section:first-of-type { margin-top: 0; padding-top: 0; border-top: none; }
         .settings-section-title { font-size: 0.8rem; color: var(--neon-blue); margin-bottom: 10px; }
         .custom-list { max-height: 200px; overflow-y: auto; margin-bottom: 10px; }
         .custom-list-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 0.85rem; }
@@ -451,6 +439,44 @@
         .custom-buttons-row .btn-manage-custom:hover { background: var(--neon-blue); color: #000; }
         .btn-add-custom { padding: 8px 14px; font-size: 0.85rem; background: rgba(0, 243, 255, 0.15); border: 1px solid var(--neon-blue); color: var(--neon-blue); cursor: pointer; border-radius: 6px; width: 100%; }
         .btn-add-custom:hover { background: var(--neon-blue); color: #000; }
+
+        /* 音质选择 */
+        .settings-section-quality .settings-quality-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 6px;
+        }
+        .btn-quality {
+            flex: 1;
+            padding: 6px 8px;
+            font-size: 0.8rem;
+            background: rgba(0, 243, 255, 0.08);
+            border: 1px solid rgba(0, 243, 255, 0.5);
+            color: var(--neon-blue);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s;
+            text-align: center;
+            white-space: nowrap;
+        }
+        .btn-quality:hover {
+            background: rgba(0, 243, 255, 0.2);
+        }
+        .btn-quality.is-active {
+            background: var(--neon-blue);
+            color: #000;
+            border-color: var(--neon-blue);
+        }
+
+        /* 联系方式与更新日志 */
+        .settings-row-contact label {
+            font-size: 0.8rem;
+            color: #aaa;
+        }
+        .settings-contact-text {
+            font-size: 0.8rem;
+            color: #ccc;
+        }
         .custom-manage-backdrop { position: fixed; inset: 0; z-index: 620; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }
         .custom-manage-backdrop.is-open { display: flex; }
         .custom-manage-panel { width: 100%; max-width: 420px; max-height: 80vh; background: rgba(10,10,20,0.95); border: 1px solid var(--neon-blue); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; }
@@ -474,6 +500,108 @@
         .custom-form-box .form-actions button { padding: 6px 14px; font-size: 0.85rem; cursor: pointer; border-radius: 4px; }
         .custom-form-box .form-actions .btn-submit { background: var(--neon-blue); color: #000; border: none; }
         .custom-form-box .form-actions .btn-cancel { background: transparent; color: #aaa; border: 1px solid #666; }
+
+        /* 定时关闭 弹窗 */
+        .sleep-timer-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 615;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            box-sizing: border-box;
+        }
+        .sleep-timer-backdrop.is-open { display: flex; }
+
+        .sleep-timer-box {
+            width: 100%;
+            max-width: 320px;
+            background: rgba(10, 10, 20, 0.98);
+            border: 1px solid var(--neon-blue);
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 0 24px rgba(0, 243, 255, 0.3);
+            color: #fff;
+            font-size: 0.9rem;
+        }
+        .sleep-timer-box h4 {
+            margin: 0 0 12px;
+            font-size: 0.95rem;
+            color: var(--neon-blue);
+        }
+        .sleep-timer-input-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .sleep-timer-input-row input {
+            width: 64px;
+            padding: 6px 8px;
+            box-sizing: border-box;
+            background: rgba(0, 243, 255, 0.06);
+            border: 1px solid rgba(0, 243, 255, 0.4);
+            border-radius: 4px;
+            color: #fff;
+        }
+        .sleep-timer-presets {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+        .sleep-timer-preset {
+            padding: 4px 10px;
+            font-size: 0.8rem;
+            background: rgba(0, 243, 255, 0.08);
+            border: 1px solid var(--neon-blue);
+            color: var(--neon-blue);
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .sleep-timer-preset:hover {
+            background: var(--neon-blue);
+            color: #000;
+        }
+        .sleep-timer-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 4px;
+        }
+        .sleep-timer-btn-cancel,
+        .sleep-timer-btn-confirm {
+            padding: 6px 14px;
+            font-size: 0.85rem;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .sleep-timer-btn-cancel {
+            background: transparent;
+            color: #aaa;
+            border: 1px solid #666;
+        }
+        .sleep-timer-btn-confirm {
+            background: var(--neon-blue);
+            color: #000;
+            border: none;
+        }
+
+        .btn-sleep-open {
+            padding: 6px 12px;
+            font-size: 0.85rem;
+            background: rgba(0, 243, 255, 0.15);
+            border: 1px solid var(--neon-blue);
+            color: var(--neon-blue);
+            cursor: pointer;
+            border-radius: 6px;
+        }
+        .btn-sleep-open:hover {
+            background: var(--neon-blue);
+            color: #000;
+        }
 
         /* 自定义歌单导入导出按钮（复用添加按钮样式） */
         .btn-export-custom,
@@ -584,8 +712,8 @@
         @media (max-width: 768px) {
             .glitch-title { font-size: 3rem; margin-top: -20vh; }
             .subtitle { margin-top: -20px; }
-            /* 移动端：整体再缩小到 40vh */
             .character-img { width: 42vh; height: 42vh; margin-top: -26vh; }
+            /* 移动端播放页：整体再缩小到 40vh */
             .character-img.in-play-view { width: 40vh; height: 40vh; }
             .stats-panel { width: 120px; padding: 6px 10px; border-right-width: 3px; }
             .stats-panel .stats-label { font-size: 0.6rem; }
@@ -596,11 +724,39 @@
             .view-play { padding-bottom: 30%; }
             .view-play .play-song-name { font-size: 1.35rem; bottom: 36%; }
             .view-play .play-controls { padding: 10px 12px; gap: 8px; }
-            .view-play .play-controls .btn-play { width: 44px; height: 44px; font-size: 1.3rem; }
             .view-play .play-controls .btn-icon { width: 36px; height: 36px; font-size: 1rem; }
-            .view-play .play-controls .btn-mode-cycle { padding: 6px 10px; font-size: 0.7rem; min-width: 48px; }
+            .view-play .play-controls .btn-icon.btn-play { width: 44px; height: 44px; }
+            .view-play .play-controls .btn-icon.btn-play .icon-svg { width: 24px; height: 24px; }
+            .view-play .play-controls .btn-mode-cycle { width: 36px; height: 36px; }
+            .view-play .play-controls .btn-mode-cycle .icon-mode { width: 18px; height: 18px; }
             .play-progress-wrap .time { font-size: 0.7rem; }
             .play-progress-wrap .progress-bar { height: 5px; }
             .play-progress-wrap .progress-bar::-webkit-slider-thumb { width: 12px; height: 12px; }
             .play-progress-wrap .progress-bar::-moz-range-thumb { width: 12px; height: 12px; }
+        }
+
+        /* --- Toast 提示（自动消失，无需确认）--- */
+        .toast {
+            position: fixed;
+            left: 50%;
+            bottom: 22%;
+            transform: translateX(-50%);
+            max-width: min(90vw, 360px);
+            padding: 12px 18px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 1px solid var(--neon-blue);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 0.9rem;
+            line-height: 1.4;
+            text-align: center;
+            z-index: 9999;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+            pointer-events: none;
+        }
+        .toast.is-visible {
+            opacity: 1;
+            visibility: visible;
         }

@@ -103,18 +103,20 @@
         const CUSTOM_STORAGE_KEY = 'sg_custom_songs';
 
         function getSettingsFromCookie() {
+            const fallback = { showMain: true, showLive: false, showCustom: false, version: null, audioMode: 'medium' };
             try {
                 const raw = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith(SETTINGS_COOKIE + '='));
-                if (!raw) return { showMain: true, showLive: false, showCustom: false, version: null };
+                if (!raw) return fallback;
                 const value = decodeURIComponent((raw.indexOf('=') >= 0 ? raw.substring(raw.indexOf('=') + 1) : '').trim());
                 const o = JSON.parse(value || '{}');
                 return {
                     showMain: o.showMain !== false,
                     showLive: o.showLive === true,
                     showCustom: !!o.showCustom,
-                    version: o.version || null
+                    version: o.version || null,
+                    audioMode: ['low', 'medium', 'high'].indexOf(o.audioMode) >= 0 ? o.audioMode : 'medium'
                 };
-            } catch (e) { return { showMain: true, showLive: false, showCustom: false, version: null }; }
+            } catch (e) { return fallback; }
         }
 
         function saveSettingsToCookie(settings) {
@@ -448,6 +450,15 @@
             if (tMain) tMain.classList.toggle('is-on', settings.showMain);
             if (tLive) tLive.classList.toggle('is-on', settings.showLive);
             if (tCustom) tCustom.classList.toggle('is-on', settings.showCustom);
+        }
+
+        function syncQualityButtons() {
+            const mode = (settings && settings.audioMode) || 'medium';
+            const buttons = document.querySelectorAll('.btn-quality');
+            buttons.forEach(function (btn) {
+                const m = btn.getAttribute('data-mode') || 'medium';
+                btn.classList.toggle('is-active', m === mode);
+            });
         }
 
         /** 设置页「自定义歌曲」区：无歌曲时只显示添加 + 导入/导出；有歌曲时 添加/管理 + 导入/导出 并排 */
@@ -818,6 +829,7 @@
                 settings = getSettingsFromCookie();
                 syncSettingsToggles();
                 renderCustomSectionInSettings();
+                syncQualityButtons();
                 modalBackdrop.classList.add('is-open');
 
                 if (hasNewVersionFlag) {
@@ -849,6 +861,19 @@
             flipToggle('toggle-show-main', 'showMain');
             flipToggle('toggle-show-live', 'showLive');
             flipToggle('toggle-show-custom', 'showCustom');
+
+            (function initQualityButtons() {
+                const buttons = document.querySelectorAll('.btn-quality');
+                if (!buttons.length) return;
+                buttons.forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        const mode = btn.getAttribute('data-mode') || 'medium';
+                        settings.audioMode = mode;
+                        saveSettingsToCookie(settings);
+                        syncQualityButtons();
+                    });
+                });
+            })();
             // 定时关闭弹窗
             (function initSleepTimerDialog() {
                 const btnOpen = document.getElementById('btn-open-sleep-timer');
@@ -1035,9 +1060,16 @@
             }, durationMs || 3500);
         }
 
+        function getCurrentAudioMode() {
+            var m = (settings && settings.audioMode) || 'medium';
+            if (['low', 'medium', 'high'].indexOf(m) < 0) m = 'medium';
+            return m;
+        }
+
         /** 只调用一次 resolvehtml API（不处理 403），返回 { url } 或 null */
         function fetchResolveHtml(bvid) {
-            var apiUrl = API_BASE + '/resolvehtml?bvid=' + encodeURIComponent(bvid);
+            var mode = getCurrentAudioMode();
+            var apiUrl = API_BASE + '/resolvehtml?bvid=' + encodeURIComponent(bvid) + '&mode=' + encodeURIComponent(mode);
             return fetch(apiUrl).then(function (res) { return res.json(); }).then(function (data) {
                 return data && data.url ? { url: data.url } : null;
             }).catch(function () { return null; });
@@ -1050,7 +1082,8 @@
          * 返回 { url }（此 url 已经是 proxy 地址）
          */
         function fetchResolveViaProxy(bvid) {
-            var apiUrl = API_BASE + '/resolve?bvid=' + encodeURIComponent(bvid);
+            var mode = getCurrentAudioMode();
+            var apiUrl = API_BASE + '/resolve?bvid=' + encodeURIComponent(bvid) + '&mode=' + encodeURIComponent(mode);
             return fetch(apiUrl).then(function (res) { return res.json(); }).then(function (data) {
                 if (data && data.url) {
                     var proxied = API_BASE + '/proxy?url=' + encodeURIComponent(data.url);

@@ -25,9 +25,9 @@
         const DEFAULT_TITLE = '心宜 · Fiona';
         const CURRENT_VERSION = '0.0.6(测)';
         // 如果你绑定了 api.snow-gladys.com，请使用下面第一行
-        const API_BASE = 'https://api.snow-gladys.com'; 
+        // const API_BASE = 'https://api.snow-gladys.com'; 
         // 如果没绑定成功，暂时用 Worker 原生地址：
-        // const API_BASE = 'https://snow-api-proxy.pengyiteng0827.workers.dev'; 
+        const API_BASE = 'https://snow-gladys-api-zone-3msnp1a62hlu-1304656834.eo-edgefunctions.com'; 
 
         // --- 1. 获取粉丝数逻辑 ---
         const fanCountElement = document.getElementById('fan-count');
@@ -1393,7 +1393,7 @@
 
             var realUrl = await getLoadableRealUrl(bvid, initialUrl);
             if (!realUrl) {
-                handlePlayError(bvid);
+                handlePlayError(bvid, 'NO_URL');
                 return;
             }
 
@@ -1443,7 +1443,7 @@
                         return;
                     }
                 }
-                handlePlayError(bvid);
+                handlePlayError(bvid, err);
                 updatePlayPauseIcon();
             }
 
@@ -1453,10 +1453,23 @@
             updateMediaSession();
         }
 
-        function handlePlayError(bvid) {
+        function handlePlayError(bvid, errOrCode) {
             var songName = getSongNameByBvid(bvid);
             stopVisuals();
-            showToast('对不起小伙伴，出现了一些错误。可能是点击过快，也可能是神秘阿B力量暂时拒绝了歌曲《' + songName + '》的访问，之后可再重试喵。');
+            var codeStr = '—';
+            if (errOrCode !== undefined && errOrCode !== null) {
+                if (typeof errOrCode === 'string') {
+                    codeStr = errOrCode;
+                } else if (errOrCode && typeof errOrCode === 'object') {
+                    if (errOrCode.name) {
+                        codeStr = errOrCode.name + (errOrCode.code !== undefined ? ' ' + errOrCode.code : '');
+                        if (errOrCode.message && String(errOrCode.message).trim()) codeStr += ' ' + String(errOrCode.message).trim();
+                    } else {
+                        codeStr = (errOrCode.message && String(errOrCode.message).trim()) || String(errOrCode);
+                    }
+                }
+            }
+            showToast('对不起小伙伴，出现了一些错误。可能是点击过快，也可能是神秘阿B力量暂时拒绝了歌曲《' + songName + '》的访问，之后可再重试喵。错误码：' + codeStr);
         }
 
         // 视觉效果联动：暂停时保持当前角度，播放时从该角度继续转

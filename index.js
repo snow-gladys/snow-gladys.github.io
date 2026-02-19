@@ -441,6 +441,7 @@
             customList = getCustomFromStorage();
             buildSongList();
             renderPlaylist();
+            runInitialPreload();
         }
 
         function syncSettingsToggles() {
@@ -1252,6 +1253,21 @@
             preloadCache = null;
             preloadInFlight = null;
             nextRandomBvid = null;
+        }
+
+        /** 首页进入时静默预加载一首歌（不播放、不展示），以便首次播放时提速 */
+        function runInitialPreload() {
+            if (songList.length === 0) return;
+            if (currentPlayingBvid) return;
+            var bvid = (songList[0].bvid || '').trim();
+            if (!bvid) return;
+            fetchResolveViaProxy(bvid).then(function (result) {
+                if (!result || !result.url) return;
+                if (currentPlayingBvid) return;
+                preloadCache = { bvid: bvid, url: result.url };
+                globalPreloadAudio.src = result.url;
+                globalPreloadAudio.load();
+            }).catch(function () {});
         }
 
         /**

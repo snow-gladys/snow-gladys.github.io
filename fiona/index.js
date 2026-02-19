@@ -1219,11 +1219,12 @@
             nextRandomBvid = null;
         }
 
-        /** 首页进入时静默预加载一首歌（不播放、不展示），以便首次播放时提速 */
+        /** 首页进入时静默预加载一首歌（不播放、不展示），以便首次播放时提速；随机选一首 */
         function runInitialPreload() {
             if (songList.length === 0) return;
             if (currentPlayingBvid) return;
-            var bvid = (songList[0].bvid || '').trim();
+            var idx = getRandomIndex(songList.length, -1);
+            var bvid = (songList[idx].bvid || '').trim();
             if (!bvid) return;
             fetchResolveViaProxy(bvid).then(function (result) {
                 if (!result || !result.url) return;
@@ -1232,6 +1233,13 @@
                 globalPreloadAudio.src = result.url;
                 globalPreloadAudio.load();
             }).catch(function () {});
+        }
+
+        /** 停止初始预加载（进入播放页且播放的不是预加载曲目时调用，避免后台继续加载） */
+        function stopInitialPreload() {
+            if (!globalPreloadAudio) return;
+            globalPreloadAudio.src = '';
+            globalPreloadAudio.load();
         }
 
         /**
@@ -1421,6 +1429,8 @@
                 oldAudio.load();
                 oldAudio = null;
             } else {
+                // 没命中预加载：停止初始预加载，避免后台继续加载
+                stopInitialPreload();
                 bgmAudio.src = realUrl;
                 bgmAudio.volume = 0.5;
             }

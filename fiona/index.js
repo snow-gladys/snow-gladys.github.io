@@ -23,7 +23,7 @@
 
         // --- 0. 配置中心 ---
         const DEFAULT_TITLE = '心宜 · Fiona';
-        const CURRENT_VERSION = '0.0.4(测)';
+        const CURRENT_VERSION = '0.0.5(测)';
         // 如果你绑定了 api.snow-gladys.com，请使用下面第一行
         const API_BASE = 'https://api.snow-gladys.com'; 
         // 如果没绑定成功，暂时用 Worker 原生地址：
@@ -954,10 +954,12 @@
         function handleAudioPlay() {
             updatePlayPauseIcon();
             if (currentPlayingBvid) startVisuals(currentPlayingBvid);
+            updateMediaSession();
         }
         function handleAudioPause() {
             updatePlayPauseIcon();
             stopVisuals();
+            updateMediaSession();
         }
 
         const characterImg = document.querySelector('.character-img');
@@ -980,6 +982,20 @@
         function getSongNameByBvid(bvid) {
             var s = songList.find(function (x) { return (x.bvid || '') === (bvid || ''); });
             return s ? (s.name || s.title || bvid) : (bvid || '未知');
+        }
+
+        /** 页面内 Toast 提示，若干秒后自动消失，无需用户确认 */
+        var toastTimer = null;
+        function showToast(text, durationMs) {
+            var el = document.getElementById('toast');
+            if (!el) return;
+            if (toastTimer) clearTimeout(toastTimer);
+            el.textContent = text;
+            el.classList.add('is-visible');
+            toastTimer = setTimeout(function () {
+                el.classList.remove('is-visible');
+                toastTimer = null;
+            }, durationMs || 3500);
         }
 
         /** 只调用一次 resolvehtml API（不处理 403），返回 { url } 或 null */
@@ -1089,13 +1105,14 @@
             }
         }
 
-        const MODE_LABELS = { list: '列表循环', single: '单曲循环', random: '随机播放', favorites: '播放收藏' };
+        const MODE_TITLES = { list: '列表循环', single: '单曲循环', random: '随机播放', favorites: '收藏列表循环' };
         function setPlayMode(mode) {
             playMode = mode;
             if (mode !== 'random') nextRandomBvid = null;
             if (btnModeCycle) {
-                btnModeCycle.textContent = MODE_LABELS[mode] || mode;
-                btnModeCycle.title = mode === 'favorites' ? '收藏列表循环' : mode === 'list' ? '列表循环' : mode === 'single' ? '单曲循环' : '随机播放';
+                btnModeCycle.classList.remove('is-mode-list', 'is-mode-single', 'is-mode-random', 'is-mode-favorites');
+                btnModeCycle.classList.add('is-mode-' + (mode || 'list'));
+                btnModeCycle.title = MODE_TITLES[mode] || MODE_TITLES.list;
             }
         }
 
@@ -1283,6 +1300,31 @@
             }
         }
 
+        /** 同步控制中心/锁屏的媒体会话：元数据、播放状态、以及 play/pause/上一首/下一首 的响应（iOS 暂停后点播放需由此恢复） */
+        function updateMediaSession() {
+            if (typeof navigator === 'undefined' || !navigator.mediaSession) return;
+            try {
+                navigator.mediaSession.playbackState = bgmAudio.paused ? 'paused' : 'playing';
+                if (currentPlayingBvid) {
+                    const idx = getCurrentIndex();
+                    const name = (idx >= 0 && songList[idx]) ? (songList[idx].name || songList[idx].title || '—') : '—';
+                    navigator.mediaSession.metadata = new MediaMetadata({
+                        title: name,
+                        artist: '心宜',
+                        album: ''
+                    });
+                }
+                navigator.mediaSession.setActionHandler('play', function () {
+                    if (bgmAudio.src) bgmAudio.play();
+                });
+                navigator.mediaSession.setActionHandler('pause', function () {
+                    bgmAudio.pause();
+                });
+                navigator.mediaSession.setActionHandler('previoustrack', function () { goPrev(); });
+                navigator.mediaSession.setActionHandler('nexttrack', function () { goNext(); });
+            } catch (e) { /* 部分环境不支持或 setActionHandler 不可用 */ }
+        }
+
         // 播放函数（预加载缓存 + getLoadableRealUrl 探测 403 重试，失败则弹窗并自动下一首）
         async function playMusic(bvid) {
             if (!bvid) return;
@@ -1339,6 +1381,7 @@
                 await bgmAudio.play();
                 startVisuals(bvid);
                 updatePlayPauseIcon();
+                updateMediaSession();
             } catch (err) {
                 console.error("播放失败，尝试救急处理:", err);
                 if (realUrl === initialUrl) {
@@ -1356,15 +1399,13 @@
             await bgmAudio.play();
             startVisuals(bvid);
             updatePlayPauseIcon();
+            updateMediaSession();
         }
 
         function handlePlayError(bvid) {
             var songName = getSongNameByBvid(bvid);
-            // 停止视觉旋转
-            stopVisuals(); 
-            alert('对不起小伙伴，神秘阿B力量暂时拒绝了歌曲《' + songName + '》的访问，之后可再重试喵。');
-            // 自动切下一首
-            // playNextByMode();
+            stopVisuals();
+            showToast('对不起小伙伴，出现了一些错误。可能是点击过快，也可能是神秘阿B力量暂时拒绝了歌曲《' + songName + '》的访问，之后可再重试喵。');
         }
 
         // 视觉效果联动：暂停时保持当前角度，播放时从该角度继续转
@@ -1507,4 +1548,7 @@
             }
             updatePlayPauseIcon();
         });
+
+        // 尽早注册控制中心/锁屏的 play/pause/上一首/下一首，避免 iOS 暂停后点播放无响应
+        updateMediaSession();
 

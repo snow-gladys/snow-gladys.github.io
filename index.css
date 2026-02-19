@@ -288,10 +288,16 @@
         .play-controls .btn-icon.btn-fav.is-fav .icon-star-outline { display: none; }
         .play-controls .btn-icon.btn-fav.is-fav .icon-star-filled { display: block; }
         .play-controls .btn-mode-cycle {
-            padding: 8px 14px; min-width: 56px; font-size: 0.75rem; font-family: 'Rajdhani', sans-serif; font-weight: 700;
-            border: 1px solid var(--neon-blue); background: rgba(0, 243, 255, 0.1); color: var(--neon-blue); cursor: pointer;
-            border-radius: 6px; transition: all 0.2s;
+            width: 44px; height: 44px; padding: 0; min-width: 0;
+            border-radius: 50%; border: 2px solid var(--neon-blue); background: rgba(0, 243, 255, 0.08);
+            color: var(--neon-blue); cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
         }
+        .play-controls .btn-mode-cycle .icon-mode { width: 22px; height: 22px; flex-shrink: 0; display: none; }
+        .play-controls .btn-mode-cycle.is-mode-list .icon-mode-list,
+        .play-controls .btn-mode-cycle.is-mode-single .icon-mode-single,
+        .play-controls .btn-mode-cycle.is-mode-random .icon-mode-random,
+        .play-controls .btn-mode-cycle.is-mode-favorites .icon-mode-favorites { display: block; }
         .play-controls .btn-mode-cycle:hover { background: rgba(0, 243, 255, 0.2); }
 
         /* 网页端：拉大歌名与唱片、进度条与按钮的间距，不影响移动端 */
@@ -679,11 +685,39 @@
             .view-play { padding-bottom: 30%; }
             .view-play .play-song-name { font-size: 1.35rem; bottom: 36%; }
             .view-play .play-controls { padding: 10px 12px; gap: 8px; }
-            .view-play .play-controls .btn-play { width: 44px; height: 44px; font-size: 1.3rem; }
             .view-play .play-controls .btn-icon { width: 36px; height: 36px; font-size: 1rem; }
-            .view-play .play-controls .btn-mode-cycle { padding: 6px 10px; font-size: 0.7rem; min-width: 48px; }
+            .view-play .play-controls .btn-icon.btn-play { width: 44px; height: 44px; }
+            .view-play .play-controls .btn-icon.btn-play .icon-svg { width: 24px; height: 24px; }
+            .view-play .play-controls .btn-mode-cycle { width: 36px; height: 36px; }
+            .view-play .play-controls .btn-mode-cycle .icon-mode { width: 18px; height: 18px; }
             .play-progress-wrap .time { font-size: 0.7rem; }
             .play-progress-wrap .progress-bar { height: 5px; }
             .play-progress-wrap .progress-bar::-webkit-slider-thumb { width: 12px; height: 12px; }
             .play-progress-wrap .progress-bar::-moz-range-thumb { width: 12px; height: 12px; }
+        }
+
+        /* --- Toast 提示（自动消失，无需确认）--- */
+        .toast {
+            position: fixed;
+            left: 50%;
+            bottom: 22%;
+            transform: translateX(-50%);
+            max-width: min(90vw, 360px);
+            padding: 12px 18px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 1px solid var(--neon-blue);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 0.9rem;
+            line-height: 1.4;
+            text-align: center;
+            z-index: 9999;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+            pointer-events: none;
+        }
+        .toast.is-visible {
+            opacity: 1;
+            visibility: visible;
         }

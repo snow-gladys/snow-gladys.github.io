@@ -51,6 +51,7 @@
 
         // --- 1.5 收藏（Local Storage，容量大、无 cookie 上限）---
         const FAV_STORAGE_KEY = 'sg_fav';
+        const PLAY_MODE_STORAGE_KEY = 'sg_play_mode';
         let favoritesSet = new Set();
 
         function getFavoritesFromStorage() {
@@ -1150,6 +1151,7 @@
                 btnModeCycle.classList.add('is-mode-' + (mode || 'list'));
                 btnModeCycle.title = MODE_TITLES[mode] || MODE_TITLES.list;
             }
+            try { localStorage.setItem(PLAY_MODE_STORAGE_KEY, mode || 'list'); } catch (e) {}
         }
 
         /** 收藏列表（保持 songList 顺序） */
@@ -1517,7 +1519,13 @@
                 setPlayMode(next);
             });
         }
-        setPlayMode('list');
+        (function initPlayMode() {
+            var saved = '';
+            try { saved = localStorage.getItem(PLAY_MODE_STORAGE_KEY) || ''; } catch (e) {}
+            if (['list', 'single', 'random', 'favorites'].indexOf(saved) < 0) saved = 'list';
+            if (saved === 'favorites' && favoritesSet.size === 0) saved = 'list';
+            setPlayMode(saved);
+        })();
         updatePlayPauseIcon();
 
         // 初始化版本小红点提示

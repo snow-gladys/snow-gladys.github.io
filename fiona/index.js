@@ -954,6 +954,50 @@
         bgmAudio.crossOrigin = "anonymous"; // 允许跨域
         let globalPreloadAudio = new Audio(); // 全局预加载对象
 
+        // --- 加载信息框 ---
+        var loadingInfoEl = document.getElementById('loading-info');
+        var loadingInfoTimer = null;      // setInterval 句柄，每秒刷新显示
+        var loadingStartTime = null;      // 开始加载的时间戳
+        var loadingBvid = null;           // 当前正在加载的 bvid
+
+        function showLoadingInfo(bvid) {
+            var songName = getSongNameByBvid(bvid);
+            loadingBvid = bvid;
+            loadingStartTime = Date.now();
+            if (loadingInfoTimer) { clearInterval(loadingInfoTimer); loadingInfoTimer = null; }
+            updateLoadingInfoContent(songName);
+            if (loadingInfoEl) loadingInfoEl.classList.add('is-visible');
+            loadingInfoTimer = setInterval(function () {
+                if (!loadingBvid) { hideLoadingInfo(); return; }
+                updateLoadingInfoContent(getSongNameByBvid(loadingBvid));
+            }, 500);
+        }
+
+        function updateLoadingInfoContent(songName) {
+            if (!loadingInfoEl) return;
+            var elapsed = loadingStartTime ? ((Date.now() - loadingStartTime) / 1000).toFixed(1) : '0.0';
+            var bufferedSec = '0.0';
+            try {
+                if (bgmAudio.buffered && bgmAudio.buffered.length > 0) {
+                    var total = 0;
+                    for (var i = 0; i < bgmAudio.buffered.length; i++) {
+                        total += bgmAudio.buffered.end(i) - bgmAudio.buffered.start(i);
+                    }
+                    bufferedSec = total.toFixed(1);
+                }
+            } catch (e) {}
+            loadingInfoEl.innerHTML =
+                '<div class="loading-title">歌曲《' + songName + '》加载中</div>' +
+                '<div class="loading-detail">已等待 ' + elapsed + ' 秒 · 已缓冲 ' + bufferedSec + ' 秒音频</div>';
+        }
+
+        function hideLoadingInfo() {
+            loadingBvid = null;
+            loadingStartTime = null;
+            if (loadingInfoTimer) { clearInterval(loadingInfoTimer); loadingInfoTimer = null; }
+            if (loadingInfoEl) loadingInfoEl.classList.remove('is-visible');
+        }
+
         // 封装事件监听绑定逻辑，因为每次"偷梁换柱"后都需要重新绑定
         function bindAudioEvents(audioObj) {
             audioObj.removeEventListener('timeupdate', updateProgressDisplay);
@@ -1435,11 +1479,13 @@
                 bgmAudio.volume = 0.5;
             }
 
+            showLoadingInfo(bvid);
             updateProgressDisplay();
             updatePlaySongName();
 
         try {
                 await bgmAudio.play();
+                hideLoadingInfo();
                 startVisuals(bvid);
                 updatePlayPauseIcon();
                 updateMediaSession();
@@ -1453,6 +1499,7 @@
                         return;
                     }
                 }
+                hideLoadingInfo();
                 handlePlayError(bvid, err);
                 updatePlayPauseIcon();
             }

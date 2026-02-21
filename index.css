@@ -760,3 +760,45 @@
             opacity: 1;
             visibility: visible;
         }
+
+        /* --- 歌曲加载信息框 --- */
+        .loading-info {
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            max-width: min(90vw, 360px);
+            padding: 14px 20px;
+            background: rgba(0, 0, 0, 0.88);
+            border: 1px solid var(--neon-blue);
+            border-left: 4px solid var(--neon-blue);
+            border-radius: 8px;
+            color: #fff;
+            font-family: 'Rajdhani', 'Microsoft YaHei', sans-serif;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            text-align: left;
+            z-index: 9998;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.25s, visibility 0.25s;
+            pointer-events: none;
+            box-shadow: 0 0 24px rgba(0, 243, 255, 0.2);
+        }
+        .loading-info.is-visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        .loading-info .loading-title {
+            color: var(--neon-blue);
+            font-weight: 700;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .loading-info .loading-detail {
+            font-size: 0.82rem;
+            color: rgba(255, 255, 255, 0.7);
+            font-family: 'Courier New', monospace;
+        }

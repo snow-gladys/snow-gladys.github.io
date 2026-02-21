@@ -992,36 +992,32 @@
         var loadingStartTime = null;      // 开始加载的时间戳
         var loadingBvid = null;           // 当前正在加载的 bvid
 
-        function showLoadingInfo(bvid) {
-            var songName = getSongNameByBvid(bvid);
+        // phase: 'resolve' | 'proxy' | 'buffering'
+        function showLoadingInfo(bvid, phase) {
             loadingBvid = bvid;
-            loadingStartTime = Date.now();
+            if (!loadingStartTime) loadingStartTime = Date.now();
             if (loadingInfoTimer) { clearInterval(loadingInfoTimer); loadingInfoTimer = null; }
-            updateLoadingInfoContent(songName);
+            updateLoadingInfoContent(getSongNameByBvid(bvid), phase);
             if (loadingInfoEl) loadingInfoEl.classList.add('is-visible');
-            loadingInfoTimer = setInterval(function () {
-                if (!loadingBvid) { hideLoadingInfo(); return; }
-                updateLoadingInfoContent(getSongNameByBvid(loadingBvid));
-            }, 100);
+            // 只有 buffering 阶段需要定时刷新以更新 readyState 与等待秒数
+            if (phase === 'buffering') {
+                loadingInfoTimer = setInterval(function () {
+                    if (!loadingBvid) { hideLoadingInfo(); return; }
+                    updateLoadingInfoContent(getSongNameByBvid(loadingBvid), 'buffering');
+                }, 100);
+            }
         }
 
-        function updateLoadingInfoContent(songName) {
+        function updateLoadingInfoContent(songName, phase) {
             if (!loadingInfoEl) return;
             var elapsed = loadingStartTime ? ((Date.now() - loadingStartTime) / 1000).toFixed(1) : '0.0';
-            var bufferedSec = 0;
-            try {
-                if (bgmAudio.buffered && bgmAudio.buffered.length > 0) {
-                    for (var i = 0; i < bgmAudio.buffered.length; i++) {
-                        bufferedSec += bgmAudio.buffered.end(i) - bgmAudio.buffered.start(i);
-                    }
-                }
-            } catch (e) {}
             var detail;
-            if (bufferedSec >= 0.5) {
-                detail = '已等待 ' + elapsed + ' 秒 · 已缓冲 ' + bufferedSec.toFixed(1) + ' 秒音频';
+            if (phase === 'resolve') {
+                detail = '已等待 ' + elapsed + ' 秒 · 获取音频ID中(1/6)';
+            } else if (phase === 'proxy') {
+                detail = '已等待 ' + elapsed + ' 秒 · 读取音频位置中(2/6)';
             } else {
-                // proxy 流式传输时 buffered 不可靠，仅显示等待时间与 readyState
-                var stateMap = ['初始化中', '已获取元数据', '有数据', '可播放', '可播放'];
+                var stateMap = ['获取音频数据中(3/6)', '已获取元数据(4/6)', '有数据(5/6)', '可播放(6/6)', '可播放(6/6)'];
                 var stateDesc = stateMap[bgmAudio.readyState] || '连接中';
                 detail = '已等待 ' + elapsed + ' 秒 · ' + stateDesc;
             }
@@ -1492,9 +1488,29 @@
             }
             clearPreload();
 
-            var realUrl = await getLoadableRealUrl(bvid, initialUrl);
+            // 等价于 getLoadableRealUrl(bvid, initialUrl)
+            var realUrl;
+            if (initialUrl) {
+                // 命中预加载缓存，直接使用，无需走 resolve/proxy 阶段
+                realUrl = initialUrl;
+            } else {
+                // 未命中：完整走 resolve → proxy 两阶段，并在每步更新信息框
+                showLoadingInfo(bvid, 'resolve');
+                var mode = getCurrentAudioMode();
+                var resolveRes = await fetch(API_BASE + '/resolve?bvid=' + encodeURIComponent(bvid) + '&mode=' + encodeURIComponent(mode))
+                    .then(function (r) { return r.json(); })
+                    .catch(function () { return null; });
+                if (!resolveRes || !resolveRes.url) {
+                    hideLoadingInfo();
+                    handlePlayError(bvid, 'NO_URL');
+                    return;
+                }
+                showLoadingInfo(bvid, 'proxy');
+                realUrl = API_BASE + '/proxy?url=' + encodeURIComponent(resolveRes.url);
+            }
 
             if (!realUrl) {
+                hideLoadingInfo();
                 handlePlayError(bvid, 'NO_URL');
                 return;
             }
@@ -1529,7 +1545,7 @@
                 bgmAudio.volume = 0.5;
             }
 
-            showLoadingInfo(bvid);
+            showLoadingInfo(bvid, 'buffering');
             updateProgressDisplay();
             updatePlaySongName();
 

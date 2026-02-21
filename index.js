@@ -1002,25 +1002,32 @@
             loadingInfoTimer = setInterval(function () {
                 if (!loadingBvid) { hideLoadingInfo(); return; }
                 updateLoadingInfoContent(getSongNameByBvid(loadingBvid));
-            }, 500);
+            }, 100);
         }
 
         function updateLoadingInfoContent(songName) {
             if (!loadingInfoEl) return;
             var elapsed = loadingStartTime ? ((Date.now() - loadingStartTime) / 1000).toFixed(1) : '0.0';
-            var bufferedSec = '0.0';
+            var bufferedSec = 0;
             try {
                 if (bgmAudio.buffered && bgmAudio.buffered.length > 0) {
-                    var total = 0;
                     for (var i = 0; i < bgmAudio.buffered.length; i++) {
-                        total += bgmAudio.buffered.end(i) - bgmAudio.buffered.start(i);
+                        bufferedSec += bgmAudio.buffered.end(i) - bgmAudio.buffered.start(i);
                     }
-                    bufferedSec = total.toFixed(1);
                 }
             } catch (e) {}
+            var detail;
+            if (bufferedSec >= 0.5) {
+                detail = '已等待 ' + elapsed + ' 秒 · 已缓冲 ' + bufferedSec.toFixed(1) + ' 秒音频';
+            } else {
+                // proxy 流式传输时 buffered 不可靠，仅显示等待时间与 readyState
+                var stateMap = ['初始化中', '已获取元数据', '有数据', '可播放', '可播放'];
+                var stateDesc = stateMap[bgmAudio.readyState] || '连接中';
+                detail = '已等待 ' + elapsed + ' 秒 · ' + stateDesc;
+            }
             loadingInfoEl.innerHTML =
                 '<div class="loading-title">歌曲《' + songName + '》加载中</div>' +
-                '<div class="loading-detail">已等待 ' + elapsed + ' 秒 · 已缓冲 ' + bufferedSec + ' 秒音频</div>';
+                '<div class="loading-detail">' + detail + '</div>';
         }
 
         function hideLoadingInfo() {

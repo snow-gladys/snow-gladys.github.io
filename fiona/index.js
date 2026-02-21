@@ -103,7 +103,7 @@
         const CUSTOM_STORAGE_KEY = 'sg_custom_songs_fiona';
 
         function getSettingsFromCookie() {
-            const fallback = { showMain: true, showLive: false, showCustom: false, version: null, audioMode: 'medium' };
+            const fallback = { showMain: true, showLive: false, showCustom: false, version: null, audioMode: 'medium', mediaSession: 'on' };
             try {
                 const raw = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith(SETTINGS_COOKIE + '='));
                 if (!raw) return fallback;
@@ -114,7 +114,8 @@
                     showLive: o.showLive === true,
                     showCustom: !!o.showCustom,
                     version: o.version || null,
-                    audioMode: ['low', 'medium', 'high'].indexOf(o.audioMode) >= 0 ? o.audioMode : 'medium'
+                    audioMode: ['low', 'medium', 'high'].indexOf(o.audioMode) >= 0 ? o.audioMode : 'medium',
+                    mediaSession: o.mediaSession === 'off' ? 'off' : 'on'
                 };
             } catch (e) { return fallback; }
         }
@@ -423,6 +424,13 @@
             if (tMain) tMain.classList.toggle('is-on', settings.showMain);
             if (tLive) tLive.classList.toggle('is-on', settings.showLive);
             if (tCustom) tCustom.classList.toggle('is-on', settings.showCustom);
+        }
+
+        function syncMediaSessionButtons() {
+            const mode = (settings && settings.mediaSession) || 'on';
+            document.querySelectorAll('.btn-mediasession').forEach(function (btn) {
+                btn.classList.toggle('is-active', btn.getAttribute('data-mode') === mode);
+            });
         }
 
         function syncQualityButtons() {
@@ -799,6 +807,7 @@
                 syncSettingsToggles();
                 renderCustomSectionInSettings();
                 syncQualityButtons();
+                syncMediaSessionButtons();
                 modalBackdrop.classList.add('is-open');
 
                 if (hasNewVersionFlag) {
@@ -840,6 +849,20 @@
                         settings.audioMode = mode;
                         saveSettingsToCookie(settings);
                         syncQualityButtons();
+                    });
+                });
+            })();
+
+            (function initMediaSessionButtons() {
+                const buttons = document.querySelectorAll('.btn-mediasession');
+                if (!buttons.length) return;
+                buttons.forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        const mode = btn.getAttribute('data-mode') || 'on';
+                        settings.mediaSession = mode;
+                        saveSettingsToCookie(settings);
+                        syncMediaSessionButtons();
+                        updateMediaSession();
                     });
                 });
             })();
@@ -1410,6 +1433,15 @@
         function updateMediaSession() {
             if (typeof navigator === 'undefined' || !navigator.mediaSession) return;
             try {
+                if ((settings && settings.mediaSession) === 'off') {
+                    // 用户关闭媒体会话：清除元数据并注销所有 handler，让系统不感知此页面
+                    navigator.mediaSession.metadata = null;
+                    navigator.mediaSession.playbackState = 'none';
+                    ['play', 'pause', 'previoustrack', 'nexttrack'].forEach(function (action) {
+                        try { navigator.mediaSession.setActionHandler(action, null); } catch (e) {}
+                    });
+                    return;
+                }
                 navigator.mediaSession.playbackState = bgmAudio.paused ? 'paused' : 'playing';
                 if (currentPlayingBvid) {
                     const idx = getCurrentIndex();

@@ -444,6 +444,7 @@
             gap: 8px;
             margin-top: 6px;
         }
+        .btn-mediasession,
         .btn-quality {
             flex: 1;
             padding: 6px 8px;
@@ -457,9 +458,11 @@
             text-align: center;
             white-space: nowrap;
         }
+        .btn-mediasession:hover,
         .btn-quality:hover {
             background: rgba(244, 114, 168, 0.2);
         }
+        .btn-mediasession.is-active,
         .btn-quality.is-active {
             background: var(--theme-pink);
             color: #000;

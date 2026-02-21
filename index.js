@@ -1580,6 +1580,7 @@
         }
 
         function handlePlayError(bvid, errOrCode) {
+            if (errOrCode && typeof errOrCode === 'object' && errOrCode.name === 'AbortError' && errOrCode.code === 20) return;
             var songName = getSongNameByBvid(bvid);
             stopVisuals();
             var codeStr = '—';

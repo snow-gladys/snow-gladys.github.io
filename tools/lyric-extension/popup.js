@@ -104,7 +104,7 @@ async function init() {
     return;
   }
 
-  outputEl.value = data.lyric.replace(/\\n/g, '\n');
+  outputEl.value = '[00:00.00]注意：本歌词未对轴\n' + data.lyric.replace(/\\n/g, '\n');
   setStatus('');
 }
 

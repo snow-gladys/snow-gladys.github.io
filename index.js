@@ -236,14 +236,13 @@
         function openPlaylist(focusIndex) {
             if (playlistSearchEl) playlistSearchEl.value = '';
             renderPlaylist();
-            if (focusIndex != null && focusIndex >= 0) {
-                const item = playlistListEl.querySelector(`[data-index="${focusIndex}"]`);
-                if (item) {
-                    item.classList.add('current');
-                    item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-                }
-            }
             viewPlaylist.classList.add('is-open');
+            // 等 DOM 渲染完成后再滚动到当前播放行
+            const scrollToIdx = focusIndex != null && focusIndex >= 0 ? focusIndex : getCurrentIndex();
+            requestAnimationFrame(function () {
+                const item = playlistListEl.querySelector(`[data-index="${scrollToIdx}"]`);
+                if (item) item.scrollIntoView({ block: 'center', behavior: 'instant' });
+            });
         }
 
         function closePlaylist() {
@@ -1160,7 +1159,7 @@
             }
         })();
 
-        document.getElementById('btn-open-playlist').addEventListener('click', () => openPlaylist());
+        document.getElementById('btn-open-playlist').addEventListener('click', () => openPlaylist(getCurrentIndex()));
         document.getElementById('btn-play-random').addEventListener('click', () => {
             if (!songList.length) return;
             const i = getRandomIndex(songList.length, -1);

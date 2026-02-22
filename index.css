@@ -981,7 +981,7 @@
             pointer-events: auto;
         }
         @media (max-width: 768px) {
-            .lyrics-view { bottom: calc(30% + 100px); }
+            .lyrics-view { bottom: calc(20% + 100px); }
         }
         @media (min-width: 769px) {
             .lyrics-scroll { max-width: 680px; }

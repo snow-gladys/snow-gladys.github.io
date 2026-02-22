@@ -1025,9 +1025,11 @@
             transition: color 0.3s, background 0.2s;
             letter-spacing: 0.5px;
         }
-        .lyric-line:hover {
-            color: rgba(0, 243, 255, 0.7);
-            background: rgba(0, 243, 255, 0.06);
+        @media (hover: hover) {
+            .lyric-line:hover {
+                color: rgba(0, 243, 255, 0.7);
+                background: rgba(0, 243, 255, 0.06);
+            }
         }
         .lyric-line.active {
             color: var(--neon-blue);

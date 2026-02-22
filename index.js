@@ -1672,11 +1672,12 @@
                     const idx = getCurrentIndex();
                     const name = (idx >= 0 && songList[idx]) ? (songList[idx].name || songList[idx].title || '—') : '—';
                     const useLockscreenLyric = (settings && settings.lockscreenLyric) === 'on';
-                    const currentTxt = (typeof currentLyrics !== 'undefined' && currentLyrics && currentLyricIndex >= 0 && currentLyrics[currentLyricIndex])
+                    const hasLyrics = typeof currentLyrics !== 'undefined' && currentLyrics && currentLyrics.length > 0;
+                    const currentTxt = (hasLyrics && currentLyricIndex >= 0 && currentLyrics[currentLyricIndex])
                         ? (currentLyrics[currentLyricIndex].text || '') : '';
                     navigator.mediaSession.metadata = new MediaMetadata({
-                        title: useLockscreenLyric ? (currentTxt || name) : name,
-                        artist: useLockscreenLyric ? (name + ' · 思诺') : '思诺',
+                        title: (useLockscreenLyric && hasLyrics) ? (currentTxt || name) : name,
+                        artist: (useLockscreenLyric && hasLyrics) ? (name + ' · 思诺') : '思诺',
                         album: ''
                     });
                 }
@@ -2180,6 +2181,8 @@
                     var t = currentLyrics[idx].time;
                     if (isFinite(bgmAudio.duration) && bgmAudio.duration > 0) {
                         bgmAudio.currentTime = t;
+                        // 重置索引，确保 updateLyricHighlight 一定执行 DOM 高亮刷新
+                        currentLyricIndex = -1;
                         updateProgressDisplay();
                     }
                 });

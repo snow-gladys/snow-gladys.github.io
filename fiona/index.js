@@ -433,6 +433,46 @@
             });
         }
 
+        function formatBytes(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+        }
+
+        async function refreshStorageUsageDisplay() {
+            var el = document.getElementById('storage-usage-display');
+            if (!el) return;
+
+            // 计算本站 localStorage 中各 key 的实际字节数（UTF-16，2字节/字符）
+            var lsBytes = 0;
+            try {
+                for (var i = 0; i < localStorage.length; i++) {
+                    var k = localStorage.key(i);
+                    lsBytes += (k.length + (localStorage.getItem(k) || '').length) * 2;
+                }
+            } catch (e) {}
+
+            var parts = [];
+            parts.push('LocalStorage ' + formatBytes(lsBytes));
+
+            // storage.estimate() 在 Chrome 中不含 localStorage，作为补充信息展示
+            if (navigator.storage && navigator.storage.estimate) {
+                try {
+                    var est = await navigator.storage.estimate();
+                    var used = est.usage || 0;
+                    var quota = est.quota || 0;
+                    // 仅在 used > 0 时才展示，避免 Chrome 下显示误导性的 0 B
+                    if (used > 0) {
+                        var pct = quota > 0 ? ((used / quota) * 100).toFixed(1) : null;
+                        parts.push('估计已用/估计可用: ' + formatBytes(used) +
+                            (pct !== null ? ' / ' + formatBytes(quota) + ' (' + pct + '%)' : ''));
+                    }
+                } catch (e) {}
+            }
+
+            el.textContent = parts.join(' · ');
+        }
+
         function syncQualityButtons() {
             const mode = (settings && settings.audioMode) || 'medium';
             const buttons = document.querySelectorAll('.btn-quality');
@@ -808,6 +848,7 @@
                 renderCustomSectionInSettings();
                 syncQualityButtons();
                 syncMediaSessionButtons();
+                refreshStorageUsageDisplay();
                 modalBackdrop.classList.add('is-open');
 
                 if (hasNewVersionFlag) {
@@ -824,6 +865,8 @@
             document.getElementById('btn-settings-play').addEventListener('click', openSettings);
             modalBackdrop.addEventListener('click', function (e) { if (e.target === modalBackdrop) closeSettings(); });
             modal.addEventListener('click', function (e) { e.stopPropagation(); });
+            const btnCloseSettings = document.getElementById('btn-close-settings');
+            if (btnCloseSettings) btnCloseSettings.addEventListener('click', closeSettings);
 
             function flipToggle(id, key) {
                 const btn = document.getElementById(id);
@@ -934,6 +977,8 @@
                 const panel = changelogBackdrop.querySelector('.changelog-panel');
                 if (panel) panel.addEventListener('click', function (e) { e.stopPropagation(); });
             }
+            const btnCloseChangelog = document.getElementById('btn-close-changelog');
+            if (btnCloseChangelog) btnCloseChangelog.addEventListener('click', closeChangelog);
 
             document.getElementById('custom-manage-backdrop').addEventListener('click', function (e) { if (e.target.id === 'custom-manage-backdrop') closeCustomManage(); });
             document.getElementById('custom-manage-panel').addEventListener('click', function (e) { e.stopPropagation(); });
@@ -961,6 +1006,8 @@
             showView('play');
         });
         playlistBackdrop.addEventListener('click', closePlaylist);
+        const btnClosePlaylist = document.getElementById('btn-close-playlist');
+        if (btnClosePlaylist) btnClosePlaylist.addEventListener('click', closePlaylist);
         document.getElementById('btn-open-catalog').addEventListener('click', () => openPlaylist(getCurrentIndex()));
         if (playlistSearchEl) playlistSearchEl.addEventListener('input', renderPlaylist);
         if (playlistFilterBtn) {

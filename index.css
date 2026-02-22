@@ -192,6 +192,7 @@
         .playlist-header {
             padding: 10px 14px; border-bottom: 1px solid rgba(0, 243, 255, 0.3);
             font-size: 0.7rem; letter-spacing: 3px; color: var(--neon-blue); text-transform: uppercase;
+            position: relative;
         }
         .playlist-search-wrap {
             position: relative; padding: 10px 14px; border-bottom: 1px solid rgba(0, 243, 255, 0.25); flex-shrink: 0;
@@ -415,7 +416,7 @@
             background: rgba(10, 10, 20, 0.95); border: 1px solid var(--neon-blue); border-radius: 8px;
             display: flex; flex-direction: column; pointer-events: auto;
         }
-        .settings-modal-header { padding: 12px 14px; border-bottom: 1px solid rgba(0, 243, 255, 0.3); font-size: 0.9rem; color: var(--neon-blue); }
+        .settings-modal-header { padding: 12px 14px; border-bottom: 1px solid rgba(0, 243, 255, 0.3); font-size: 0.9rem; color: var(--neon-blue); position: relative; }
         .settings-modal-body { padding: 14px; overflow-y: auto; flex: 1; min-height: 0; }
         .settings-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
         .settings-row label { font-size: 0.9rem; color: #ddd; }
@@ -686,7 +687,17 @@
             border-bottom: 1px solid rgba(0, 243, 255, 0.3);
             font-size: 0.9rem;
             color: var(--neon-blue);
+            position: relative;
         }
+
+        .panel-close-btn {
+            position: absolute; top: 50%; right: 10px; transform: translateY(-50%);
+            background: transparent; border: none; cursor: pointer; padding: 4px;
+            width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+            color: var(--neon-blue); opacity: 0.6; border-radius: 4px; transition: opacity 0.2s, background 0.2s;
+        }
+        .panel-close-btn:hover { opacity: 1; background: rgba(0, 243, 255, 0.12); }
+        .panel-close-btn svg { width: 14px; height: 14px; }
 
         .changelog-body {
             padding: 12px 14px 16px;
@@ -762,6 +773,16 @@
         .toast.is-visible {
             opacity: 1;
             visibility: visible;
+        }
+
+        /* --- 存储占用显示 --- */
+        .settings-storage-value {
+            display: block;
+            font-family: 'Courier New', monospace;
+            font-size: 0.82rem;
+            color: var(--neon-blue);
+            margin-top: 4px;
+            word-break: break-all;
         }
 
         /* --- 歌曲加载信息框 --- */

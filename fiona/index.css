@@ -1056,7 +1056,6 @@
         .view-play.is-lyrics-open .lyrics-song-name-bar { display: block; }
         .view-play.is-lyrics-open .play-song-name { display: none; }
         .view-play.is-lyrics-open .play-current-lyric { display: none; }
-        .view-play.is-lyrics-open .btn-pip-float { display: none !important; }
         .view-play.is-lyrics-open ~ .character-layer { opacity: 0; pointer-events: none; }
 
         .lyric-form-backdrop {

@@ -1099,7 +1099,6 @@
         /* 歌词模式下隐藏正常位置的歌名、唱片层、单行歌词 */
         .view-play.is-lyrics-open .play-song-name { display: none; }
         .view-play.is-lyrics-open .play-current-lyric { display: none; }
-        .view-play.is-lyrics-open .btn-pip-float { display: none !important; }
         .view-play.is-lyrics-open ~ .character-layer { opacity: 0; pointer-events: none; }
 
         /* 歌词弹层（添加/编辑歌词表单） */

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>网易云歌词获取</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: #f5f5f7; min-height: 100vh; padding: 40px 20px;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  h1 { font-size: 1.4rem; color: #1d1d1f; margin-bottom: 28px; font-weight: 600; }
+
+  .card {
+    background: #fff; border-radius: 14px; padding: 28px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08); width: 100%; max-width: 680px;
+    margin-bottom: 20px;
+  }
+
+  .input-row {
+    display: flex; gap: 10px; align-items: center;
+  }
+  label { font-size: 0.9rem; color: #555; white-space: nowrap; }
+  input[type="text"] {
+    flex: 1; border: 1.5px solid #ddd; border-radius: 8px;
+    padding: 9px 14px; font-size: 1rem; outline: none;
+    transition: border-color 0.2s;
+  }
+  input[type="text"]:focus { border-color: #c62f2f; }
+  button {
+    background: #c62f2f; color: #fff; border: none; border-radius: 8px;
+    padding: 9px 20px; font-size: 0.95rem; cursor: pointer;
+    white-space: nowrap; transition: background 0.2s;
+  }
+  button:hover { background: #a82525; }
+  button:disabled { background: #ccc; cursor: not-allowed; }
+
+  .status { font-size: 0.85rem; color: #888; margin-top: 10px; min-height: 1.2em; }
+  .status.error { color: #c62f2f; }
+  .status.ok { color: #2e7d32; }
+
+  .result-card { display: none; }
+  .result-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px;
+  }
+  .result-title { font-size: 0.9rem; color: #555; font-weight: 500; }
+  .btn-group { display: flex; gap: 8px; }
+  .btn-secondary {
+    background: #f0f0f0; color: #333; font-size: 0.85rem; padding: 6px 14px;
+  }
+  .btn-secondary:hover { background: #e0e0e0; }
+  .btn-copy { background: #1a73e8; }
+  .btn-copy:hover { background: #1558b0; }
+
+  textarea {
+    width: 100%; border: 1.5px solid #eee; border-radius: 8px;
+    padding: 14px; font-size: 0.88rem; font-family: 'Menlo', 'Consolas', monospace;
+    line-height: 1.7; resize: vertical; min-height: 300px; outline: none;
+    background: #fafafa; color: #222; transition: border-color 0.2s;
+  }
+  textarea:focus { border-color: #1a73e8; }
+
+  .save-row {
+    display: flex; gap: 10px; align-items: center; margin-top: 14px;
+    flex-wrap: wrap;
+  }
+  .save-row input[type="text"] { flex: 1; min-width: 180px; }
+  .btn-save { background: #2e7d32; }
+  .btn-save:hover { background: #1b5e20; }
+
+  .tip {
+    font-size: 0.8rem; color: #999; margin-top: 18px; line-height: 1.6;
+    text-align: center;
+  }
+  .tip a { color: #1a73e8; text-decoration: none; }
+  .tip a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<h1>🎵 网易云歌词获取</h1>
+
+<div class="card">
+  <div class="input-row">
+    <label for="song-id">歌曲 ID</label>
+    <input type="text" id="song-id" placeholder="例如：36024806" />
+    <button id="btn-fetch">获取歌词</button>
+  </div>
+  <div class="status" id="status"></div>
+</div>
+
+<div class="card result-card" id="result-card">
+  <div class="result-header">
+    <span class="result-title">歌词内容（LRC 格式）</span>
+    <div class="btn-group">
+      <button class="btn-secondary" id="btn-clear-empty">去除空行</button>
+      <button class="btn-secondary btn-copy" id="btn-copy">复制</button>
+    </div>
+  </div>
+  <textarea id="lyric-output" spellcheck="false"></textarea>
+
+  <div class="save-row">
+    <label for="filename">保存文件名</label>
+    <input type="text" id="filename" placeholder="歌曲名称.lrc" />
+    <button class="btn-save" id="btn-save">保存为 .lrc</button>
+  </div>
+</div>
+
+<p class="tip">
+  数据来自 <a href="https://music.163.com" target="_blank">网易云音乐</a>，仅供本地调试使用。<br>
+  获取到歌词后可直接编辑，再保存为 .lrc 文件放入 <code>lyrics/</code> 目录。
+</p>
+
+<script>
+const idInput    = document.getElementById('song-id');
+const btnFetch   = document.getElementById('btn-fetch');
+const statusEl   = document.getElementById('status');
+const resultCard = document.getElementById('result-card');
+const outputEl   = document.getElementById('lyric-output');
+const btnCopy    = document.getElementById('btn-copy');
+const btnClearEmpty = document.getElementById('btn-clear-empty');
+const filenameEl = document.getElementById('filename');
+const btnSave    = document.getElementById('btn-save');
+
+function setStatus(msg, type) {
+  statusEl.textContent = msg;
+  statusEl.className = 'status' + (type ? ' ' + type : '');
+}
+
+async function fetchLyric() {
+  const id = idInput.value.trim();
+  if (!id) { setStatus('请输入歌曲 ID', 'error'); return; }
+  if (!/^\d+$/.test(id)) { setStatus('歌曲 ID 应为纯数字', 'error'); return; }
+
+  btnFetch.disabled = true;
+  setStatus('获取中…');
+  resultCard.style.display = 'none';
+
+  try {
+    const url = '/api/lyric?id=' + encodeURIComponent(id);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+
+    if (data.code !== 200) throw new Error('接口返回 code=' + data.code);
+    if (!data.lyric) throw new Error('该歌曲暂无歌词');
+
+    outputEl.value = data.lyric.replace(/\\n/g, '\n');
+    filenameEl.value = '';
+    resultCard.style.display = 'block';
+    setStatus('获取成功', 'ok');
+  } catch (e) {
+    setStatus('获取失败：' + e.message, 'error');
+  } finally {
+    btnFetch.disabled = false;
+  }
+}
+
+// 回车触发
+idInput.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') fetchLyric();
+});
+btnFetch.addEventListener('click', fetchLyric);
+
+// 复制
+btnCopy.addEventListener('click', function() {
+  navigator.clipboard.writeText(outputEl.value).then(function() {
+    const orig = btnCopy.textContent;
+    btnCopy.textContent = '已复制 ✓';
+    setTimeout(function() { btnCopy.textContent = orig; }, 1500);
+  });
+});
+
+// 去除空行
+btnClearEmpty.addEventListener('click', function() {
+  outputEl.value = outputEl.value
+    .split('\n')
+    .filter(function(line) {
+      // 保留有歌词文字的时间标签行，去掉纯时间标签空行
+      return !/^\[\d{2}:\d{2}\.\d+\]\s*$/.test(line.trim());
+    })
+    .join('\n');
+});
+
+// 保存为文件
+btnSave.addEventListener('click', function() {
+  const content = outputEl.value;
+  if (!content.trim()) { alert('歌词内容为空'); return; }
+  let name = filenameEl.value.trim() || ('lyric_' + idInput.value.trim() + '.lrc');
+  if (!name.toLowerCase().endsWith('.lrc')) name += '.lrc';
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+</script>
+</body>
+</html>

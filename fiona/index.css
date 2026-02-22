@@ -246,6 +246,7 @@
         }
         .play-progress-wrap {
             width: 88%; max-width: 380px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+            position: relative; z-index: 10;
         }
         .play-progress-wrap .time { font-family: 'Courier New', monospace; font-size: 0.8rem; color: var(--theme-pink); min-width: 2.8em; text-align: center; }
         .play-progress-wrap .progress-bar {
@@ -272,6 +273,7 @@
         }
         .play-controls {
             display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap;
+            position: relative; z-index: 10;
         }
         .play-controls .btn-icon {
             width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--theme-pink); background: rgba(244, 114, 168, 0.08);
@@ -304,6 +306,11 @@
             font-size: 0.9rem; color: var(--theme-pink); text-align: center;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;
             letter-spacing: 1px;
+        }
+        .pip-lyric {
+            font-size: 0.78rem; color: rgba(255,255,255,0.75); text-align: center;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;
+            min-height: 1.1em; letter-spacing: 0.5px;
         }
         .pip-progress-wrap {
             display: flex; align-items: center; gap: 8px; width: 100%;
@@ -539,13 +546,13 @@
         /* 播放页设置按钮旁的小窗按钮 */
         .btn-pip-float {
             display: flex; align-items: center; justify-content: center;
-            padding: 6px; margin-top: 4px;
+            padding: 8px; margin-top: 4px;
             color: var(--theme-pink); background: rgba(0, 0, 0, 0.5);
             border: 1px solid var(--theme-pink); border-radius: 4px;
             cursor: pointer; transition: all 0.2s; width: 100%; box-sizing: border-box;
         }
         .btn-pip-float:hover { background: rgba(244, 114, 168, 0.15); }
-        .btn-pip-float .icon-svg { width: 18px; height: 18px; }
+        .btn-pip-float .icon-svg { width: 20px; height: 20px; }
         .btn-pip-float .icon-pip-close { display: none; }
         .btn-pip-float.is-pip-open .icon-pip-open { display: none; }
         .btn-pip-float.is-pip-open .icon-pip-close { display: block; }
@@ -865,11 +872,14 @@
         /* --- 存储占用显示 --- */
         .settings-storage-value {
             display: block;
+            margin-top: 4px;
+        }
+        .settings-storage-value span {
+            display: block;
             font-family: 'Courier New', monospace;
             font-size: 0.82rem;
             color: var(--theme-pink);
-            margin-top: 4px;
-            word-break: break-all;
+            line-height: 1.8;
         }
 
         /* --- 歌曲加载信息框 --- */
@@ -913,3 +923,186 @@
             color: rgba(255, 255, 255, 0.7);
             font-family: 'Courier New', monospace;
         }
+
+        /* ── 歌词相关样式（粉色主题）──────────────────────────────── */
+
+        .play-current-lyric {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: calc(24% - 2.2rem);
+            width: 88%;
+            max-width: 380px;
+            text-align: center;
+            font-family: 'Rajdhani', 'Microsoft YaHei', sans-serif;
+            font-size: 1.3rem;
+            color: rgba(244, 114, 168, 0.7);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        @media (min-width: 769px) {
+            .play-current-lyric { bottom: calc(20% - 2.2rem); }
+        }
+        @media (max-width: 768px) {
+            .play-current-lyric { bottom: calc(36% - 2rem); font-size: 1.1rem; }
+        }
+
+        .play-controls .btn-icon.btn-lyrics.is-lyrics-open {
+            background: var(--theme-pink);
+            color: #000;
+        }
+
+        .lyrics-view {
+            position: absolute;
+            /* 顶部从歌名 bar 下方开始（top: 4% + 歌名行高约50px） */
+            top: calc(4% + 50px);
+            left: 0; right: 0;
+            bottom: calc(2% + 130px);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding-top: 0;
+            box-sizing: border-box;
+            z-index: 5;
+            pointer-events: none;
+            overflow: hidden;
+        }
+        .view-play.is-lyrics-open .lyrics-view {
+            display: flex;
+            pointer-events: auto;
+        }
+        @media (max-width: 768px) {
+            .lyrics-view { bottom: calc(30% + 100px); }
+        }
+        @media (min-width: 769px) {
+            .lyrics-scroll { max-width: 680px; }
+        }
+
+        .lyrics-scroll {
+            width: 88%;
+            max-width: 420px;
+            height: 100%;
+            overflow-y: auto;
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+            padding: 40px 0;
+            box-sizing: border-box;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        .lyrics-scroll::-webkit-scrollbar { display: none; }
+
+        .lyric-line {
+            display: block;
+            width: 100%;
+            padding: 6px 8px;
+            margin: 2px 0;
+            font-family: 'Rajdhani', 'Microsoft YaHei', sans-serif;
+            font-size: 1.05rem;
+            font-weight: 700;
+            line-height: 1.6;
+            color: rgba(255, 255, 255, 0.45);
+            text-align: center;
+            cursor: pointer;
+            background: transparent;
+            border: none;
+            border-radius: 6px;
+            transition: color 0.3s, background 0.2s;
+            letter-spacing: 0.5px;
+        }
+        .lyric-line:hover {
+            color: rgba(244, 114, 168, 0.7);
+            background: rgba(244, 114, 168, 0.06);
+        }
+        .lyric-line.active {
+            color: var(--theme-pink);
+            font-size: 1.18rem;
+            text-shadow: 0 0 16px rgba(244, 114, 168, 0.5);
+        }
+
+        .lyrics-empty { text-align: center; padding: 20px 0; }
+        .lyrics-empty-text { font-size: 0.9rem; color: rgba(255,255,255,0.4); line-height: 1.7; margin-bottom: 16px; }
+        .btn-add-lyric {
+            padding: 8px 18px; font-size: 0.85rem;
+            background: rgba(244, 114, 168, 0.12); border: 1px solid var(--theme-pink);
+            color: var(--theme-pink); cursor: pointer; border-radius: 6px;
+            font-family: 'Rajdhani', 'Microsoft YaHei', sans-serif; letter-spacing: 1px; transition: all 0.2s;
+        }
+        .btn-add-lyric:hover { background: var(--theme-pink); color: #000; }
+
+        .btn-delete-lyric {
+            margin-top: 10px; padding: 6px 14px; font-size: 0.78rem;
+            background: transparent; border: 1px solid rgba(255,255,255,0.2);
+            color: rgba(255,255,255,0.35); cursor: pointer; border-radius: 6px; transition: all 0.2s;
+        }
+        .btn-delete-lyric:hover { border-color: #e55; color: #e55; }
+
+        .lyrics-song-name-bar {
+            position: absolute; top: 4%; left: 50%; transform: translateX(-50%);
+            width: 55%; text-align: center;
+            font-family: 'Rajdhani', 'Microsoft YaHei', sans-serif; font-weight: 700; font-size: 2rem;
+            color: var(--theme-pink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            pointer-events: none; z-index: 26; display: none;
+        }
+        .view-play.is-lyrics-open .lyrics-song-name-bar { display: block; }
+        .view-play.is-lyrics-open .play-song-name { display: none; }
+        .view-play.is-lyrics-open .play-current-lyric { display: none; }
+        .view-play.is-lyrics-open .btn-pip-float { display: none !important; }
+        .view-play.is-lyrics-open ~ .character-layer { opacity: 0; pointer-events: none; }
+
+        .lyric-form-backdrop {
+            position: fixed; inset: 0; z-index: 610;
+            background: rgba(0, 0, 0, 0.75);
+            display: none; align-items: center; justify-content: center; padding: 16px;
+        }
+        .lyric-form-backdrop.is-open { display: flex; }
+        .lyric-form-box {
+            width: 100%; max-width: 420px;
+            background: rgba(10, 10, 20, 0.98);
+            border: 1px solid var(--theme-pink); border-radius: 8px; padding: 16px;
+            display: flex; flex-direction: column;
+        }
+        .lyric-form-box h4 { margin: 0 0 6px; font-size: 0.95rem; color: var(--theme-pink); }
+        .lyric-form-hint-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+        .lyric-form-hint { font-size: 0.78rem; color: rgba(255,255,255,0.4); flex: 1; }
+        .btn-import-lrc {
+            flex-shrink: 0; padding: 4px 10px; font-size: 0.75rem; cursor: pointer;
+            background: transparent; border: 1px solid rgba(244,114,168,0.45); color: rgba(244,114,168,0.8);
+            border-radius: 4px; transition: all 0.2s; white-space: nowrap;
+        }
+        .btn-import-lrc:hover { background: var(--theme-pink); color: #000; border-color: var(--theme-pink); }
+        .lyric-form-box textarea {
+            width: 100%; box-sizing: border-box; height: 260px; padding: 10px 12px;
+            font-size: 0.82rem; font-family: 'Courier New', monospace; line-height: 1.6;
+            background: rgba(244, 114, 168, 0.04);
+            border: 1px solid rgba(244, 114, 168, 0.35); border-radius: 6px;
+            color: rgba(255,255,255,0.85); resize: vertical; outline: none;
+        }
+        .lyric-form-box textarea:focus { border-color: var(--theme-pink); box-shadow: 0 0 10px rgba(244,114,168,0.15); }
+        .lyric-form-box .form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+        .lyric-form-box .form-actions button { padding: 6px 16px; font-size: 0.85rem; cursor: pointer; border-radius: 4px; }
+        .lyric-form-box .form-actions .btn-submit { background: var(--theme-pink); color: #000; border: none; }
+        .lyric-form-box .form-actions .btn-cancel { background: transparent; color: #aaa; border: 1px solid #666; }
+
+        .custom-form-box textarea#custom-form-lyrics {
+            width: 100%; box-sizing: border-box; height: 120px; padding: 8px 10px; margin-bottom: 12px;
+            font-size: 0.8rem; font-family: 'Courier New', monospace; line-height: 1.5;
+            background: rgba(244, 114, 168, 0.04);
+            border: 1px solid rgba(244, 114, 168, 0.3); border-radius: 4px;
+            color: rgba(255,255,255,0.8); resize: vertical; outline: none;
+        }
+        .custom-form-box textarea#custom-form-lyrics:focus {
+            border-color: var(--theme-pink); box-shadow: 0 0 8px rgba(244,114,168,0.1);
+        }
+        .custom-form-lyrics-label-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+        .custom-form-lyrics-label-row .custom-form-label-optional { flex: 1; margin-bottom: 0; }
+        .custom-form-label-optional { display: block; font-size: 0.8rem; color: #aaa; margin-bottom: 4px; }
+        .label-optional { font-size: 0.72rem; color: rgba(255,255,255,0.3); font-weight: normal; }
+
+        .custom-manage-item .btn-lyric { padding: 4px 8px; font-size: 0.72rem; cursor: pointer; background: transparent; border: 1px solid rgba(244,114,168,0.4); color: rgba(244,114,168,0.7); border-radius: 4px; flex-shrink: 0; }
+        .custom-manage-item .btn-lyric:hover { background: rgba(244,114,168,0.12); color: var(--theme-pink); }
+        .custom-manage-item .btn-lyric.has-lyric { border-color: var(--theme-pink); color: var(--theme-pink); }

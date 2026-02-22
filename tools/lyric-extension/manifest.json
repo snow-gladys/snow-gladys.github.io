@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "网易云歌词提取",
+  "version": "1.0",
+  "description": "在网易云音乐歌曲页一键提取 LRC 歌词",
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icon.png"
+  },
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": [
+    "https://music.163.com/*"
+  ]
+}

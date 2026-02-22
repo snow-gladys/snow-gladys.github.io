@@ -23,7 +23,19 @@
 
         // --- 0. 配置中心 ---
         const DEFAULT_TITLE = '心宜 · Fiona';
-        const CURRENT_VERSION = '0.0.6(测)';
+        const CURRENT_VERSION = '0.0.7(测)';
+
+        (function checkIdbSupport() {
+            // fiona 页面在 /fiona/ 子目录下，lyrics 文件在上一级，需要修正路径
+            if (window.SG_LYRICS) window.SG_LYRICS.setBasePath('../lyrics/');
+            if (window.SG_LYRICS && !window.SG_LYRICS.supported) {
+                var el = document.getElementById('toast');
+                if (!el) return;
+                el.textContent = '当前浏览器不支持 IndexedDB，无法使用自定义歌词功能。';
+                el.classList.add('is-visible');
+                setTimeout(function () { el.classList.remove('is-visible'); }, 6000);
+            }
+        })();
         // 如果你绑定了 api.snow-gladys.com，请使用下面第一行
         // const API_BASE = 'https://api.snow-gladys.com'; 
         // 如果没绑定成功，暂时用 Worker 原生地址：
@@ -456,7 +468,8 @@
             var el = document.getElementById('storage-usage-display');
             if (!el) return;
 
-            // 计算本站 localStorage 中各 key 的实际字节数（UTF-16，2字节/字符）
+            var lines = [];
+
             var lsBytes = 0;
             try {
                 for (var i = 0; i < localStorage.length; i++) {
@@ -464,26 +477,33 @@
                     lsBytes += (k.length + (localStorage.getItem(k) || '').length) * 2;
                 }
             } catch (e) {}
+            var LS_QUOTA = 5 * 1024 * 1024;
+            var lsPct = Math.min((lsBytes / LS_QUOTA * 100), 100).toFixed(1);
+            lines.push('LocalStorage：' + formatBytes(lsBytes) + ' / 5 MB (' + lsPct + '%)');
 
-            var parts = [];
-            parts.push('LocalStorage ' + formatBytes(lsBytes));
+            if (window.SG_LYRICS && window.SG_LYRICS.supported) {
+                try {
+                    var idbBytes = await window.SG_LYRICS.estimateIdbBytes();
+                    lines.push('歌词 IndexedDB：' + formatBytes(idbBytes));
+                } catch (e) {}
+            }
 
-            // storage.estimate() 在 Chrome 中不含 localStorage，作为补充信息展示
             if (navigator.storage && navigator.storage.estimate) {
                 try {
                     var est = await navigator.storage.estimate();
                     var used = est.usage || 0;
                     var quota = est.quota || 0;
-                    // 仅在 used > 0 时才展示，避免 Chrome 下显示误导性的 0 B
                     if (used > 0) {
                         var pct = quota > 0 ? ((used / quota) * 100).toFixed(1) : null;
-                        parts.push('估计已用/估计可用: ' + formatBytes(used) +
+                        lines.push('浏览器其他估算已用：' + formatBytes(used) +
                             (pct !== null ? ' / ' + formatBytes(quota) + ' (' + pct + '%)' : ''));
                     }
                 } catch (e) {}
             }
 
-            el.textContent = parts.join(' · ');
+            el.innerHTML = lines.map(function (l) {
+                return '<span>' + l + '</span>';
+            }).join('');
         }
 
         function syncQualityButtons() {
@@ -651,9 +671,17 @@
             items.forEach(function (x) {
                 const row = document.createElement('div');
                 row.className = 'custom-manage-item';
-                row.innerHTML = '<span class="name" title="' + (x.item.name || '').replace(/"/g, '&quot;') + '"></span><span class="bvid"></span><button type="button" class="btn-edit">修改</button><button type="button" class="btn-del">删除</button><span class="del-confirm-bar"><span class="del-confirm-label">确定删除？</span><button type="button" class="btn-del-yes">删除</button><button type="button" class="btn-del-no">取消</button></span>';
+                row.innerHTML =
+                    '<span class="name" title="' + (x.item.name || '').replace(/"/g, '&quot;') + '"></span>' +
+                    '<span class="bvid"></span>' +
+                    '<button type="button" class="btn-edit">修改</button>' +
+                    '<button type="button" class="btn-del">删除</button>' +
+                    '<span class="del-confirm-bar"><span class="del-confirm-label">确定删除？</span>' +
+                    '<button type="button" class="btn-del-yes">删除</button>' +
+                    '<button type="button" class="btn-del-no">取消</button></span>';
                 row.querySelector('.name').textContent = x.item.name || '—';
                 row.querySelector('.bvid').textContent = x.item.bvid || '';
+
                 row.querySelector('.btn-edit').addEventListener('click', function (e) { e.stopPropagation(); closeCustomManage(); openCustomForm(x.idx); });
                 row.querySelector('.btn-del').addEventListener('click', function (e) {
                     e.stopPropagation();
@@ -665,12 +693,16 @@
                 });
                 row.querySelector('.btn-del-yes').addEventListener('click', function (e) {
                     e.stopPropagation();
+                    var delBvid = x.item.bvid || '';
                     customList.splice(x.idx, 1);
                     saveCustomToStorage(customList);
                     buildSongList();
                     renderPlaylist();
                     renderCustomManageList(document.getElementById('custom-manage-search').value);
                     if (customList.length === 0) { closeCustomManage(); renderCustomSectionInSettings(); }
+                    if (delBvid && window.SG_LYRICS && window.SG_LYRICS.supported) {
+                        window.SG_LYRICS.deleteUserLrc(delBvid).catch(function () {});
+                    }
                 });
                 listEl.appendChild(row);
             });
@@ -681,15 +713,27 @@
             const title = document.getElementById('custom-form-title');
             const nameIn = document.getElementById('custom-form-name');
             const bvidIn = document.getElementById('custom-form-bvid');
+            const lyricsIn = document.getElementById('custom-form-lyrics');
             if (editIndex != null && editIndex >= 0 && customList[editIndex]) {
                 title.textContent = '修改自定义歌曲';
                 nameIn.value = customList[editIndex].name || '';
                 bvidIn.value = customList[editIndex].bvid || '';
                 nameIn.dataset.editIndex = String(editIndex);
+                if (lyricsIn && window.SG_LYRICS && window.SG_LYRICS.supported) {
+                    lyricsIn.value = '';
+                    lyricsIn.placeholder = '加载中…';
+                    window.SG_LYRICS.getUserLrc(customList[editIndex].bvid || '').then(function (lrc) {
+                        lyricsIn.value = lrc || '';
+                        lyricsIn.placeholder = '[00:00.00] 第一行歌词\n[00:05.00] 第二行歌词\n留空则不修改已有歌词';
+                    });
+                } else if (lyricsIn) {
+                    lyricsIn.value = '';
+                }
             } else {
                 title.textContent = '添加自定义歌曲';
                 nameIn.value = '';
                 bvidIn.value = '';
+                if (lyricsIn) lyricsIn.value = '';
                 delete nameIn.dataset.editIndex;
             }
             backdrop.classList.add('is-open');
@@ -720,8 +764,10 @@
         function submitCustomForm() {
             const nameIn = document.getElementById('custom-form-name');
             const bvidIn = document.getElementById('custom-form-bvid');
+            const lyricsIn = document.getElementById('custom-form-lyrics');
             const name = (nameIn.value || '').trim();
             const bvid = (bvidIn.value || '').trim();
+            const lrcText = lyricsIn ? (lyricsIn.value || '').trim() : '';
             if (!name) { alert('请输入歌名'); return; }
             if (!isValidBvidFormat(bvid)) { alert('无效的BVID，请重新输入。'); return; }
             (async function () {
@@ -738,6 +784,12 @@
                 buildSongList();
                 renderPlaylist();
                 renderCustomSectionInSettings();
+                if (lrcText && window.SG_LYRICS && window.SG_LYRICS.supported) {
+                    await window.SG_LYRICS.saveUserLrc(bvid, lrcText).catch(function () {});
+                    if (currentPlayingBvid && currentPlayingBvid === bvid) {
+                        lyricsReloadForCurrentSong();
+                    }
+                }
                 closeCustomForm();
             })();
         }
@@ -1025,6 +1077,23 @@
             document.getElementById('custom-form-backdrop').addEventListener('click', function (e) { if (e.target.id === 'custom-form-backdrop') closeCustomForm(); });
             document.getElementById('custom-form-submit').addEventListener('click', submitCustomForm);
             document.getElementById('custom-form-box').addEventListener('click', function (e) { e.stopPropagation(); });
+
+            var lyricsImportBtn = document.getElementById('custom-form-lyrics-import-btn');
+            var lyricsFileInput = document.getElementById('custom-form-lyrics-file-input');
+            if (lyricsImportBtn && lyricsFileInput) {
+                lyricsImportBtn.addEventListener('click', function () { lyricsFileInput.click(); });
+                lyricsFileInput.addEventListener('change', function () {
+                    var file = this.files && this.files[0];
+                    if (!file) return;
+                    var reader = new FileReader();
+                    reader.onload = function (ev) {
+                        var ta = document.getElementById('custom-form-lyrics');
+                        if (ta) ta.value = ev.target.result || '';
+                    };
+                    reader.readAsText(file, 'UTF-8');
+                    this.value = '';
+                });
+            }
         })();
 
         document.getElementById('btn-open-playlist').addEventListener('click', () => openPlaylist());
@@ -1835,6 +1904,7 @@
         function buildPipHTML() {
             return '<div class="pip-player">' +
                 '<div class="pip-song-name" id="pip-song-name"></div>' +
+                '<div class="pip-lyric" id="pip-lyric"></div>' +
                 '<div class="pip-progress-wrap">' +
                     '<span class="pip-time" id="pip-time-current">0:00</span>' +
                     '<input type="range" class="pip-bar" id="pip-bar" min="0" max="100" value="0" step="0.1">' +
@@ -1859,11 +1929,17 @@
             if (!pipWindow) return;
             const pd = pipWindow.document;
             const nameEl = pd.getElementById('pip-song-name');
+            const lyricEl = pd.getElementById('pip-lyric');
             const curEl = pd.getElementById('pip-time-current');
             const totEl = pd.getElementById('pip-time-total');
             const barEl = pd.getElementById('pip-bar');
             const playBtn = pd.querySelector('.pip-play');
             if (nameEl) nameEl.textContent = getSongName();
+            if (lyricEl) {
+                var lyricTxt = (currentLyrics && currentLyricIndex >= 0 && currentLyrics[currentLyricIndex])
+                    ? (currentLyrics[currentLyricIndex].text || '') : '';
+                lyricEl.textContent = lyricTxt;
+            }
             if (playBtn) playBtn.classList.toggle('is-playing', !bgmAudio.paused);
             const t = bgmAudio.currentTime;
             const d = bgmAudio.duration;
@@ -1880,7 +1956,7 @@
         async function openPip() {
             if (pipWindow) { pipWindow.close(); return; }
             try {
-                pipWindow = await documentPictureInPicture.requestWindow({ width: 320, height: 148 });
+                pipWindow = await documentPictureInPicture.requestWindow({ width: 320, height: 175 });
 
                 [...document.styleSheets].forEach(function (ss) {
                     try {
@@ -1943,3 +2019,320 @@
         updatePlaySongName = function () { _origUpdatePlaySongName(); syncPipUI(); };
         var _origUpdatePlayPauseIcon = updatePlayPauseIcon;
         updatePlayPauseIcon = function () { _origUpdatePlayPauseIcon(); syncPipUI(); };
+
+        // ── 歌词功能 ──────────────────────────────────────────────────
+        var currentLyrics = null;
+        var currentLyricIndex = -1;
+        var lyricsViewOpen = false;
+        var userHasLyric = false;
+
+        var btnLyrics = document.getElementById('btn-lyrics');
+        var lyricsViewEl = document.getElementById('lyrics-view');
+        var lyricsScrollEl = document.getElementById('lyrics-scroll');
+        var playCurrentLyricEl = document.getElementById('play-current-lyric');
+        var lyricsSongNameBar = null;
+
+        (function initLyricsSongNameBar() {
+            var bar = document.createElement('div');
+            bar.className = 'lyrics-song-name-bar';
+            bar.id = 'lyrics-song-name-bar';
+            viewPlay.appendChild(bar);
+            lyricsSongNameBar = bar;
+        })();
+
+        function toggleLyricsView(forceOpen) {
+            lyricsViewOpen = forceOpen !== undefined ? forceOpen : !lyricsViewOpen;
+            viewPlay.classList.toggle('is-lyrics-open', lyricsViewOpen);
+            if (btnLyrics) btnLyrics.classList.toggle('is-lyrics-open', lyricsViewOpen);
+            var charLayer = document.querySelector('.character-layer');
+            if (charLayer) {
+                charLayer.style.opacity = lyricsViewOpen ? '0' : '';
+                charLayer.style.pointerEvents = lyricsViewOpen ? 'none' : '';
+            }
+            if (lyricsViewOpen) renderLyricsScroll();
+        }
+
+        function renderLyricsScroll() {
+            if (!lyricsScrollEl) return;
+            lyricsScrollEl.innerHTML = '';
+
+            if (!currentLyrics || currentLyrics.length === 0) {
+                var emptyDiv = document.createElement('div');
+                emptyDiv.className = 'lyrics-empty';
+                var emptyText = document.createElement('div');
+                emptyText.className = 'lyrics-empty-text';
+                emptyText.textContent = '暂无歌词，小伙伴可自行添加 LRC 格式歌词。';
+                emptyDiv.appendChild(emptyText);
+                if (window.SG_LYRICS && window.SG_LYRICS.supported) {
+                    var addBtn = document.createElement('button');
+                    addBtn.type = 'button';
+                    addBtn.className = 'btn-add-lyric';
+                    addBtn.textContent = '添加歌词';
+                    addBtn.addEventListener('click', function () {
+                        openLyricForm(currentPlayingBvid || '', '');
+                    });
+                    emptyDiv.appendChild(addBtn);
+                }
+                lyricsScrollEl.appendChild(emptyDiv);
+                return;
+            }
+
+            currentLyrics.forEach(function (line, idx) {
+                if (!line.text) return;
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'lyric-line' + (idx === currentLyricIndex ? ' active' : '');
+                btn.dataset.idx = idx;
+                btn.textContent = line.text;
+                btn.addEventListener('click', function () {
+                    var t = currentLyrics[idx].time;
+                    if (isFinite(bgmAudio.duration) && bgmAudio.duration > 0) {
+                        bgmAudio.currentTime = t;
+                        updateProgressDisplay();
+                    }
+                });
+                lyricsScrollEl.appendChild(btn);
+            });
+
+            if (userHasLyric && window.SG_LYRICS && window.SG_LYRICS.supported) {
+                var delLyricArea = document.createElement('div');
+                delLyricArea.style.textAlign = 'center';
+                delLyricArea.style.padding = '12px 0 4px';
+                var delLyricBtn = document.createElement('button');
+                delLyricBtn.type = 'button';
+                delLyricBtn.className = 'btn-delete-lyric';
+                delLyricBtn.textContent = '删除自定义歌词';
+                delLyricBtn.addEventListener('click', function () {
+                    if (!confirm('确定删除当前歌曲的自定义歌词吗？')) return;
+                    window.SG_LYRICS.deleteUserLrc(currentPlayingBvid || '').then(function () {
+                        userHasLyric = false;
+                        lyricsReloadForCurrentSong();
+                    }).catch(function () {
+                        showToast('删除歌词失败，请重试。');
+                    });
+                });
+                delLyricArea.appendChild(delLyricBtn);
+                var editLyricBtn = document.createElement('button');
+                editLyricBtn.type = 'button';
+                editLyricBtn.className = 'btn-delete-lyric';
+                editLyricBtn.textContent = '编辑歌词';
+                editLyricBtn.style.marginLeft = '8px';
+                editLyricBtn.addEventListener('click', function () {
+                    openLyricForm(currentPlayingBvid || '', '');
+                });
+                delLyricArea.appendChild(editLyricBtn);
+                lyricsScrollEl.appendChild(delLyricArea);
+            } else if (window.SG_LYRICS && window.SG_LYRICS.supported) {
+                var addOverrideArea = document.createElement('div');
+                addOverrideArea.style.textAlign = 'center';
+                addOverrideArea.style.padding = '12px 0 4px';
+                var addOverrideBtn = document.createElement('button');
+                addOverrideBtn.type = 'button';
+                addOverrideBtn.className = 'btn-delete-lyric';
+                addOverrideBtn.textContent = '添加/替换自定义歌词';
+                addOverrideBtn.addEventListener('click', function () {
+                    openLyricForm(currentPlayingBvid || '', '');
+                });
+                addOverrideArea.appendChild(addOverrideBtn);
+                lyricsScrollEl.appendChild(addOverrideArea);
+            }
+
+            scrollToActiveLyric(false);
+        }
+
+        function updateLyricHighlight() {
+            if (!currentLyrics || !currentLyrics.length) return;
+            var t = bgmAudio.currentTime;
+            var newIdx = -1;
+            for (var i = currentLyrics.length - 1; i >= 0; i--) {
+                if (t >= currentLyrics[i].time) { newIdx = i; break; }
+            }
+            var txt = (newIdx >= 0 && currentLyrics[newIdx].text) ? currentLyrics[newIdx].text : '';
+            if (playCurrentLyricEl) {
+                playCurrentLyricEl.textContent = txt;
+            }
+            if (newIdx === currentLyricIndex) return;
+            currentLyricIndex = newIdx;
+
+            // 同步 PiP 小窗歌词
+            if (pipWindow) {
+                var pipLyricEl = pipWindow.document.getElementById('pip-lyric');
+                if (pipLyricEl) pipLyricEl.textContent = txt;
+            }
+
+            // 同步 Media Session album 字段为当前歌词句
+            if (typeof navigator !== 'undefined' && navigator.mediaSession && navigator.mediaSession.metadata) {
+                try {
+                    var meta = navigator.mediaSession.metadata;
+                    navigator.mediaSession.metadata = new MediaMetadata({
+                        title: meta.title,
+                        artist: meta.artist,
+                        album: txt,
+                        artwork: meta.artwork
+                    });
+                } catch (e) {}
+            }
+
+            if (!lyricsViewOpen) return;
+
+            // 更新高亮（用 dataset.idx 匹配，避免空行跳过导致的 DOM 索引偏移）
+            var lines = lyricsScrollEl.querySelectorAll('.lyric-line');
+            lines.forEach(function (el) {
+                el.classList.toggle('active', parseInt(el.dataset.idx) === newIdx);
+            });
+            scrollToActiveLyric(true);
+        }
+
+        function scrollToActiveLyric(smooth) {
+            if (!lyricsScrollEl || currentLyricIndex < 0) return;
+            var active = lyricsScrollEl.querySelector('.lyric-line[data-idx="' + currentLyricIndex + '"]');
+            if (!active) return;
+            var containerH = lyricsScrollEl.clientHeight;
+            var targetTop = active.offsetTop - containerH / 2 + active.clientHeight / 2;
+            lyricsScrollEl.scrollTo({ top: targetTop, behavior: smooth ? 'smooth' : 'auto' });
+        }
+
+        function lyricsReloadForCurrentSong() {
+            currentLyrics = null;
+            currentLyricIndex = -1;
+            userHasLyric = false;
+            if (playCurrentLyricEl) playCurrentLyricEl.textContent = '';
+            if (!currentPlayingBvid || !window.SG_LYRICS) {
+                if (lyricsViewOpen) renderLyricsScroll();
+                return;
+            }
+            window.SG_LYRICS.getUserLrc(currentPlayingBvid).then(function (userLrc) {
+                userHasLyric = !!userLrc;
+                return window.SG_LYRICS.loadLyrics(currentPlayingBvid);
+            }).then(function (lines) {
+                currentLyrics = lines && lines.length ? lines : null;
+                currentLyricIndex = -1;
+                if (lyricsViewOpen) renderLyricsScroll();
+            }).catch(function () {
+                currentLyrics = null;
+                if (lyricsViewOpen) renderLyricsScroll();
+            });
+        }
+
+        var _origUpdateProgressDisplay = updateProgressDisplay;
+        updateProgressDisplay = function () {
+            _origUpdateProgressDisplay();
+            updateLyricHighlight();
+        };
+
+        var _origUpdatePlaySongNameForLyrics = updatePlaySongName;
+        updatePlaySongName = function () {
+            _origUpdatePlaySongNameForLyrics();
+            lyricsReloadForCurrentSong();
+            if (lyricsSongNameBar) {
+                var idx = getCurrentIndex();
+                lyricsSongNameBar.textContent = (idx >= 0 && songList[idx]) ? (songList[idx].name || songList[idx].title || '—') : '—';
+            }
+        };
+
+        if (btnLyrics) {
+            btnLyrics.addEventListener('click', function () {
+                toggleLyricsView();
+            });
+        }
+
+        var _origShowView = showView;
+        showView = function (which) {
+            _origShowView(which);
+            if (which !== 'play' && lyricsViewOpen) {
+                toggleLyricsView(false);
+            }
+        };
+
+        // ── 歌词弹层 ──────────────────────────────────────────────────
+        function openLyricForm(bvid, songName) {
+            if (!window.SG_LYRICS || !window.SG_LYRICS.supported) {
+                showToast('当前浏览器不支持 IndexedDB，无法添加自定义歌词。');
+                return;
+            }
+            var backdrop = document.getElementById('lyric-form-backdrop');
+            var titleEl = document.getElementById('lyric-form-title');
+            var textarea = document.getElementById('lyric-form-textarea');
+            if (!backdrop || !textarea) return;
+            if (titleEl) titleEl.textContent = '歌词 · ' + (songName || bvid || '');
+            textarea.value = '';
+            textarea.placeholder = '[00:00.00] 第一行歌词\n[00:05.00] 第二行歌词';
+            window.SG_LYRICS.getUserLrc(bvid).then(function (lrc) {
+                textarea.value = lrc || '';
+            });
+            backdrop.dataset.bvid = bvid || '';
+            backdrop.classList.add('is-open');
+            setTimeout(function () { textarea.focus(); }, 100);
+        }
+
+        function closeLyricForm() {
+            var backdrop = document.getElementById('lyric-form-backdrop');
+            if (backdrop) backdrop.classList.remove('is-open');
+        }
+
+        function submitLyricForm() {
+            var backdrop = document.getElementById('lyric-form-backdrop');
+            var textarea = document.getElementById('lyric-form-textarea');
+            if (!backdrop || !textarea) return;
+            var bvid = backdrop.dataset.bvid || '';
+            var lrcText = (textarea.value || '').trim();
+            if (!bvid) { closeLyricForm(); return; }
+            if (!lrcText) {
+                if (!confirm('歌词内容为空，是否删除该歌曲的自定义歌词？')) return;
+                window.SG_LYRICS.deleteUserLrc(bvid).then(function () {
+                    showToast('自定义歌词已删除。');
+                    if (currentPlayingBvid && currentPlayingBvid === bvid) {
+                        lyricsReloadForCurrentSong();
+                    }
+                    closeLyricForm();
+                });
+                return;
+            }
+            if (!/\[\d{1,3}:\d{2}/.test(lrcText)) {
+                showToast('格式有误，LRC 歌词需包含时间标签，如 [00:05.00]');
+                return;
+            }
+            window.SG_LYRICS.saveUserLrc(bvid, lrcText).then(function () {
+                showToast('歌词已保存。');
+                if (currentPlayingBvid && currentPlayingBvid === bvid) {
+                    lyricsReloadForCurrentSong();
+                }
+                closeLyricForm();
+                var listEl = document.getElementById('custom-manage-list');
+                if (listEl) renderCustomManageList(document.getElementById('custom-manage-search') ? document.getElementById('custom-manage-search').value : '');
+            }).catch(function () {
+                showToast('保存歌词失败，请重试。');
+            });
+        }
+
+        (function initLyricForm() {
+            var backdrop = document.getElementById('lyric-form-backdrop');
+            var box = document.getElementById('lyric-form-box');
+            var btnCancel = document.getElementById('lyric-form-cancel');
+            var btnSubmit = document.getElementById('lyric-form-submit');
+            var btnImport = document.getElementById('lyric-form-import-btn');
+            var fileInput = document.getElementById('lyric-form-file-input');
+            if (!backdrop) return;
+            if (btnCancel) btnCancel.addEventListener('click', closeLyricForm);
+            if (btnSubmit) btnSubmit.addEventListener('click', submitLyricForm);
+            backdrop.addEventListener('click', function (e) { if (e.target === backdrop) closeLyricForm(); });
+            if (box) box.addEventListener('click', function (e) { e.stopPropagation(); });
+            if (btnImport && fileInput) {
+                btnImport.addEventListener('click', function () { fileInput.click(); });
+                fileInput.addEventListener('change', function () {
+                    var file = this.files && this.files[0];
+                    if (!file) return;
+                    var reader = new FileReader();
+                    reader.onload = function (e) {
+                        var textarea = document.getElementById('lyric-form-textarea');
+                        if (textarea) textarea.value = e.target.result || '';
+                    };
+                    reader.readAsText(file, 'UTF-8');
+                    this.value = '';
+                });
+            }
+        })();
+
+        // 歌词模块完成所有 patch 后，重新绑定 audio 事件，
+        // 确保 timeupdate 触发的是包含歌词高亮的最新 updateProgressDisplay
+        bindAudioEvents(bgmAudio);

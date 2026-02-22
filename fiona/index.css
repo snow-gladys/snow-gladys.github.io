@@ -287,6 +287,55 @@
         .play-controls .btn-icon.btn-fav .icon-star-filled { display: none; }
         .play-controls .btn-icon.btn-fav.is-fav .icon-star-outline { display: none; }
         .play-controls .btn-icon.btn-fav.is-fav .icon-star-filled { display: block; }
+        .play-controls .btn-icon.btn-pip .icon-pip-close { display: none; }
+        .play-controls .btn-icon.btn-pip.is-pip-open .icon-pip-open { display: none; }
+        .play-controls .btn-icon.btn-pip.is-pip-open .icon-pip-close { display: block; }
+
+        /* PiP 小窗内部样式 */
+        @media all and (display-mode: picture-in-picture) {
+            body { margin: 0; background: #000; }
+        }
+        .pip-player {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            width: 100%; height: 100%; padding: 14px 16px; box-sizing: border-box;
+            background: rgba(8, 8, 18, 0.97); color: #fff; font-family: inherit; gap: 10px;
+        }
+        .pip-song-name {
+            font-size: 0.9rem; color: var(--theme-pink); text-align: center;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;
+            letter-spacing: 1px;
+        }
+        .pip-progress-wrap {
+            display: flex; align-items: center; gap: 8px; width: 100%;
+        }
+        .pip-time { font-size: 0.72rem; color: #888; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+        .pip-bar {
+            flex: 1; -webkit-appearance: none; appearance: none; height: 3px;
+            background: rgba(244, 114, 168, 0.2); border-radius: 2px; outline: none; cursor: pointer;
+        }
+        .pip-bar::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
+            background: var(--theme-pink); cursor: pointer;
+        }
+        .pip-bar::-moz-range-thumb {
+            width: 12px; height: 12px; border-radius: 50%; background: var(--theme-pink); border: none; cursor: pointer;
+        }
+        .pip-controls {
+            display: flex; align-items: center; justify-content: center; gap: 12px;
+        }
+        .pip-btn {
+            background: transparent; border: none; cursor: pointer; padding: 6px;
+            color: var(--theme-pink); display: flex; align-items: center; justify-content: center;
+            border-radius: 50%; transition: background 0.15s, color 0.15s; flex-shrink: 0;
+        }
+        .pip-btn:hover { background: rgba(244, 114, 168, 0.15); }
+        .pip-btn svg { width: 22px; height: 22px; fill: currentColor; }
+        .pip-btn.pip-play { width: 44px; height: 44px; border: 2px solid var(--theme-pink); }
+        .pip-btn.pip-play svg { width: 26px; height: 26px; }
+        .pip-btn.pip-play:hover { background: var(--theme-pink); color: #000; }
+        .pip-btn .icon-pause { display: none; }
+        .pip-btn.is-playing .icon-play { display: none; }
+        .pip-btn.is-playing .icon-pause { display: block; }
         .play-controls .btn-mode-cycle {
             width: 44px; height: 44px; padding: 0; min-width: 0;
             border-radius: 50%; border: 2px solid var(--theme-pink); background: rgba(244, 114, 168, 0.08);
@@ -446,6 +495,7 @@
             margin-top: 6px;
         }
         .btn-mediasession,
+        .btn-pip-setting,
         .btn-quality {
             flex: 1;
             padding: 6px 8px;
@@ -460,15 +510,45 @@
             white-space: nowrap;
         }
         .btn-mediasession:hover,
+        .btn-pip-setting:hover,
         .btn-quality:hover {
             background: rgba(244, 114, 168, 0.2);
         }
         .btn-mediasession.is-active,
+        .btn-pip-setting.is-active,
         .btn-quality.is-active {
             background: var(--theme-pink);
             color: #000;
             border-color: var(--theme-pink);
         }
+
+        /* 媒体会话 & 小窗播放 两列布局 */
+        .settings-section-row2 {
+            display: flex; gap: 14px;
+        }
+        .settings-section-col {
+            flex: 1; min-width: 0;
+        }
+        .settings-section-col .settings-quality-row {
+            display: flex; gap: 8px; margin-top: 6px;
+        }
+        .settings-hint {
+            font-size: 0.65rem; color: #888; margin-left: 4px; font-weight: normal; vertical-align: middle;
+        }
+
+        /* 播放页设置按钮旁的小窗按钮 */
+        .btn-pip-float {
+            display: flex; align-items: center; justify-content: center;
+            padding: 6px; margin-top: 4px;
+            color: var(--theme-pink); background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--theme-pink); border-radius: 4px;
+            cursor: pointer; transition: all 0.2s; width: 100%; box-sizing: border-box;
+        }
+        .btn-pip-float:hover { background: rgba(244, 114, 168, 0.15); }
+        .btn-pip-float .icon-svg { width: 18px; height: 18px; }
+        .btn-pip-float .icon-pip-close { display: none; }
+        .btn-pip-float.is-pip-open .icon-pip-open { display: none; }
+        .btn-pip-float.is-pip-open .icon-pip-close { display: block; }
 
         /* 联系方式与更新日志 */
         .settings-row-contact label {

@@ -103,7 +103,7 @@
         const CUSTOM_STORAGE_KEY = 'sg_custom_songs';
 
         function getSettingsFromCookie() {
-            const fallback = { showMain: true, showLive: false, showCustom: false, version: null, audioMode: 'medium', mediaSession: 'on' };
+            const fallback = { showMain: true, showLive: false, showCustom: false, version: null, audioMode: 'medium', mediaSession: 'on', pipSetting: 'off' };
             try {
                 const raw = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith(SETTINGS_COOKIE + '='));
                 if (!raw) return fallback;
@@ -115,7 +115,8 @@
                     showCustom: !!o.showCustom,
                     version: o.version || null,
                     audioMode: ['low', 'medium', 'high'].indexOf(o.audioMode) >= 0 ? o.audioMode : 'medium',
-                    mediaSession: o.mediaSession === 'off' ? 'off' : 'on'
+                    mediaSession: o.mediaSession === 'off' ? 'off' : 'on',
+                    pipSetting: o.pipSetting === 'on' ? 'on' : 'off'
                 };
             } catch (e) { return fallback; }
         }
@@ -459,6 +460,19 @@
             document.querySelectorAll('.btn-mediasession').forEach(function (btn) {
                 btn.classList.toggle('is-active', btn.getAttribute('data-mode') === mode);
             });
+        }
+
+        function syncPipSettingButtons() {
+            const mode = (settings && settings.pipSetting) || 'off';
+            document.querySelectorAll('.btn-pip-setting').forEach(function (btn) {
+                btn.classList.toggle('is-active', btn.getAttribute('data-mode') === mode);
+            });
+            // 按设置显隐小窗按钮（同时需要浏览器支持 API）
+            const pipBtn = document.getElementById('btn-pip');
+            if (pipBtn) {
+                const supported = 'documentPictureInPicture' in window;
+                pipBtn.style.display = (supported && mode === 'on') ? '' : 'none';
+            }
         }
 
         function formatBytes(bytes) {
@@ -888,6 +902,7 @@
                 renderCustomSectionInSettings();
                 syncQualityButtons();
                 syncMediaSessionButtons();
+                syncPipSettingButtons();
                 refreshStorageUsageDisplay();
                 modalBackdrop.classList.add('is-open');
 
@@ -946,6 +961,21 @@
                         saveSettingsToCookie(settings);
                         syncMediaSessionButtons();
                         updateMediaSession();
+                    });
+                });
+            })();
+
+            (function initPipSettingButtons() {
+                const buttons = document.querySelectorAll('.btn-pip-setting');
+                if (!buttons.length) return;
+                buttons.forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        const mode = btn.getAttribute('data-mode') || 'off';
+                        settings.pipSetting = mode;
+                        saveSettingsToCookie(settings);
+                        syncPipSettingButtons();
+                        // 若正在 PiP 中且用户选择关闭，则关闭小窗
+                        if (mode === 'off' && pipWindow) { pipWindow.close(); }
                     });
                 });
             })();
@@ -1834,3 +1864,134 @@
 
         // 尽早注册控制中心/锁屏的 play/pause/上一首/下一首，避免 iOS 暂停后点播放无响应
         updateMediaSession();
+
+        // ── Picture-in-Picture 小窗播放 ──────────────────────────────
+        const btnPip = document.getElementById('btn-pip');
+        let pipWindow = null;
+
+        // 按设置 + 浏览器支持情况决定按钮可见性
+        syncPipSettingButtons();
+
+        function getSongName() {
+            const idx = getCurrentIndex();
+            if (idx >= 0 && songList[idx]) return songList[idx].name || songList[idx].title || '—';
+            return currentPlayingBvid ? '…' : '—';
+        }
+
+        function buildPipHTML() {
+            return '<div class="pip-player">' +
+                '<div class="pip-song-name" id="pip-song-name"></div>' +
+                '<div class="pip-progress-wrap">' +
+                    '<span class="pip-time" id="pip-time-current">0:00</span>' +
+                    '<input type="range" class="pip-bar" id="pip-bar" min="0" max="100" value="0" step="0.1">' +
+                    '<span class="pip-time" id="pip-time-total">0:00</span>' +
+                '</div>' +
+                '<div class="pip-controls">' +
+                    '<button type="button" class="pip-btn pip-prev" title="上一首">' +
+                        '<svg viewBox="0 0 24 24"><path d="M6 6h2v12H6V6zm4.5 6 8.5 6V6l-8.5 6z"/></svg>' +
+                    '</button>' +
+                    '<button type="button" class="pip-btn pip-play" title="播放/暂停">' +
+                        '<svg class="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7L8 5z"/></svg>' +
+                        '<svg class="icon-pause" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>' +
+                    '</button>' +
+                    '<button type="button" class="pip-btn pip-next" title="下一首">' +
+                        '<svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2V6zM5 6v12l8.5-6L5 6z"/></svg>' +
+                    '</button>' +
+                '</div>' +
+            '</div>';
+        }
+
+        function syncPipUI() {
+            if (!pipWindow) return;
+            const pd = pipWindow.document;
+            const nameEl = pd.getElementById('pip-song-name');
+            const curEl = pd.getElementById('pip-time-current');
+            const totEl = pd.getElementById('pip-time-total');
+            const barEl = pd.getElementById('pip-bar');
+            const playBtn = pd.querySelector('.pip-play');
+            if (nameEl) nameEl.textContent = getSongName();
+            if (playBtn) playBtn.classList.toggle('is-playing', !bgmAudio.paused);
+            const t = bgmAudio.currentTime;
+            const d = bgmAudio.duration;
+            if (curEl) curEl.textContent = formatTime(t);
+            if (isFinite(d) && d > 0) {
+                if (totEl) totEl.textContent = formatTime(d);
+                if (barEl) { barEl.value = (t / d) * 100; barEl.style.setProperty('--progress', barEl.value + '%'); }
+            } else {
+                if (totEl) totEl.textContent = '0:00';
+                if (barEl) { barEl.value = 0; barEl.style.setProperty('--progress', '0%'); }
+            }
+        }
+
+        async function openPip() {
+            if (pipWindow) { pipWindow.close(); return; }
+            try {
+                pipWindow = await documentPictureInPicture.requestWindow({ width: 320, height: 148 });
+
+                // 复制主文档 CSS 到小窗
+                [...document.styleSheets].forEach(function (ss) {
+                    try {
+                        var cssText = [...ss.cssRules].map(function (r) { return r.cssText; }).join('');
+                        var style = pipWindow.document.createElement('style');
+                        style.textContent = cssText;
+                        pipWindow.document.head.appendChild(style);
+                    } catch (e) {
+                        if (ss.href) {
+                            var link = pipWindow.document.createElement('link');
+                            link.rel = 'stylesheet'; link.href = ss.href;
+                            pipWindow.document.head.appendChild(link);
+                        }
+                    }
+                });
+
+                // 写入播放器 HTML
+                pipWindow.document.body.innerHTML = buildPipHTML();
+                pipWindow.document.body.style.cssText = 'margin:0;padding:0;height:100vh;overflow:hidden;background:#000;';
+
+                // 绑定按钮事件
+                pipWindow.document.querySelector('.pip-prev').addEventListener('click', goPrev);
+                pipWindow.document.querySelector('.pip-next').addEventListener('click', goNext);
+                pipWindow.document.querySelector('.pip-play').addEventListener('click', function () {
+                    if (bgmAudio.paused) {
+                        if (bgmAudio.src) { bgmAudio.play(); updatePlayPauseIcon(); }
+                        else if (songList.length) playMusic(songList[0].bvid || '');
+                    } else {
+                        bgmAudio.pause(); stopVisuals(); updatePlayPauseIcon();
+                    }
+                });
+                var pipBarEl = pipWindow.document.getElementById('pip-bar');
+                if (pipBarEl) {
+                    pipBarEl.addEventListener('input', function () {
+                        var d = bgmAudio.duration;
+                        if (isFinite(d) && d > 0) {
+                            bgmAudio.currentTime = (this.value / 100) * d;
+                            this.style.setProperty('--progress', this.value + '%');
+                        }
+                    });
+                }
+
+                // 小窗关闭时清理
+                pipWindow.addEventListener('pagehide', function () {
+                    pipWindow = null;
+                    if (btnPip) btnPip.classList.remove('is-pip-open');
+                });
+
+                if (btnPip) btnPip.classList.add('is-pip-open');
+                syncPipUI();
+
+                // 定时同步进度
+                var pipSyncInterval = pipWindow.setInterval(syncPipUI, 500);
+                pipWindow.addEventListener('pagehide', function () { pipWindow && pipWindow.clearInterval && pipWindow.clearInterval(pipSyncInterval); });
+            } catch (e) {
+                console.warn('PiP failed:', e);
+                pipWindow = null;
+            }
+        }
+
+        if (btnPip) btnPip.addEventListener('click', openPip);
+
+        // 歌曲切换或播放状态变化时同步小窗
+        var _origUpdatePlaySongName = updatePlaySongName;
+        updatePlaySongName = function () { _origUpdatePlaySongName(); syncPipUI(); };
+        var _origUpdatePlayPauseIcon = updatePlayPauseIcon;
+        updatePlayPauseIcon = function () { _origUpdatePlayPauseIcon(); syncPipUI(); };

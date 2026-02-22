@@ -2236,9 +2236,9 @@
                 try {
                     var meta = navigator.mediaSession.metadata;
                     navigator.mediaSession.metadata = new MediaMetadata({
-                        title: meta.title,
+                        title: txt, // meta.title,
                         artist: meta.artist,
-                        album: txt,
+                        // album: txt,
                         artwork: meta.artwork
                     });
                 } catch (e) {}

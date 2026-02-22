@@ -494,6 +494,15 @@
         .custom-manage-item .bvid { color: #888; font-size: 0.8rem; flex-shrink: 0; }
         .custom-manage-item .btn-edit, .custom-manage-item .btn-del { padding: 4px 10px; font-size: 0.75rem; cursor: pointer; background: transparent; border: 1px solid var(--neon-blue); color: var(--neon-blue); border-radius: 4px; flex-shrink: 0; }
         .custom-manage-item .btn-del { border-color: #666; color: #888; }
+        .custom-manage-item.del-confirm-open .btn-edit,
+        .custom-manage-item.del-confirm-open .btn-del { display: none; }
+        .del-confirm-bar { display: none; align-items: center; gap: 8px; flex-shrink: 0; }
+        .custom-manage-item.del-confirm-open .del-confirm-bar { display: flex; }
+        .del-confirm-bar .del-confirm-label { font-size: 0.78rem; color: #ccc; white-space: nowrap; }
+        .del-confirm-bar .btn-del-yes { padding: 4px 10px; font-size: 0.75rem; cursor: pointer; background: transparent; border: 1px solid #e55; color: #e55; border-radius: 4px; flex-shrink: 0; }
+        .del-confirm-bar .btn-del-yes:hover { background: rgba(238,85,85,0.15); }
+        .del-confirm-bar .btn-del-no { padding: 4px 10px; font-size: 0.75rem; cursor: pointer; background: transparent; border: 1px solid #666; color: #888; border-radius: 4px; flex-shrink: 0; }
+        .del-confirm-bar .btn-del-no:hover { background: rgba(255,255,255,0.06); }
         .custom-form-backdrop { position: fixed; inset: 0; z-index: 610; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; padding: 16px; }
         .custom-form-backdrop.is-open { display: flex; }
         .custom-form-box { width: 100%; max-width: 320px; background: rgba(10,10,20,0.98); border: 1px solid var(--neon-blue); border-radius: 8px; padding: 16px; }

@@ -670,11 +670,19 @@
             items.forEach(function (x) {
                 const row = document.createElement('div');
                 row.className = 'custom-manage-item';
-                row.innerHTML = '<span class="name" title="' + (x.item.name || '').replace(/"/g, '&quot;') + '"></span><span class="bvid"></span><button type="button" class="btn-edit">修改</button><button type="button" class="btn-del">删除</button>';
+                row.innerHTML = '<span class="name" title="' + (x.item.name || '').replace(/"/g, '&quot;') + '"></span><span class="bvid"></span><button type="button" class="btn-edit">修改</button><button type="button" class="btn-del">删除</button><span class="del-confirm-bar"><span class="del-confirm-label">确定删除？</span><button type="button" class="btn-del-yes">删除</button><button type="button" class="btn-del-no">取消</button></span>';
                 row.querySelector('.name').textContent = x.item.name || '—';
                 row.querySelector('.bvid').textContent = x.item.bvid || '';
                 row.querySelector('.btn-edit').addEventListener('click', function (e) { e.stopPropagation(); closeCustomManage(); openCustomForm(x.idx); });
                 row.querySelector('.btn-del').addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    row.classList.add('del-confirm-open');
+                });
+                row.querySelector('.btn-del-no').addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    row.classList.remove('del-confirm-open');
+                });
+                row.querySelector('.btn-del-yes').addEventListener('click', function (e) {
                     e.stopPropagation();
                     customList.splice(x.idx, 1);
                     saveCustomToStorage(customList);

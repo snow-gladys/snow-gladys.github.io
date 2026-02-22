@@ -1062,7 +1062,42 @@
         }
         .btn-add-lyric:hover { background: var(--neon-blue); color: #000; }
 
-        /* 删除用户歌词按钮（歌词视图内） */
+        /* 歌词视图底部操作按钮区 */
+        .lyrics-action-area {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+            padding: 14px 0 8px;
+        }
+
+        /* 统一歌词操作按钮（取代旧 btn-delete-lyric） */
+        .btn-lyric-action {
+            padding: 6px 14px;
+            font-size: 0.78rem;
+            font-family: 'Rajdhani', 'Microsoft YaHei', sans-serif;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            color: rgba(255, 255, 255, 0.45);
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s;
+            letter-spacing: 0.3px;
+        }
+        .btn-lyric-action:hover {
+            border-color: rgba(255, 255, 255, 0.55);
+            color: rgba(255, 255, 255, 0.85);
+        }
+        .btn-lyric-action.btn-lyric-action-primary {
+            border-color: var(--neon-blue);
+            color: var(--neon-blue);
+        }
+        .btn-lyric-action.btn-lyric-action-primary:hover {
+            background: var(--neon-blue);
+            color: #000;
+        }
+
+        /* 向后兼容旧样式名 */
         .btn-delete-lyric {
             margin-top: 10px;
             padding: 6px 14px;
@@ -1075,6 +1110,55 @@
             transition: all 0.2s;
         }
         .btn-delete-lyric:hover { border-color: #e55; color: #e55; }
+
+        /* 简易调轴 — 歌词行 */
+        .adjust-hint {
+            text-align: center;
+            font-size: 0.78rem;
+            color: rgba(255, 255, 255, 0.35);
+            padding: 4px 0 12px;
+            letter-spacing: 0.3px;
+        }
+
+        .adjust-lyric-row {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            width: 100%;
+            padding: 7px 10px;
+            margin: 1px 0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+            box-sizing: border-box;
+        }
+        .adjust-lyric-row:hover {
+            background: rgba(0, 243, 255, 0.08);
+        }
+        .adjust-lyric-row.is-current {
+            background: rgba(0, 243, 255, 0.1);
+        }
+        .adjust-lyric-time {
+            font-size: 0.72rem;
+            font-family: 'Courier New', monospace;
+            color: rgba(0, 243, 255, 0.55);
+            flex-shrink: 0;
+            min-width: 58px;
+        }
+        .adjust-lyric-row.is-current .adjust-lyric-time {
+            color: var(--neon-blue);
+        }
+        .adjust-lyric-text {
+            font-size: 0.95rem;
+            font-family: 'Rajdhani', 'Microsoft YaHei', sans-serif;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.5);
+            flex: 1;
+            line-height: 1.5;
+        }
+        .adjust-lyric-row.is-current .adjust-lyric-text {
+            color: rgba(255, 255, 255, 0.92);
+        }
 
         /* 歌词视图内顶部歌名（歌词模式下显示） */
         .lyrics-song-name-bar {

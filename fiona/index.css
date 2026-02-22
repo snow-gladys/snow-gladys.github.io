@@ -1039,12 +1039,95 @@
         }
         .btn-add-lyric:hover { background: var(--theme-pink); color: #000; }
 
+        /* 歌词视图底部操作按钮区 */
+        .lyrics-action-area {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+            padding: 14px 0 8px;
+        }
+
+        .btn-lyric-action {
+            padding: 6px 14px;
+            font-size: 0.78rem;
+            font-family: 'Rajdhani', 'Microsoft YaHei', sans-serif;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            color: rgba(255, 255, 255, 0.45);
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s;
+            letter-spacing: 0.3px;
+        }
+        .btn-lyric-action:hover {
+            border-color: rgba(255, 255, 255, 0.55);
+            color: rgba(255, 255, 255, 0.85);
+        }
+        .btn-lyric-action.btn-lyric-action-primary {
+            border-color: var(--theme-pink);
+            color: var(--theme-pink);
+        }
+        .btn-lyric-action.btn-lyric-action-primary:hover {
+            background: var(--theme-pink);
+            color: #000;
+        }
+
         .btn-delete-lyric {
             margin-top: 10px; padding: 6px 14px; font-size: 0.78rem;
             background: transparent; border: 1px solid rgba(255,255,255,0.2);
             color: rgba(255,255,255,0.35); cursor: pointer; border-radius: 6px; transition: all 0.2s;
         }
         .btn-delete-lyric:hover { border-color: #e55; color: #e55; }
+
+        /* 简易调轴 — 歌词行 */
+        .adjust-hint {
+            text-align: center;
+            font-size: 0.78rem;
+            color: rgba(255, 255, 255, 0.35);
+            padding: 4px 0 12px;
+            letter-spacing: 0.3px;
+        }
+
+        .adjust-lyric-row {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            width: 100%;
+            padding: 7px 10px;
+            margin: 1px 0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+            box-sizing: border-box;
+        }
+        .adjust-lyric-row:hover {
+            background: rgba(244, 114, 168, 0.08);
+        }
+        .adjust-lyric-row.is-current {
+            background: rgba(244, 114, 168, 0.1);
+        }
+        .adjust-lyric-time {
+            font-size: 0.72rem;
+            font-family: 'Courier New', monospace;
+            color: rgba(244, 114, 168, 0.55);
+            flex-shrink: 0;
+            min-width: 58px;
+        }
+        .adjust-lyric-row.is-current .adjust-lyric-time {
+            color: var(--theme-pink);
+        }
+        .adjust-lyric-text {
+            font-size: 0.95rem;
+            font-family: 'Rajdhani', 'Microsoft YaHei', sans-serif;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.5);
+            flex: 1;
+            line-height: 1.5;
+        }
+        .adjust-lyric-row.is-current .adjust-lyric-text {
+            color: rgba(255, 255, 255, 0.92);
+        }
 
         .lyrics-song-name-bar {
             position: absolute; top: 4%; left: 50%; transform: translateX(-50%);

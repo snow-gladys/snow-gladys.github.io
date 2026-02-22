@@ -1260,6 +1260,7 @@
             updateProgressDisplay();
             stopVisuals();
             updatePlayPauseIcon();
+            if (typeof adjustMode !== 'undefined' && adjustMode) return;
             playNextByMode();
         }
 
@@ -2112,6 +2113,11 @@
         var lyricsViewOpen = false;     // 是否处于歌词全屏视图
         var userHasLyric = false;       // 当前曲目是否有用户自定义歌词
 
+        // 调轴模式状态
+        var adjustMode = false;         // 是否处于调轴模式
+        var adjustLyrics = null;        // 调轴中的歌词副本 [{time, text}]
+        var adjustBvid = '';            // 调轴对应的 bvid
+
         var btnLyrics = document.getElementById('btn-lyrics');
         var lyricsViewEl = document.getElementById('lyrics-view');
         var lyricsScrollEl = document.getElementById('lyrics-scroll');
@@ -2139,6 +2145,35 @@
                 charLayer.style.pointerEvents = lyricsViewOpen ? 'none' : '';
             }
             if (lyricsViewOpen) renderLyricsScroll();
+        }
+
+        /** 将 [{time, text}] 转换为 LRC 文本 */
+        function lyricsToLrcText(lines) {
+            return lines.filter(function (l) { return l.text; }).map(function (l) {
+                var t = l.time;
+                var min = Math.floor(t / 60);
+                var sec = Math.floor(t % 60);
+                var ms = Math.round((t - Math.floor(t)) * 100);
+                return '[' + String(min).padStart(2, '0') + ':' + String(sec).padStart(2, '0') + '.' + String(ms).padStart(2, '0') + '] ' + l.text;
+            }).join('\n');
+        }
+
+        /** 导出当前歌词为 LRC 文件 */
+        function exportCurrentLyrics() {
+            if (!currentLyrics || !currentLyrics.length) return;
+            var idx = getCurrentIndex();
+            var songName = (idx >= 0 && songList[idx]) ? (songList[idx].name || songList[idx].title || 'lyrics') : 'lyrics';
+            var lrcText = lyricsToLrcText(currentLyrics);
+            var blob = new Blob([lrcText], { type: 'text/plain;charset=utf-8' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = songName + '.lrc';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('歌词已导出。');
         }
 
         /** 渲染歌词滚动区域 */
@@ -2188,51 +2223,82 @@
                 lyricsScrollEl.appendChild(btn);
             });
 
-            // 用户歌词时显示"删除歌词"按钮
-            if (userHasLyric && window.SG_LYRICS && window.SG_LYRICS.supported) {
-                var delLyricArea = document.createElement('div');
-                delLyricArea.style.textAlign = 'center';
-                delLyricArea.style.padding = '12px 0 4px';
-                var delLyricBtn = document.createElement('button');
-                delLyricBtn.type = 'button';
-                delLyricBtn.className = 'btn-delete-lyric';
-                delLyricBtn.textContent = '删除自定义歌词';
-                delLyricBtn.addEventListener('click', function () {
-                    if (!confirm('确定删除当前歌曲的自定义歌词吗？')) return;
-                    window.SG_LYRICS.deleteUserLrc(currentPlayingBvid || '').then(function () {
-                        userHasLyric = false;
-                        lyricsReloadForCurrentSong();
-                    }).catch(function () {
-                        showToast('删除歌词失败，请重试。');
+            // 底部操作按钮区
+            var actionArea = document.createElement('div');
+            actionArea.className = 'lyrics-action-area';
+
+            if (window.SG_LYRICS && window.SG_LYRICS.supported) {
+                if (userHasLyric) {
+                    // 用户自定义歌词：删除、编辑、导出、调轴
+                    var delLyricBtn = document.createElement('button');
+                    delLyricBtn.type = 'button';
+                    delLyricBtn.className = 'btn-lyric-action';
+                    delLyricBtn.textContent = '删除歌词';
+                    delLyricBtn.addEventListener('click', function () {
+                        if (!confirm('确定删除当前歌曲的自定义歌词吗？')) return;
+                        window.SG_LYRICS.deleteUserLrc(currentPlayingBvid || '').then(function () {
+                            userHasLyric = false;
+                            lyricsReloadForCurrentSong();
+                        }).catch(function () {
+                            showToast('删除歌词失败，请重试。');
+                        });
                     });
-                });
-                delLyricArea.appendChild(delLyricBtn);
-                // 编辑歌词按钮
-                var editLyricBtn = document.createElement('button');
-                editLyricBtn.type = 'button';
-                editLyricBtn.className = 'btn-delete-lyric';
-                editLyricBtn.textContent = '编辑歌词';
-                editLyricBtn.style.marginLeft = '8px';
-                editLyricBtn.addEventListener('click', function () {
-                    openLyricForm(currentPlayingBvid || '', '');
-                });
-                delLyricArea.appendChild(editLyricBtn);
-                lyricsScrollEl.appendChild(delLyricArea);
-            } else if (window.SG_LYRICS && window.SG_LYRICS.supported) {
-                // 内置歌词也可添加自定义覆盖
-                var addOverrideArea = document.createElement('div');
-                addOverrideArea.style.textAlign = 'center';
-                addOverrideArea.style.padding = '12px 0 4px';
-                var addOverrideBtn = document.createElement('button');
-                addOverrideBtn.type = 'button';
-                addOverrideBtn.className = 'btn-delete-lyric';
-                addOverrideBtn.textContent = '添加/替换自定义歌词';
-                addOverrideBtn.addEventListener('click', function () {
-                    openLyricForm(currentPlayingBvid || '', '');
-                });
-                addOverrideArea.appendChild(addOverrideBtn);
-                lyricsScrollEl.appendChild(addOverrideArea);
+                    actionArea.appendChild(delLyricBtn);
+
+                    var editLyricBtn = document.createElement('button');
+                    editLyricBtn.type = 'button';
+                    editLyricBtn.className = 'btn-lyric-action';
+                    editLyricBtn.textContent = '编辑歌词';
+                    editLyricBtn.addEventListener('click', function () {
+                        openLyricForm(currentPlayingBvid || '', '');
+                    });
+                    actionArea.appendChild(editLyricBtn);
+
+                    var exportBtn = document.createElement('button');
+                    exportBtn.type = 'button';
+                    exportBtn.className = 'btn-lyric-action';
+                    exportBtn.textContent = '导出歌词';
+                    exportBtn.addEventListener('click', exportCurrentLyrics);
+                    actionArea.appendChild(exportBtn);
+
+                    var adjustBtn = document.createElement('button');
+                    adjustBtn.type = 'button';
+                    adjustBtn.className = 'btn-lyric-action';
+                    adjustBtn.textContent = '简易调轴';
+                    adjustBtn.addEventListener('click', function () {
+                        enterAdjustMode();
+                    });
+                    actionArea.appendChild(adjustBtn);
+                } else {
+                    // 内置歌词：添加/替换、导出、调轴
+                    var addOverrideBtn = document.createElement('button');
+                    addOverrideBtn.type = 'button';
+                    addOverrideBtn.className = 'btn-lyric-action';
+                    addOverrideBtn.textContent = '添加/替换歌词';
+                    addOverrideBtn.addEventListener('click', function () {
+                        openLyricForm(currentPlayingBvid || '', '');
+                    });
+                    actionArea.appendChild(addOverrideBtn);
+
+                    var exportBtn2 = document.createElement('button');
+                    exportBtn2.type = 'button';
+                    exportBtn2.className = 'btn-lyric-action';
+                    exportBtn2.textContent = '导出歌词';
+                    exportBtn2.addEventListener('click', exportCurrentLyrics);
+                    actionArea.appendChild(exportBtn2);
+
+                    var adjustBtn2 = document.createElement('button');
+                    adjustBtn2.type = 'button';
+                    adjustBtn2.className = 'btn-lyric-action';
+                    adjustBtn2.textContent = '简易调轴';
+                    adjustBtn2.addEventListener('click', function () {
+                        enterAdjustMode();
+                    });
+                    actionArea.appendChild(adjustBtn2);
+                }
             }
+
+            lyricsScrollEl.appendChild(actionArea);
 
             // 滚动到当前行
             scrollToActiveLyric(false);
@@ -2283,7 +2349,8 @@
             lines.forEach(function (el) {
                 el.classList.toggle('active', parseInt(el.dataset.idx) === newIdx);
             });
-            scrollToActiveLyric(true);
+            // 调轴模式下不自动滚动
+            if (!adjustMode) scrollToActiveLyric(true);
         }
 
         /** 将当前高亮行滚动到视图中央 */
@@ -2320,18 +2387,191 @@
             });
         }
 
+        // ── 简易调轴功能 ──────────────────────────────────────────────
+
+        /** 渲染调轴模式下的歌词列表 */
+        function renderAdjustScroll() {
+            if (!lyricsScrollEl || !adjustLyrics) return;
+            lyricsScrollEl.innerHTML = '';
+
+            // 调轴说明
+            var hintEl = document.createElement('div');
+            hintEl.className = 'adjust-hint';
+            hintEl.textContent = '播放到合适时间点，点击对应歌词行设置时间';
+            lyricsScrollEl.appendChild(hintEl);
+
+            adjustLyrics.forEach(function (line, idx) {
+                if (!line.text) return;
+                var row = document.createElement('div');
+                row.className = 'adjust-lyric-row';
+                row.dataset.idx = idx;
+
+                var timeEl = document.createElement('span');
+                timeEl.className = 'adjust-lyric-time';
+                timeEl.textContent = formatLrcTime(line.time);
+
+                var textEl = document.createElement('span');
+                textEl.className = 'adjust-lyric-text';
+                textEl.textContent = line.text;
+
+                row.appendChild(timeEl);
+                row.appendChild(textEl);
+
+                row.addEventListener('click', function () {
+                    applyAdjustTime(idx);
+                });
+
+                lyricsScrollEl.appendChild(row);
+            });
+
+            // 调轴底部按钮
+            var adjustActionArea = document.createElement('div');
+            adjustActionArea.className = 'lyrics-action-area';
+
+            var saveAdjBtn = document.createElement('button');
+            saveAdjBtn.type = 'button';
+            saveAdjBtn.className = 'btn-lyric-action btn-lyric-action-primary';
+            saveAdjBtn.textContent = '保存调轴';
+            saveAdjBtn.addEventListener('click', saveAdjustMode);
+            adjustActionArea.appendChild(saveAdjBtn);
+
+            var cancelAdjBtn = document.createElement('button');
+            cancelAdjBtn.type = 'button';
+            cancelAdjBtn.className = 'btn-lyric-action';
+            cancelAdjBtn.textContent = '取消调轴';
+            cancelAdjBtn.addEventListener('click', cancelAdjustMode);
+            adjustActionArea.appendChild(cancelAdjBtn);
+
+            lyricsScrollEl.appendChild(adjustActionArea);
+
+            // 更新调轴行高亮
+            updateAdjustHighlight();
+        }
+
+        /** 格式化秒数为 LRC 时间格式 MM:SS.cs */
+        function formatLrcTime(t) {
+            var min = Math.floor(t / 60);
+            var sec = Math.floor(t % 60);
+            var cs = Math.round((t - Math.floor(t)) * 100);
+            return String(min).padStart(2, '0') + ':' + String(sec).padStart(2, '0') + '.' + String(cs).padStart(2, '0');
+        }
+
+        /** 更新调轴模式下的高亮行（跟随播放进度） */
+        function updateAdjustHighlight() {
+            if (!adjustMode || !adjustLyrics || !lyricsScrollEl) return;
+            var t = bgmAudio.currentTime;
+            var newIdx = -1;
+            for (var i = adjustLyrics.length - 1; i >= 0; i--) {
+                if (t >= adjustLyrics[i].time) { newIdx = i; break; }
+            }
+            var rows = lyricsScrollEl.querySelectorAll('.adjust-lyric-row');
+            rows.forEach(function (row) {
+                row.classList.toggle('is-current', parseInt(row.dataset.idx) === newIdx);
+            });
+        }
+
+        /** 对指定歌词行应用当前进度时间，后续行同步偏移 */
+        function applyAdjustTime(idx) {
+            if (!adjustLyrics) return;
+            var newTime = bgmAudio.currentTime;
+
+            // 不得超过上一句（可等于）
+            if (idx > 0 && newTime < adjustLyrics[idx - 1].time) {
+                showToast('调整时间早于上句歌词，请先调整上句。');
+                return;
+            }
+
+            var delta = newTime - adjustLyrics[idx].time;
+            // 同步后续歌词时间
+            for (var i = idx; i < adjustLyrics.length; i++) {
+                adjustLyrics[i] = { time: Math.max(0, adjustLyrics[i].time + delta), text: adjustLyrics[i].text };
+            }
+
+            // 刷新时间显示
+            var rows = lyricsScrollEl.querySelectorAll('.adjust-lyric-row');
+            rows.forEach(function (row) {
+                var ri = parseInt(row.dataset.idx);
+                if (ri >= idx) {
+                    var timeEl = row.querySelector('.adjust-lyric-time');
+                    if (timeEl) timeEl.textContent = formatLrcTime(adjustLyrics[ri].time);
+                }
+            });
+
+            showToast('已设置第 ' + (idx + 1) + ' 行时间。');
+        }
+
+        /** 进入调轴模式 */
+        function enterAdjustMode() {
+            if (!currentLyrics || !currentLyrics.length) {
+                showToast('当前无歌词，无法调轴。');
+                return;
+            }
+            if (!window.SG_LYRICS || !window.SG_LYRICS.supported) {
+                showToast('当前浏览器不支持 IndexedDB，无法保存调轴结果。');
+                return;
+            }
+            adjustMode = true;
+            adjustBvid = currentPlayingBvid || '';
+            // 深拷贝歌词
+            adjustLyrics = currentLyrics.map(function (l) { return { time: l.time, text: l.text }; });
+            renderAdjustScroll();
+        }
+
+        /** 保存调轴结果 */
+        function saveAdjustMode() {
+            if (!adjustLyrics || !adjustBvid) { cancelAdjustMode(); return; }
+            var lrcText = lyricsToLrcText(adjustLyrics);
+            window.SG_LYRICS.saveUserLrc(adjustBvid, lrcText).then(function () {
+                showToast('调轴已保存。');
+                adjustMode = false;
+                adjustLyrics = null;
+                adjustBvid = '';
+                lyricsReloadForCurrentSong();
+            }).catch(function () {
+                showToast('保存失败，请重试。');
+            });
+        }
+
+        /** 取消调轴模式 */
+        function cancelAdjustMode() {
+            adjustMode = false;
+            adjustLyrics = null;
+            adjustBvid = '';
+            renderLyricsScroll();
+        }
+
         // 歌词进度同步钩入 timeupdate
         var _origUpdateProgressDisplay = updateProgressDisplay;
         updateProgressDisplay = function () {
             _origUpdateProgressDisplay();
-            updateLyricHighlight();
+            if (adjustMode) {
+                updateAdjustHighlight();
+            } else {
+                updateLyricHighlight();
+            }
         };
 
-        // 歌曲切换时重新加载歌词
+        // 歌曲切换时重新加载歌词（调轴中切歌才询问）
         var _origUpdatePlaySongNameForLyrics = updatePlaySongName;
         updatePlaySongName = function () {
+            var prevBvid = adjustBvid;
             _origUpdatePlaySongNameForLyrics();
-            lyricsReloadForCurrentSong();
+            // 只有 bvid 真正变化（切歌）时才处理调轴退出
+            if (adjustMode && currentPlayingBvid !== prevBvid) {
+                var confirmed = confirm('正在调轴，是否不保存退出调轴？');
+                if (confirmed) {
+                    adjustMode = false;
+                    adjustLyrics = null;
+                    adjustBvid = '';
+                    lyricsReloadForCurrentSong();
+                } else {
+                    // 用户选择取消：保持调轴状态，重新渲染调轴视图
+                    adjustBvid = currentPlayingBvid || '';
+                    renderAdjustScroll();
+                }
+            } else if (!adjustMode) {
+                lyricsReloadForCurrentSong();
+            }
             if (lyricsSongNameBar) {
                 var idx = getCurrentIndex();
                 lyricsSongNameBar.textContent = (idx >= 0 && songList[idx]) ? (songList[idx].name || songList[idx].title || '—') : '—';

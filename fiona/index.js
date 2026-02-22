@@ -115,7 +115,7 @@
         const CUSTOM_STORAGE_KEY = 'sg_custom_songs_fiona';
 
         function getSettingsFromCookie() {
-            const fallback = { showMain: true, showLive: false, showCustom: false, version: null, audioMode: 'medium', mediaSession: 'on', pipSetting: 'off' };
+            const fallback = { showMain: true, showLive: false, showCustom: false, version: null, audioMode: 'medium', mediaSession: 'on', pipSetting: 'off', lockscreenLyric: 'off' };
             try {
                 const raw = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith(SETTINGS_COOKIE + '='));
                 if (!raw) return fallback;
@@ -128,7 +128,8 @@
                     version: o.version || null,
                     audioMode: ['low', 'medium', 'high'].indexOf(o.audioMode) >= 0 ? o.audioMode : 'medium',
                     mediaSession: o.mediaSession === 'off' ? 'off' : 'on',
-                    pipSetting: o.pipSetting === 'on' ? 'on' : 'off'
+                    pipSetting: o.pipSetting === 'on' ? 'on' : 'off',
+                    lockscreenLyric: o.lockscreenLyric === 'on' ? 'on' : 'off'
                 };
             } catch (e) { return fallback; }
         }
@@ -456,6 +457,13 @@
                 const supported = 'documentPictureInPicture' in window;
                 pipBtn.style.display = (supported && mode === 'on') ? '' : 'none';
             }
+        }
+
+        function syncLockscreenLyricButtons() {
+            const mode = (settings && settings.lockscreenLyric) || 'off';
+            document.querySelectorAll('.btn-lockscreen-lyric').forEach(function (btn) {
+                btn.classList.toggle('is-active', btn.getAttribute('data-mode') === mode);
+            });
         }
 
         function formatBytes(bytes) {
@@ -922,6 +930,7 @@
                 syncQualityButtons();
                 syncMediaSessionButtons();
                 syncPipSettingButtons();
+                syncLockscreenLyricButtons();
                 refreshStorageUsageDisplay();
                 modalBackdrop.classList.add('is-open');
 
@@ -994,6 +1003,19 @@
                         saveSettingsToCookie(settings);
                         syncPipSettingButtons();
                         if (mode === 'off' && pipWindow) { pipWindow.close(); }
+                    });
+                });
+            })();
+            (function initLockscreenLyricButtons() {
+                const buttons = document.querySelectorAll('.btn-lockscreen-lyric');
+                if (!buttons.length) return;
+                buttons.forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        const mode = btn.getAttribute('data-mode') || 'off';
+                        settings.lockscreenLyric = mode;
+                        saveSettingsToCookie(settings);
+                        syncLockscreenLyricButtons();
+                        updateMediaSession();
                     });
                 });
             })();
@@ -1598,9 +1620,12 @@
                 if (currentPlayingBvid) {
                     const idx = getCurrentIndex();
                     const name = (idx >= 0 && songList[idx]) ? (songList[idx].name || songList[idx].title || '—') : '—';
+                    const useLockscreenLyric = (settings && settings.lockscreenLyric) === 'on';
+                    const currentTxt = (typeof currentLyrics !== 'undefined' && currentLyrics && currentLyricIndex >= 0 && currentLyrics[currentLyricIndex])
+                        ? (currentLyrics[currentLyricIndex].text || '') : '';
                     navigator.mediaSession.metadata = new MediaMetadata({
-                        title: name,
-                        artist: '心宜',
+                        title: useLockscreenLyric ? (currentTxt || name) : name,
+                        artist: useLockscreenLyric ? (name + ' · 心宜') : '心宜',
                         album: ''
                     });
                 }
@@ -1894,6 +1919,7 @@
 
         // 按设置 + 浏览器支持情况决定按钮可见性
         syncPipSettingButtons();
+        syncLockscreenLyricButtons();
 
         function getSongName() {
             const idx = getCurrentIndex();
@@ -2160,14 +2186,17 @@
                 if (pipLyricEl) pipLyricEl.textContent = txt;
             }
 
-            // 同步 Media Session album 字段为当前歌词句
-            if (typeof navigator !== 'undefined' && navigator.mediaSession && navigator.mediaSession.metadata) {
+            // 锁屏歌词：开启时用歌词文本覆盖 title，artist 改为 歌名 · 心宜
+            if ((settings && settings.lockscreenLyric) === 'on' &&
+                typeof navigator !== 'undefined' && navigator.mediaSession && navigator.mediaSession.metadata) {
                 try {
                     var meta = navigator.mediaSession.metadata;
+                    var idx2 = getCurrentIndex();
+                    var songName2 = (idx2 >= 0 && songList[idx2]) ? (songList[idx2].name || songList[idx2].title || '—') : '—';
                     navigator.mediaSession.metadata = new MediaMetadata({
-                        title: meta.title,
-                        artist: meta.artist,
-                        album: txt,
+                        title: txt || songName2,
+                        artist: songName2 + ' · 心宜',
+                        album: meta.album,
                         artwork: meta.artwork
                     });
                 } catch (e) {}

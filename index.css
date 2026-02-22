@@ -505,6 +505,7 @@
         }
         .btn-mediasession,
         .btn-pip-setting,
+        .btn-lockscreen-lyric,
         .btn-quality {
             flex: 1;
             padding: 6px 8px;
@@ -520,11 +521,13 @@
         }
         .btn-mediasession:hover,
         .btn-pip-setting:hover,
+        .btn-lockscreen-lyric:hover,
         .btn-quality:hover {
             background: rgba(0, 243, 255, 0.2);
         }
         .btn-mediasession.is-active,
         .btn-pip-setting.is-active,
+        .btn-lockscreen-lyric.is-active,
         .btn-quality.is-active {
             background: var(--neon-blue);
             color: #000;

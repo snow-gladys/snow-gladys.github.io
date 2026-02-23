@@ -2064,6 +2064,22 @@
         var playCurrentLyricEl = document.getElementById('play-current-lyric');
         var lyricsSongNameBar = null;
 
+        // 用户手动滚动歌词时暂停自动跟随
+        var userScrollingLyrics = false;
+        var userScrollingTimer = null;
+        (function initLyricsScrollWatch() {
+            if (!lyricsScrollEl) return;
+            function onUserScroll() {
+                userScrollingLyrics = true;
+                clearTimeout(userScrollingTimer);
+                userScrollingTimer = setTimeout(function () {
+                    userScrollingLyrics = false;
+                }, 2000);
+            }
+            lyricsScrollEl.addEventListener('wheel', onUserScroll, { passive: true });
+            lyricsScrollEl.addEventListener('touchmove', onUserScroll, { passive: true });
+        })();
+
         (function initLyricsSongNameBar() {
             var bar = document.createElement('div');
             bar.className = 'lyrics-song-name-bar';
@@ -2281,6 +2297,8 @@
 
         function scrollToActiveLyric(smooth) {
             if (!lyricsScrollEl || currentLyricIndex < 0) return;
+            // 用户正在手动滚动时不自动跟随
+            if (smooth && userScrollingLyrics) return;
             var active = lyricsScrollEl.querySelector('.lyric-line[data-idx="' + currentLyricIndex + '"]');
             if (!active) return;
             var containerH = lyricsScrollEl.clientHeight;

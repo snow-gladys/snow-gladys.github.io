@@ -2000,6 +2000,11 @@
         btnPlayPause.addEventListener('click', () => {
             if (bgmAudio.paused) {
                 if (bgmAudio.src) {
+                    // 长时间暂停后浏览器可能静默断开网络连接（readyState < 2），
+                    // 原地 seek 可强制重新触发请求，避免 play() 静默失败
+                    if (bgmAudio.readyState < 2 && isFinite(bgmAudio.currentTime)) {
+                        bgmAudio.currentTime = bgmAudio.currentTime;
+                    }
                     bgmAudio.play();
                     if (currentPlayingBvid) {
                         const deg = getRecordRotationDeg(characterImg);

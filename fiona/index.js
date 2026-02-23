@@ -1939,6 +1939,9 @@
         btnPlayPause.addEventListener('click', () => {
             if (bgmAudio.paused) {
                 if (bgmAudio.src) {
+                    if (bgmAudio.readyState < 2 && isFinite(bgmAudio.currentTime)) {
+                        bgmAudio.currentTime = bgmAudio.currentTime;
+                    }
                     bgmAudio.play();
                     if (currentPlayingBvid) {
                         const deg = getRecordRotationDeg(characterImg);

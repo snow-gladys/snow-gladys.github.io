@@ -796,13 +796,16 @@
         function renderCustomManageList(query) {
             const listEl = document.getElementById('custom-manage-list');
             if (!listEl) return;
+            const alphaBarEl = document.getElementById('custom-manage-alpha-bar');
             const q = (query || '').trim().toLowerCase();
-            const items = customList.map((item, idx) => ({ item, idx })).filter(function (x) {
+            let items = customList.map((item, idx) => ({ item, idx })).filter(function (x) {
                 if (!q) return true;
                 return (x.item.name || '').toLowerCase().includes(q) || (x.item.bvid || '').toLowerCase().includes(q);
             });
+
             listEl.innerHTML = '';
-            items.forEach(function (x) {
+
+            function appendRow(x) {
                 const row = document.createElement('div');
                 row.className = 'custom-manage-item';
                 row.innerHTML =
@@ -815,7 +818,6 @@
                     '<button type="button" class="btn-del-no">取消</button></span>';
                 row.querySelector('.name').textContent = x.item.name || '—';
                 row.querySelector('.bvid').textContent = x.item.bvid || '';
-
                 row.querySelector('.btn-edit').addEventListener('click', function (e) { e.stopPropagation(); closeCustomManage(); openCustomForm(x.idx); });
                 row.querySelector('.btn-del').addEventListener('click', function (e) {
                     e.stopPropagation();
@@ -834,13 +836,70 @@
                     renderPlaylist();
                     renderCustomManageList(document.getElementById('custom-manage-search').value);
                     if (customList.length === 0) { closeCustomManage(); renderCustomSectionInSettings(); }
-                    // 删除歌曲时同时删除对应用户歌词
                     if (delBvid && window.SG_LYRICS && window.SG_LYRICS.supported) {
                         window.SG_LYRICS.deleteUserLrc(delBvid).catch(function () {});
                     }
                 });
-                listEl.appendChild(row);
+                return row;
+            }
+
+            // 搜索模式：不分组，不显示字母栏
+            if (q) {
+                items.forEach(function (x) { listEl.appendChild(appendRow(x)); });
+                if (alphaBarEl) alphaBarEl.innerHTML = '';
+                return;
+            }
+
+            // 普通模式：A-Z 分组
+            items.forEach(function (x) {
+                if (!x.item._sortKey) x.item._sortKey = getSongSortLetter(x.item.name || '');
             });
+            items.sort(function (a, b) {
+                const la = a.item._sortKey, lb = b.item._sortKey;
+                if (la === '#' && lb !== '#') return 1;
+                if (la !== '#' && lb === '#') return -1;
+                if (la !== lb) return la < lb ? -1 : 1;
+                return (a.item.name || '').localeCompare(b.item.name || '', 'zh-CN');
+            });
+
+            // 字母索引栏
+            const activeLetters = new Set(items.map(function (x) { return x.item._sortKey; }));
+            if (alphaBarEl) {
+                alphaBarEl.innerHTML = '';
+                'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('').forEach(function (letter) {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'alpha-bar-item' + (activeLetters.has(letter) ? ' has-items' : ' no-items');
+                    btn.textContent = letter;
+                    btn.dataset.letter = letter;
+                    if (activeLetters.has(letter)) {
+                        btn.addEventListener('click', function () {
+                            var anchor = listEl.querySelector('[data-alpha-group="' + letter + '"]');
+                            if (anchor) anchor.scrollIntoView({ block: 'start', behavior: 'smooth' });
+                            alphaBarEl.querySelectorAll('.alpha-bar-item').forEach(function (el) {
+                                el.classList.toggle('active', el.dataset.letter === letter);
+                            });
+                        });
+                    }
+                    alphaBarEl.appendChild(btn);
+                });
+            }
+
+            const frag = document.createDocumentFragment();
+            let lastLetter = null;
+            items.forEach(function (x) {
+                const letter = x.item._sortKey;
+                if (letter !== lastLetter) {
+                    const heading = document.createElement('div');
+                    heading.className = 'custom-manage-group-heading';
+                    heading.textContent = letter;
+                    heading.dataset.alphaGroup = letter;
+                    frag.appendChild(heading);
+                    lastLetter = letter;
+                }
+                frag.appendChild(appendRow(x));
+            });
+            listEl.appendChild(frag);
         }
 
         function openCustomForm(editIndex) {

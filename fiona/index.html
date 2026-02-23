@@ -69,7 +69,10 @@
                         <svg class="icon-svg icon-star-filled" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                     </button>
                 </div>
-                <div class="playlist-list" id="playlist-list"></div>
+                <div class="playlist-body">
+                    <div class="playlist-list" id="playlist-list"></div>
+                    <div class="playlist-alpha-bar" id="playlist-alpha-bar" aria-label="字母索引"></div>
+                </div>
             </div>
         </div>
 
@@ -303,8 +306,10 @@
     <div id="toast" class="toast" aria-live="polite" role="status"></div>
     <div id="loading-info" class="loading-info" aria-live="polite" role="status"></div>
 
-    <script src="../lyrics-db.js?v=202602230952"></script>
-    <script src="../changelog-data.js?v=202602230952"></script>
-    <script src="index.js?v=202602230952"></script>
+    <script src="../pinyin_dict_notone.js"></script>
+    <script src="../pinyinUtil.js"></script>
+    <script src="../lyrics-db.js"></script>
+    <script src="../changelog-data.js?v=202602232100"></script>
+    <script src="index.js?v=202602232100"></script>
 </body>
 </html>

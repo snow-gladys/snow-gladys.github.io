@@ -249,11 +249,105 @@
             showView(viewPlay.classList.contains('is-active') ? 'play' : 'home');
         }
 
+        // ── 拼音首字母工具 ────────────────────────────────────────────
+        function getSongSortLetter(name) {
+            if (!name) return '#';
+            var first = name.trim().charAt(0);
+            if (!first) return '#';
+            // 尝试用 pinyinUtil 获取首字母
+            if (window.pinyinUtil) {
+                try {
+                    var fl = pinyinUtil.getFirstLetter(first);
+                    if (fl) first = fl.charAt(0).toUpperCase();
+                } catch (e) {}
+            }
+            if (/^[A-Za-z]$/.test(first)) return first.toUpperCase();
+            return '#';
+        }
+
+        // ── 字母索引栏 ────────────────────────────────────────────────
+        const playlistAlphaBarEl = document.getElementById('playlist-alpha-bar');
+
+        function renderAlphaBar(activeLetters) {
+            if (!playlistAlphaBarEl) return;
+            playlistAlphaBarEl.innerHTML = '';
+            const all = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('');
+            all.forEach(function (letter) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'alpha-bar-item' + (activeLetters.has(letter) ? ' has-items' : ' no-items');
+                btn.textContent = letter;
+                btn.dataset.letter = letter;
+                if (activeLetters.has(letter)) {
+                    btn.addEventListener('click', function () {
+                        var anchor = playlistListEl.querySelector('[data-alpha-group="' + letter + '"]');
+                        if (anchor) anchor.scrollIntoView({ block: 'start', behavior: 'smooth' });
+                        // 高亮当前激活字母
+                        playlistAlphaBarEl.querySelectorAll('.alpha-bar-item').forEach(function (el) {
+                            el.classList.toggle('active', el.dataset.letter === letter);
+                        });
+                    });
+                }
+                playlistAlphaBarEl.appendChild(btn);
+            });
+        }
+
+        // ── 创建单个歌单条目 DOM ──────────────────────────────────────
+        function createPlaylistItemEl(s, i, curBvid) {
+            const isCurrent = (s.bvid || '') === curBvid;
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'playlist-item' + (isCurrent ? ' current' : '');
+            btn.dataset.bvid = s.bvid || '';
+            btn.dataset.index = i;
+            const nameEl = document.createElement('span');
+            nameEl.className = 'playlist-item-name';
+            nameEl.textContent = s.name || s.title || '';
+            btn.appendChild(nameEl);
+            const badges = document.createElement('span');
+            badges.className = 'playlist-item-badges';
+            if (s.isCustom) {
+                const userIcon = document.createElement('span');
+                userIcon.className = 'playlist-item-user-icon';
+                userIcon.setAttribute('aria-label', '用户');
+                userIcon.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" width="100%" height="100%"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
+                badges.appendChild(userIcon);
+            }
+            if (s.isLive) {
+                const liveTag = document.createElement('span');
+                liveTag.className = 'playlist-item-live-tag';
+                liveTag.textContent = 'Live';
+                badges.appendChild(liveTag);
+            }
+            btn.appendChild(badges);
+            const starWrap = document.createElement('span');
+            starWrap.className = 'playlist-item-star-wrap';
+            if (isFavorite(s.bvid)) {
+                const starEl = document.createElement('span');
+                starEl.className = 'playlist-item-star';
+                starEl.setAttribute('aria-hidden', 'true');
+                starEl.textContent = '★';
+                starWrap.appendChild(starEl);
+            }
+            btn.appendChild(starWrap);
+            btn.addEventListener('click', () => {
+                playMusic(s.bvid || '');
+                closePlaylist();
+                showView('play');
+            });
+            return btn;
+        }
+
         function renderPlaylist() {
             if (!playlistListEl) return;
             const query = (playlistSearchEl && playlistSearchEl.value || '').trim().toLowerCase();
             let items = songList.map((s, i) => ({ s, i }));
             if (playlistFilterFavorites) items = items.filter(({ s }) => isFavorite(s.bvid));
+            const total = playlistFilterFavorites ? songList.filter(s => isFavorite(s.bvid)).length : songList.length;
+
+            playlistListEl.innerHTML = '';
+
+            // ── 搜索 / 收藏模式：原有逻辑，无分组 ──────────────────
             if (query) {
                 items = items.filter(({ s }) => (s.name || s.title || '').toLowerCase().includes(query));
                 items.sort((a, b) => {
@@ -264,55 +358,51 @@
                     if (aStart !== bStart) return aStart - bStart;
                     return na.localeCompare(nb);
                 });
+                if (playlistCountEl) playlistCountEl.textContent = items.length + ' / ' + total;
+                const curBvid = currentPlayingBvid || '';
+                items.forEach(({ s, i }) => playlistListEl.appendChild(createPlaylistItemEl(s, i, curBvid)));
+                if (playlistAlphaBarEl) playlistAlphaBarEl.innerHTML = '';
+                return;
             }
-            playlistListEl.innerHTML = '';
-            const total = playlistFilterFavorites ? songList.filter(s => isFavorite(s.bvid)).length : songList.length;
-            if (playlistCountEl) playlistCountEl.textContent = query ? items.length + ' / ' + total : total;
-            const curBvid = currentPlayingBvid || '';
-            items.forEach(({ s, i }) => {
-                const isCurrent = (s.bvid || '') === curBvid;
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'playlist-item' + (isCurrent ? ' current' : '');
-                btn.dataset.bvid = s.bvid || '';
-                btn.dataset.index = i;
-                const nameEl = document.createElement('span');
-                nameEl.className = 'playlist-item-name';
-                nameEl.textContent = s.name || s.title || '';
-                btn.appendChild(nameEl);
-                const badges = document.createElement('span');
-                badges.className = 'playlist-item-badges';
-                if (s.isCustom) {
-                    const userIcon = document.createElement('span');
-                    userIcon.className = 'playlist-item-user-icon';
-                    userIcon.setAttribute('aria-label', '用户');
-                    userIcon.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" width="100%" height="100%"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
-                    badges.appendChild(userIcon);
-                }
-                if (s.isLive) {
-                    const liveTag = document.createElement('span');
-                    liveTag.className = 'playlist-item-live-tag';
-                    liveTag.textContent = 'Live';
-                    badges.appendChild(liveTag);
-                }
-                btn.appendChild(badges);
-                const starWrap = document.createElement('span');
-                starWrap.className = 'playlist-item-star-wrap';
-                if (isFavorite(s.bvid)) {
-                    const starEl = document.createElement('span');
-                    starEl.className = 'playlist-item-star';
-                    starEl.setAttribute('aria-hidden', 'true');
-                    starEl.textContent = '★';
-                    starWrap.appendChild(starEl);
-                }
-                btn.appendChild(starWrap);
-                btn.addEventListener('click', () => {
-                    playMusic(s.bvid || '');
-                    closePlaylist();
-                    showView('play');
-                });
-                playlistListEl.appendChild(btn);
+
+            // ── 普通模式：A-Z 分组排序 ───────────────────────────────
+            if (playlistCountEl) playlistCountEl.textContent = total;
+
+            // 计算排序键（缓存在 _sortKey 上避免重复查表）
+            items.forEach(({ s }) => {
+                if (!s._sortKey) s._sortKey = getSongSortLetter(s.name || s.title || '');
             });
+
+            // 按字母排序（# 排最后）
+            items.sort((a, b) => {
+                const la = a.s._sortKey, lb = b.s._sortKey;
+                if (la === '#' && lb !== '#') return 1;
+                if (la !== '#' && lb === '#') return -1;
+                if (la !== lb) return la < lb ? -1 : 1;
+                return (a.s.name || '').localeCompare(b.s.name || '', 'zh-CN');
+            });
+
+            // 收集实际存在的字母
+            const activeLetters = new Set(items.map(({ s }) => s._sortKey));
+            renderAlphaBar(activeLetters);
+
+            // 渲染分组
+            const curBvid = currentPlayingBvid || '';
+            let lastLetter = null;
+            const frag = document.createDocumentFragment();
+            items.forEach(({ s, i }) => {
+                const letter = s._sortKey;
+                if (letter !== lastLetter) {
+                    const heading = document.createElement('div');
+                    heading.className = 'playlist-group-heading';
+                    heading.textContent = letter;
+                    heading.dataset.alphaGroup = letter;
+                    frag.appendChild(heading);
+                    lastLetter = letter;
+                }
+                frag.appendChild(createPlaylistItemEl(s, i, curBvid));
+            });
+            playlistListEl.appendChild(frag);
         }
 
         function buildSongList() {
@@ -320,6 +410,8 @@
             if (settings.showMain) mainList.forEach(s => out.push({ name: s.name || s.title, bvid: s.bvid || '', isCustom: false, isLive: false }));
             if (settings.showLive) liveList.forEach(s => out.push({ name: s.name || s.title, bvid: s.bvid || '', isCustom: false, isLive: true }));
             if (settings.showCustom) customList.forEach(s => out.push({ name: s.name, bvid: s.bvid || '', isCustom: true, isLive: false }));
+            // 清除缓存的排序键，以便重新计算
+            out.forEach(s => { s._sortKey = undefined; });
             songList = out;
         }
 

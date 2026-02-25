@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+    width: 420px; background: #fff; color: #222;
+  }
+
+  .header {
+    background: #00a1d6; color: #fff;
+    padding: 14px 16px; display: flex; align-items: center; gap: 10px;
+  }
+  .header h1 { font-size: 1rem; font-weight: 600; }
+  .header .subtitle { font-size: 0.8rem; opacity: 0.9; margin-left: auto; }
+
+  .section {
+    padding: 10px 14px;
+    border-bottom: 1px solid #eee;
+  }
+  .section-title {
+    font-size: 0.85rem; font-weight: 600; margin-bottom: 6px;
+  }
+  .field-row {
+    display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
+  }
+  .field-row label {
+    font-size: 0.8rem; color: #555; white-space: nowrap;
+  }
+  .field-row input[type="text"] {
+    flex: 1; border: 1.5px solid #ddd; border-radius: 6px;
+    padding: 4px 8px; font-size: 0.8rem; outline: none;
+  }
+  .field-row input[type="text"]:focus { border-color: #00a1d6; }
+
+  button {
+    border: none; border-radius: 6px; cursor: pointer;
+    font-size: 0.8rem; padding: 5px 10px; transition: background 0.15s;
+  }
+  .btn-primary { background: #00a1d6; color: #fff; }
+  .btn-primary:hover { background: #008ab3; }
+  .btn-secondary { background: #f0f0f0; color: #444; }
+  .btn-secondary:hover { background: #e0e0e0; }
+
+  .status {
+    padding: 8px 14px; font-size: 0.8rem; color: #888;
+    min-height: 30px; display: flex; align-items: center;
+  }
+  .status.error { color: #c62f2f; }
+  .status.ok { color: #2e7d32; }
+
+  textarea {
+    width: 100%; height: 140px; border: none; border-top: 1px solid #eee;
+    padding: 10px 12px; font-family: 'Menlo', 'Consolas', monospace;
+    font-size: 0.8rem; line-height: 1.5; resize: none; outline: none;
+    background: #fafafa; color: #222;
+  }
+
+  .small-tip {
+    font-size: 0.75rem; color: #999; margin-top: 4px;
+  }
+
+  .not-video {
+    padding: 30px 20px; text-align: center; color: #888; font-size: 0.9rem;
+    line-height: 1.8;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🎧 B站 BGM 歌单助手</h1>
+  <span class="subtitle">JSON 自定义歌单</span>
+</div>
+
+<div id="main-ui" style="display:none">
+  <div class="section">
+    <div class="section-title">当前视频信息</div>
+    <div class="field-row">
+      <label for="song-name">歌名</label>
+      <input type="text" id="song-name" placeholder="自动从 bgm-link 读取，可手动修改">
+    </div>
+    <div class="field-row">
+      <label for="bvid">bvid</label>
+      <input type="text" id="bvid" placeholder="自动从地址栏解析，可手动修改">
+    </div>
+    <div class="field-row" style="justify-content:flex-end;margin-top:4px;">
+      <button class="btn-secondary" id="btn-refresh">从页面重新获取</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">自定义歌单配置</div>
+    <div class="field-row">
+      <label for="playlist-path">文件路径</label>
+      <input type="text" id="playlist-path" placeholder="/Users/.../custom_songs_xxx.txt">
+    </div>
+    <div class="small-tip">
+      这里只是记录路径方便查看，实际歌单内容保存在插件本地存储，右侧 JSON 可复制到该文件中。
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">操作</div>
+    <div class="field-row">
+      <button class="btn-primary" id="btn-save-song">保存到自定义歌单</button>
+      <button class="btn-secondary" id="btn-copy-entry">复制当前条目 JSON</button>
+    </div>
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <textarea id="playlist-json" spellcheck="false" readonly
+    placeholder="当前自定义歌单 JSON 将显示在此处，用于同步到 custom_songs_xxx.txt 文件。"></textarea>
+</div>
+
+<div class="not-video" id="not-video" style="display:none">
+  请在 B 站视频播放页使用本插件。<br><br>
+  例如：bilibili.com/video/BVxxxxxxxxx
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>
+

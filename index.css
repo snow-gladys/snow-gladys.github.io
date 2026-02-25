@@ -294,10 +294,12 @@
         }
         .playlist-item .playlist-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .playlist-item .playlist-item-badges { flex-shrink: 0; display: flex; align-items: center; gap: 4px; min-width: 0; }
-        .playlist-item .playlist-item-star-wrap { flex-shrink: 0; width: 18px; min-width: 18px; display: flex; align-items: center; justify-content: flex-end; }
-        .playlist-item .playlist-item-star { color: var(--neon-blue); font-size: 0.75rem; opacity: 0.9; }
-        .playlist-item .playlist-item-user-icon { width: 14px; height: 14px; opacity: 0.85; }
-        .playlist-item .playlist-item-live-tag { font-size: 0.6rem; color: var(--neon-blue); opacity: 0.9; margin-left: 2px; }
+        .playlist-item .playlist-item-star-wrap { flex-shrink: 0; width: 16px; min-width: 16px; display: flex; align-items: center; justify-content: flex-end; }
+        .playlist-item .playlist-item-star { color: var(--neon-blue); font-size: 0.7rem; opacity: 0.9; }
+        .playlist-item .playlist-item-user-icon { width: 12px; height: 12px; opacity: 0.85; }
+        .playlist-item .playlist-item-live-tag { font-size: 0.56rem; color: var(--neon-blue); opacity: 0.9; margin-left: 2px; }
+        .playlist-item .playlist-item-cached { flex-shrink: 0; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--neon-blue); border-radius: 50%; color: var(--neon-blue); }
+        .playlist-item .playlist-item-cached svg { width: 8px; height: 8px; }
         .playlist-item:hover { background: rgba(0, 243, 255, 0.08); color: var(--neon-blue); }
         .playlist-item.current { color: var(--neon-blue); border-left-color: var(--neon-blue); background: rgba(0, 243, 255, 0.12); }
         .view-play {
@@ -420,7 +422,8 @@
         .play-controls .btn-mode-cycle.is-mode-list .icon-mode-list,
         .play-controls .btn-mode-cycle.is-mode-single .icon-mode-single,
         .play-controls .btn-mode-cycle.is-mode-random .icon-mode-random,
-        .play-controls .btn-mode-cycle.is-mode-favorites .icon-mode-favorites { display: block; }
+        .play-controls .btn-mode-cycle.is-mode-favorites .icon-mode-favorites,
+        .play-controls .btn-mode-cycle.is-mode-downloaded .icon-mode-downloaded { display: block; }
         .play-controls .btn-mode-cycle:hover { background: rgba(0, 243, 255, 0.2); }
 
         /* 网页端：拉大歌名与唱片、进度条与按钮的间距，不影响移动端 */
@@ -604,11 +607,34 @@
         .settings-section-row2 {
             display: flex; gap: 14px;
         }
+        .settings-section-row-lock-cache .settings-section-col-half {
+            flex: 0 0 calc(50% - 7px);
+            min-width: 0;
+        }
         .settings-section-col {
             flex: 1; min-width: 0;
         }
         .settings-section-col .settings-quality-row {
             display: flex; gap: 8px; margin-top: 6px;
+        }
+        .btn-cache-setting {
+            flex: 1;
+            padding: 6px 8px;
+            font-size: 0.8rem;
+            background: rgba(0, 243, 255, 0.08);
+            border: 1px solid rgba(0, 243, 255, 0.5);
+            color: var(--neon-blue);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s;
+            text-align: center;
+            white-space: nowrap;
+        }
+        .btn-cache-setting:hover { background: rgba(0, 243, 255, 0.2); }
+        .btn-cache-setting.is-active {
+            background: var(--neon-blue);
+            color: #000;
+            border-color: var(--neon-blue);
         }
         .settings-hint {
             font-size: 0.65rem; color: #888; margin-left: 4px; font-weight: normal; vertical-align: middle;
@@ -819,6 +845,60 @@
             color: #000;
         }
 
+        /* 歌曲缓存确认弹层 */
+        .cache-confirm-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 618;
+            background: rgba(0, 0, 0, 0.75);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            box-sizing: border-box;
+        }
+        .cache-confirm-backdrop.is-open {
+            display: flex;
+        }
+        .cache-confirm-box {
+            width: 100%;
+            max-width: 360px;
+            background: rgba(10, 10, 20, 0.98);
+            border: 1px solid var(--neon-blue);
+            border-radius: 8px;
+            padding: 16px 18px 14px;
+            box-shadow: 0 0 24px rgba(0, 243, 255, 0.25);
+            color: #fff;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        .cache-confirm-text {
+            margin: 0 0 12px;
+            font-size: 0.86rem;
+            color: rgba(255, 255, 255, 0.85);
+        }
+        .cache-confirm-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+        .cache-confirm-actions button {
+            padding: 6px 14px;
+            font-size: 0.85rem;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .cache-confirm-cancel {
+            background: transparent;
+            color: #aaa;
+            border: 1px solid #666;
+        }
+        .cache-confirm-ok {
+            background: var(--neon-blue);
+            color: #000;
+            border: none;
+        }
+
         /* 更新日志弹层 */
         .changelog-backdrop {
             position: fixed;
@@ -953,6 +1033,22 @@
             font-size: 0.82rem;
             color: var(--neon-blue);
             line-height: 1.8;
+        }
+
+        .btn-clear-audio-cache {
+            margin-top: 6px;
+            padding: 6px 10px;
+            font-size: 0.8rem;
+            border-radius: 4px;
+            border: 1px solid var(--neon-blue);
+            background: rgba(0, 243, 255, 0.08);
+            color: var(--neon-blue);
+            cursor: pointer;
+            display: inline-block;
+        }
+        .btn-clear-audio-cache:hover {
+            background: var(--neon-blue);
+            color: #000;
         }
 
         /* --- 歌曲加载信息框 --- */

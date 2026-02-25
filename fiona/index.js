@@ -23,7 +23,7 @@
 
         // --- 0. 配置中心 ---
         const DEFAULT_TITLE = '心宜 · Fiona';
-        const CURRENT_VERSION = '0.0.7(测)';
+        const CURRENT_VERSION = '0.0.8(测)';
 
         (function checkIdbSupport() {
             // fiona 页面在 /fiona/ 子目录下，lyrics 文件在上一级，需要修正路径
@@ -109,13 +109,30 @@
             if (btn) btn.style.display = favoritesSet.size > 0 ? '' : 'none';
         }
 
+        function updatePlayDownloadsButton() {
+            const btn = document.getElementById('btn-play-downloads');
+            if (!btn) return;
+            const hasDownloads = cachedBvidsSet && cachedBvidsSet.size > 0;
+            btn.style.display = hasDownloads ? '' : 'none';
+        }
+
         // --- 1.5.2 设置（Cookie）与自定义歌单（Local Storage，心宜独立）---
         const SETTINGS_COOKIE = 'sg_settings_fiona';
         const SETTINGS_MAX_AGE = 365 * 24 * 60 * 60;
         const CUSTOM_STORAGE_KEY = 'sg_custom_songs_fiona';
 
         function getSettingsFromCookie() {
-            const fallback = { showMain: true, showLive: false, showCustom: false, version: null, audioMode: 'medium', mediaSession: 'on', pipSetting: 'off', lockscreenLyric: 'off' };
+            const fallback = {
+                showMain: true,
+                showLive: false,
+                showCustom: false,
+                version: null,
+                audioMode: 'medium',
+                mediaSession: 'on',
+                pipSetting: 'off',
+                lockscreenLyric: 'off',
+                cacheEnabled: 'off'
+            };
             try {
                 const raw = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith(SETTINGS_COOKIE + '='));
                 if (!raw) return fallback;
@@ -129,7 +146,8 @@
                     audioMode: ['low', 'medium', 'high'].indexOf(o.audioMode) >= 0 ? o.audioMode : 'medium',
                     mediaSession: o.mediaSession === 'off' ? 'off' : 'on',
                     pipSetting: o.pipSetting === 'on' ? 'on' : 'off',
-                    lockscreenLyric: o.lockscreenLyric === 'on' ? 'on' : 'off'
+                    lockscreenLyric: o.lockscreenLyric === 'on' ? 'on' : 'off',
+                    cacheEnabled: o.cacheEnabled === 'on' ? 'on' : 'off'
                 };
             } catch (e) { return fallback; }
         }
@@ -204,6 +222,7 @@
         let liveList = [];
         let customList = [];
         let settings = getSettingsFromCookie();
+        let cachedBvidsSet = new Set();
 
         const viewHome = document.getElementById('view-home');
         const viewPlaylist = document.getElementById('view-playlist');
@@ -237,6 +256,13 @@
         function openPlaylist(focusIndex) {
             if (playlistSearchEl) playlistSearchEl.value = '';
             renderPlaylist();
+            if (window.SG_CACHE && window.SG_CACHE.supported && typeof window.SG_CACHE.listCachedBvids === 'function') {
+                window.SG_CACHE.listCachedBvids().then(function (arr) {
+                    cachedBvidsSet = new Set((arr || []).map(function (b) { return String(b || ''); }));
+                    updatePlayDownloadsButton();
+                    renderPlaylist();
+                }).catch(function () { });
+            }
             viewPlaylist.classList.add('is-open');
             // 等 DOM 渲染完成后再滚动到当前播放行
             const scrollToIdx = focusIndex != null && focusIndex >= 0 ? focusIndex : getCurrentIndex();
@@ -305,6 +331,12 @@
             btn.appendChild(nameEl);
             const badges = document.createElement('span');
             badges.className = 'playlist-item-badges';
+            if (s.bvid && cachedBvidsSet && cachedBvidsSet.has(s.bvid || '')) {
+                const cachedIcon = document.createElement('span');
+                cachedIcon.className = 'playlist-item-cached';
+                cachedIcon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 13 9 17 19 7"></polyline></svg>';
+                badges.appendChild(cachedIcon);
+            }
             if (s.isCustom) {
                 const userIcon = document.createElement('span');
                 userIcon.className = 'playlist-item-user-icon';
@@ -550,6 +582,14 @@
             });
         }
 
+        function syncCacheButtons() {
+            const mode = (settings && settings.cacheEnabled) || 'off';
+            document.querySelectorAll('.btn-cache-setting').forEach(function (btn) {
+                const m = btn.getAttribute('data-mode') || 'off';
+                btn.classList.toggle('is-active', m === mode);
+            });
+        }
+
         function formatBytes(bytes) {
             if (bytes < 1024) return bytes + ' B';
             if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
@@ -571,12 +611,21 @@
             } catch (e) {}
             var LS_QUOTA = 5 * 1024 * 1024;
             var lsPct = Math.min((lsBytes / LS_QUOTA * 100), 100).toFixed(1);
-            lines.push('LocalStorage：' + formatBytes(lsBytes) + ' / 5 MB (' + lsPct + '%)');
+            lines.push('本地歌单存储：' + formatBytes(lsBytes) + ' / 5 MB (' + lsPct + '%)');
 
+            var idbBytes = 0;
             if (window.SG_LYRICS && window.SG_LYRICS.supported) {
                 try {
-                    var idbBytes = await window.SG_LYRICS.estimateIdbBytes();
-                    lines.push('歌词 IndexedDB：' + formatBytes(idbBytes));
+                    idbBytes = await window.SG_LYRICS.estimateIdbBytes();
+                    lines.push('本地歌词存储：' + formatBytes(idbBytes));
+                } catch (e) {}
+            }
+
+            var cacheBytes = 0;
+            if (window.SG_CACHE && window.SG_CACHE.supported && typeof window.SG_CACHE.estimateCacheBytes === 'function') {
+                try {
+                    cacheBytes = await window.SG_CACHE.estimateCacheBytes();
+                    lines.push('本地音频缓存：' + formatBytes(cacheBytes));
                 } catch (e) {}
             }
 
@@ -586,9 +635,14 @@
                     var used = est.usage || 0;
                     var quota = est.quota || 0;
                     if (used > 0) {
-                        var pct = quota > 0 ? ((used / quota) * 100).toFixed(1) : null;
-                        lines.push('浏览器其他估算已用：' + formatBytes(used) +
-                            (pct !== null ? ' / ' + formatBytes(quota) + ' (' + pct + '%)' : ''));
+                        var known = lsBytes + (idbBytes || 0) + (cacheBytes || 0);
+                        var other = used - known;
+                        if (other < 0) other = 0;
+                        var pct = quota > 0 ? ((other / quota) * 100).toFixed(1) : null;
+                        var usedGB = (other / (1024 * 1024 * 1024)).toFixed(2);
+                        var quotaGB = quota > 0 ? (quota / (1024 * 1024 * 1024)).toFixed(2) : null;
+                        lines.push('浏览器估算其他已用：' + usedGB + ' GB' +
+                            (quotaGB !== null ? ' / ' + quotaGB + ' GB' + (pct !== null ? ' (' + pct + '%)' : '') : ''));
                     }
                 } catch (e) {}
             }
@@ -1074,6 +1128,7 @@
                 syncMediaSessionButtons();
                 syncPipSettingButtons();
                 syncLockscreenLyricButtons();
+                syncCacheButtons();
                 refreshStorageUsageDisplay();
                 modalBackdrop.classList.add('is-open');
 
@@ -1159,6 +1214,77 @@
                         saveSettingsToCookie(settings);
                         syncLockscreenLyricButtons();
                         updateMediaSession();
+                    });
+                });
+            })();
+            (function initCachedBvidsFromIdb() {
+                if (!window.SG_CACHE || !window.SG_CACHE.supported || typeof window.SG_CACHE.listCachedBvids !== 'function') return;
+                window.SG_CACHE.listCachedBvids().then(function (arr) {
+                    cachedBvidsSet = new Set((arr || []).map(function (b) { return String(b || ''); }));
+                    updatePlayDownloadsButton();
+                }).catch(function () { });
+            })();
+            (function initClearAudioCacheButton() {
+                const btn = document.getElementById('btn-clear-audio-cache');
+                if (!btn || !window.SG_CACHE || !window.SG_CACHE.supported || typeof window.SG_CACHE.clearAll !== 'function') return;
+                btn.addEventListener('click', async function () {
+                    if (!confirm('确定要清理所有音频缓存吗？这不会影响歌词、自定义歌曲或其他设置。')) return;
+                    try {
+                        await window.SG_CACHE.clearAll();
+                        await refreshStorageUsageDisplay();
+                        showToast('音频缓存已清理。', 2600);
+                    } catch (e) {
+                        showToast('清理音频缓存时出错，请稍后重试。', 2600);
+                    }
+                });
+            })();
+            (function initCacheButtons() {
+                const buttons = document.querySelectorAll('.btn-cache-setting');
+                if (!buttons.length) return;
+                const backdrop = document.getElementById('cache-confirm-backdrop');
+                const box = document.getElementById('cache-confirm-box');
+                const btnOk = document.getElementById('cache-confirm-ok');
+                const btnCancel = document.getElementById('cache-confirm-cancel');
+                let pendingConfirm = null;
+
+                function closeDialog() {
+                    if (backdrop) backdrop.classList.remove('is-open');
+                    pendingConfirm = null;
+                }
+
+                if (backdrop && box && btnOk && btnCancel) {
+                    backdrop.addEventListener('click', function (e) {
+                        if (e.target === backdrop) closeDialog();
+                    });
+                    box.addEventListener('click', function (e) { e.stopPropagation(); });
+                    btnCancel.addEventListener('click', function () { closeDialog(); });
+                    btnOk.addEventListener('click', function () {
+                        if (pendingConfirm) pendingConfirm();
+                        closeDialog();
+                    });
+                }
+
+                buttons.forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        const mode = btn.getAttribute('data-mode') || 'off';
+                        if (mode === 'off') {
+                            settings.cacheEnabled = 'off';
+                            saveSettingsToCookie(settings);
+                            syncCacheButtons();
+                            return;
+                        }
+                        if (!backdrop || !box || !btnOk || !btnCancel) {
+                            settings.cacheEnabled = 'on';
+                            saveSettingsToCookie(settings);
+                            syncCacheButtons();
+                            return;
+                        }
+                        pendingConfirm = function () {
+                            settings.cacheEnabled = 'on';
+                            saveSettingsToCookie(settings);
+                            syncCacheButtons();
+                        };
+                        backdrop.classList.add('is-open');
                     });
                 });
             })();
@@ -1275,6 +1401,19 @@
             playMusic(favList[0].bvid || '');
             showView('play');
         });
+        const btnPlayDownloads = document.getElementById('btn-play-downloads');
+        if (btnPlayDownloads) {
+            btnPlayDownloads.addEventListener('click', () => {
+                const dlList = getDownloadedList();
+                if (!dlList.length) {
+                    showToast('当前没有已下载歌曲', 2600);
+                    return;
+                }
+                setPlayMode('downloaded');
+                playMusic(dlList[0].bvid || '');
+                showView('play');
+            });
+        }
         playlistBackdrop.addEventListener('click', closePlaylist);
         const btnClosePlaylist = document.getElementById('btn-close-playlist');
         if (btnClosePlaylist) btnClosePlaylist.addEventListener('click', closePlaylist);
@@ -1528,12 +1667,18 @@
             }
         }
 
-        const MODE_TITLES = { list: '列表循环', single: '单曲循环', random: '随机播放', favorites: '收藏列表循环' };
+        const MODE_TITLES = {
+            list: '列表循环',
+            single: '单曲循环',
+            random: '随机播放',
+            favorites: '收藏列表循环',
+            downloaded: '播放下载'
+        };
         function setPlayMode(mode) {
             playMode = mode;
             if (mode !== 'random') nextRandomBvid = null;
             if (btnModeCycle) {
-                btnModeCycle.classList.remove('is-mode-list', 'is-mode-single', 'is-mode-random', 'is-mode-favorites');
+                btnModeCycle.classList.remove('is-mode-list', 'is-mode-single', 'is-mode-random', 'is-mode-favorites', 'is-mode-downloaded');
                 btnModeCycle.classList.add('is-mode-' + (mode || 'list'));
                 btnModeCycle.title = MODE_TITLES[mode] || MODE_TITLES.list;
             }
@@ -1545,9 +1690,17 @@
             return songList.filter(s => isFavorite(s.bvid));
         }
 
+        function getDownloadedList() {
+            if (!cachedBvidsSet || !cachedBvidsSet.size) return [];
+            return songList.filter(function (s) {
+                return s.bvid && cachedBvidsSet.has(s.bvid || '');
+            });
+        }
+
         /** 当前模式下的可播列表 */
         function getEffectiveList() {
             if (playMode === 'favorites') return getFavoritesList();
+            if (playMode === 'downloaded') return getDownloadedList();
             return songList;
         }
 
@@ -1790,6 +1943,41 @@
             if (!bvid) return;
             preloadScheduledForBvid = null;
 
+            const useCache = !!(settings && settings.cacheEnabled === 'on' && window.SG_CACHE && window.SG_CACHE.supported);
+
+            if (useCache && window.SG_CACHE && typeof window.SG_CACHE.getCachedBlob === 'function') {
+                try {
+                    const cachedBlob = await window.SG_CACHE.getCachedBlob(bvid);
+                    if (cachedBlob) {
+                        stopInitialPreload();
+                        clearPreload();
+                        currentPlayingBvid = bvid;
+
+                        const objectUrl = URL.createObjectURL(cachedBlob);
+                        bgmAudio.pause();
+                        bgmAudio.src = objectUrl;
+                        bgmAudio.volume = 0.5;
+
+                        showLoadingInfo(bvid, 'buffering');
+                        updateProgressDisplay();
+                        updatePlaySongName();
+
+                        try {
+                            await bgmAudio.play();
+                            hideLoadingInfo();
+                            startVisuals(bvid);
+                            updatePlayPauseIcon();
+                            updateMediaSession();
+                        } catch (errCache) {
+                            hideLoadingInfo();
+                            handlePlayError(bvid, errCache);
+                            updatePlayPauseIcon();
+                        }
+                        return;
+                    }
+                } catch (e) { }
+            }
+
             let usePreloadObject = false;
             var initialUrl = null;
 
@@ -1880,6 +2068,29 @@
                 hideLoadingInfo();
                 handlePlayError(bvid, err);
                 updatePlayPauseIcon();
+                return;
+            }
+
+            if (useCache && window.SG_CACHE && window.SG_CACHE.supported &&
+                typeof window.SG_CACHE.saveToCache === 'function' &&
+                typeof window.SG_CACHE.getCachedBlob === 'function' && realUrl) {
+                try {
+                    window.SG_CACHE.getCachedBlob(bvid).then(function (blob) {
+                        if (blob) return null;
+                        return fetch(realUrl).then(function (r) {
+                            if (!r.ok) return null;
+                            return r.blob();
+                        }).then(function (blob2) {
+                            if (blob2) {
+                                window.SG_CACHE.saveToCache(bvid, blob2);
+                                if (cachedBvidsSet) {
+                                    cachedBvidsSet.add(bvid);
+                                    updatePlayDownloadsButton();
+                                }
+                            }
+                        }).catch(function () { });
+                    }).catch(function () { });
+                } catch (e) { }
             }
 
             await bgmAudio.play();
@@ -1961,9 +2172,12 @@
             }
         });
 
-        // 模式循环按钮：列表 → 单曲 → 随机 →（有收藏时）播放收藏 → 列表
+        // 模式循环按钮：列表 → 单曲 → 随机 →（有收藏时）播放收藏 →（有下载时）播放下载 → 列表
         function getModeOrder() {
-            return favoritesSet.size ? ['list', 'single', 'random', 'favorites'] : ['list', 'single', 'random'];
+            const base = ['list', 'single', 'random'];
+            if (favoritesSet.size) base.push('favorites');
+            if (cachedBvidsSet && cachedBvidsSet.size) base.push('downloaded');
+            return base;
         }
         if (btnModeCycle) {
             btnModeCycle.addEventListener('click', () => {
@@ -1977,8 +2191,9 @@
         (function initPlayMode() {
             var saved = '';
             try { saved = localStorage.getItem(PLAY_MODE_STORAGE_KEY) || ''; } catch (e) {}
-            if (['list', 'single', 'random', 'favorites'].indexOf(saved) < 0) saved = 'list';
+            if (['list', 'single', 'random', 'favorites', 'downloaded'].indexOf(saved) < 0) saved = 'list';
             if (saved === 'favorites' && favoritesSet.size === 0) saved = 'list';
+            if (saved === 'downloaded' && (!cachedBvidsSet || !cachedBvidsSet.size)) saved = 'list';
             setPlayMode(saved);
         })();
         updatePlayPauseIcon();
@@ -2068,6 +2283,7 @@
         // 按设置 + 浏览器支持情况决定按钮可见性
         syncPipSettingButtons();
         syncLockscreenLyricButtons();
+        syncCacheButtons();
 
         function getSongName() {
             const idx = getCurrentIndex();

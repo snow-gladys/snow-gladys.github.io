@@ -10,23 +10,27 @@
     --progress-track: rgba(0, 0, 0, 0.08);
         }
         
-body,
-html {
+        body,
+        html {
             margin: 0;
             padding: 0;
             width: 100%;
             height: 100%;
             background-color: var(--bg-color);
-    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
             overflow: hidden;
-    color: var(--text-main);
-    -webkit-font-smoothing: antialiased;
+            overscroll-behavior: none; /* 【关键修复】：防止在手机上下拖拽时网页跟着回弹露出白边 */
+            color: var(--text-main);
+            -webkit-font-smoothing: antialiased;
         }
-
+        
         #scene {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
+            position: fixed; /* 【关键修复】：从 relative 改为 fixed，彻底锁定在屏幕内 */
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%; /* 回退方案，兼容老浏览器 */
+            height: 100dvh; /* 【终极杀招】：使用动态视口高度，完美避开手机上下工具栏 */
             display: flex;
             justify-content: center;
             align-items: center;
@@ -2621,11 +2625,20 @@ input[type=number]::-webkit-outer-spin-button {
     /* --- 1. 首页优化 --- */
     .clean-title { font-size: 3rem; }
     .character-img-modern { width: 32vh; height: 32vh; }
-    .home-actions { width: 85%; gap: 12px; }
+    .home-actions { 
+        width: 85%; 
+        gap: 12px; 
+        bottom: 12%; /* 【修改】稍微抬高一点点，避开小白条 */
+    }
     .btn-modern { padding: 14px 0; flex: 1; text-align: center; }
 
     /* --- 2. 播放页控制栏收缩（修复太宽看不到按钮） --- */
     .play-record-area .character-img { width: 34vh; height: 34vh; }
+
+    /* 【新增】：针对普通播放页，抬高底部的控制栏 */
+    .play-control-panel {
+        bottom: 12%; 
+    }
     
     .controls-wrapper {
         gap: 16px; /* 缩小按钮间距，原为 32px */

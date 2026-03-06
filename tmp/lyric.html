@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>思诺 · Gladys (双栏极简沉浸版)</title>
+    <style>
+        /* --- 核心变量统一 --- */
+        :root {
+            --bg-light: #FAFAFC; 
+            --text-main: #111111; 
+            --text-sub: #86868B;
+            --neon-blue: #00f3ff;
+            --sinuo-pink: #ff66b2;
+            --progress-track: rgba(0, 0, 0, 0.08);
+        }
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background-color: var(--bg-light);
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+            overflow: hidden; -webkit-font-smoothing: antialiased;
+        }
+
+        /* --- 1. 双栏布局容器 --- */
+        #lyrics-scene {
+            position: relative;
+            width: 100vw; height: 100vh;
+            display: grid;
+            grid-template-columns: 1fr 1.2fr; /* PC端左右比例 */
+            align-items: center;
+            padding: 0 5vw;
+            box-sizing: border-box;
+        }
+
+        /* --- 2. 左侧：唱片与控制面板 --- */
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 40px;
+            z-index: 10;
+        }
+
+        .record-disc-small {
+            width: 45vh; height: 45vh;
+            border-radius: 50%;
+            background: #EAEAEA url('./imgs/snow_char.png') no-repeat center center/cover;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.12);
+            animation: spin 12s linear infinite;
+        }
+
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* 左侧控制台（紧凑型） */
+        .side-player-ui {
+            width: 100%; max-width: 320px;
+            display: flex; flex-direction: column; gap: 20px;
+        }
+        .side-info h1 { font-size: 1.6rem; font-weight: 800; margin: 0; letter-spacing: -0.5px; }
+        .side-info p { font-size: 0.9rem; color: var(--text-sub); margin: 4px 0 0; letter-spacing: 2px; }
+
+        .progress-wrapper { display: flex; align-items: center; gap: 10px; width: 100%; }
+        .time { font-size: 0.7rem; font-weight: 600; color: var(--text-sub); font-family: monospace; }
+        .progress-track { flex: 1; height: 4px; background: var(--progress-track); border-radius: 2px; }
+        .progress-fill { height: 100%; background: var(--text-main); border-radius: 2px; width: 35%; }
+
+        .btn-group { display: flex; gap: 24px; align-items: center; justify-content: center; }
+        .btn-play-pause { 
+            width: 52px; height: 52px; border-radius: 50%; background: var(--text-main); color: white; 
+            border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+
+        /* --- 3. 右侧：紧凑歌词区 --- */
+        .right-panel {
+            height: 80vh;
+            overflow-y: auto;
+            scrollbar-width: none;
+            display: flex;
+            flex-direction: column;
+            padding-right: 5vw;
+            /* 渐变遮罩 */
+            mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
+        }
+        .right-panel::-webkit-scrollbar { display: none; }
+
+        .lyric-line {
+            font-size: 1.6rem; /* 稍微缩小一点更高级 */
+            font-weight: 700;
+            line-height: 1.4;
+            margin: 16px 0; /* 【修改点】：更紧凑的间距 */
+            color: #D2D2D7;
+            transition: all 0.5s ease;
+            text-align: left; /* PC端左对齐更符合阅读习惯 */
+            cursor: pointer;
+        }
+        .lyric-line.active {
+            color: var(--text-main);
+            transform: scale(1.05) translateX(10px); /* 激活时向右微调，增加动态感 */
+        }
+
+        /* --- 4. 底部波纹频谱（作为背景装饰） --- */
+        .audio-visualizer {
+            position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+            width: 38vh; height: 12vh; display: flex; justify-content: space-between; align-items: flex-end;
+            opacity: 0.05; z-index: 1; pointer-events: none;
+        }
+        .bar { width: 3px; background-color: #000; border-radius: 3px 3px 0 0; animation: jump 1s infinite alternate; transform-origin: bottom; }
+        @keyframes jump { 0% { transform: scaleY(0.2); } 100% { transform: scaleY(1); } }
+
+        /* --- 5. 移动端适配：回归上下布局 --- */
+        @media (max-width: 768px) {
+            #lyrics-scene { grid-template-columns: 1fr; padding-top: 5vh; }
+            .record-disc-small { width: 30vh; height: 30vh; }
+            .right-panel { padding-right: 0; height: 50vh; text-align: center; }
+            .lyric-line { text-align: center; font-size: 1.3rem; }
+            .lyric-line.active { transform: scale(1.1); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="lyrics-scene">
+        
+        <div class="left-panel">
+            <div class="record-disc-small"></div>
+            
+            <div class="side-player-ui">
+                <div class="side-info">
+                    <h1>孤独北半球</h1>
+                    <p>思诺 GLADYS</p>
+                </div>
+                
+                <div class="progress-wrapper">
+                    <span class="time">01:45</span>
+                    <div class="progress-track"><div class="progress-fill"></div></div>
+                    <span class="time">04:02</span>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn-play-pause">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div style="height: 35vh;"></div>
+            <div class="lyric-line">少了我的手臂当枕头</div>
+            <div class="lyric-line">你习不习惯</div>
+            <div class="lyric-line active">你的心里能够充满我</div>
+            <div class="lyric-line">给你的真爱</div>
+            <div class="lyric-line">你在我的北方</div>
+            <div class="lyric-line">守着孤独的北半球</div>
+            <div class="lyric-line">用你的泪滴</div>
+            <div class="lyric-line">在这寒冷季节</div>
+            <div class="lyric-line">画出一线生机</div>
+            <div style="height: 35vh;"></div>
+        </div>
+
+        <div class="audio-visualizer">
+            <div class="bar" style="height: 40%;"></div>
+            <div class="bar" style="height: 80%;"></div>
+            <div class="bar" style="height: 60%;"></div>
+            <div class="bar" style="height: 100%;"></div>
+            <div class="bar" style="height: 30%;"></div>
+        </div>
+    </div>
+
+</body>
+</html>

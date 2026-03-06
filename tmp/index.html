@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>思诺 · Gladys (全局包络收束版)</title>
+    <style>
+        /* --- 核心变量 --- */
+        :root {
+            --bg-color: #FAFAFC; 
+            --text-main: #111111; 
+            --text-sub: #999999;
+            --neon-blue: #00f3ff;
+            --glass-bg: rgba(255, 255, 255, 0.7);
+            --border-light: 1px solid rgba(0, 0, 0, 0.06);
+        }
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background-color: var(--bg-color);
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+            overflow: hidden; color: var(--text-main);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        #scene {
+            position: relative; width: 100vw; height: 100vh;
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        /* --- 彻底沉底的频谱 --- */
+        .audio-visualizer {
+            position: absolute; 
+            bottom: 0; 
+            left: 50%; 
+            transform: translateX(-50%);
+            width: 38vh; 
+            height: 24vh; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: flex-end; 
+            opacity: 0.08; 
+            z-index: 1; 
+            pointer-events: none;
+        }
+
+        .bar {
+            width: 3px; 
+            background-color: #000; 
+            border-radius: 3px 3px 0 0;
+            height: var(--h); 
+            animation: rhythm var(--d) ease-in-out infinite alternate;
+            transform-origin: bottom; 
+        }
+
+        @keyframes rhythm {
+            0% { transform: scaleY(0.15); } 
+            100% { transform: scaleY(1); }
+        }
+
+        /* --- 顶部状态栏 --- */
+        .home-top-bar {
+            position: absolute; top: 5%; left: 5%; right: 5%;
+            display: flex; justify-content: space-between; align-items: flex-start; z-index: 110;
+        }
+
+        .nav-link-modern {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 16px; font-size: 0.85rem; font-weight: 600;
+            color: var(--text-main); text-decoration: none;
+            background: var(--glass-bg); border-radius: 999px;
+            border: var(--border-light); backdrop-filter: blur(20px);
+            transition: all 0.4s ease;
+        }
+        .nav-link-modern:hover {
+            box-shadow: 0 10px 30px rgba(0, 243, 255, 0.2);
+            border-color: rgba(0, 243, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .stats-card {
+            background: var(--glass-bg); backdrop-filter: blur(20px);
+            padding: 12px 24px; border-radius: 24px; border: var(--border-light);
+            display: flex; flex-direction: column; align-items: flex-end;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.03);
+        }
+        .stats-label { font-size: 0.65rem; color: var(--text-sub); letter-spacing: 2px; font-weight: 700; }
+        .stats-number { font-family: monospace; font-size: 1.6rem; font-weight: 800; color: var(--text-main); margin-top: 4px; }
+
+        /* --- 核心视觉区 --- */
+        .hero-section {
+            position: relative; z-index: 20;
+            display: flex; flex-direction: column; align-items: center; text-align: center;
+            animation: float 6s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-12px); }
+            100% { transform: translateY(0px); }
+        }
+
+        .hero-avatar-wrapper { margin-bottom: 40px; }
+        .character-img-modern {
+            width: 38vh; height: 38vh; border-radius: 50%;
+            background: #EAEAEA url('./imgs/snow_char.png') no-repeat center center/cover;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.1), inset 0 0 0 1px rgba(0,0,0,0.05);
+            transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            cursor: pointer;
+        }
+        .character-img-modern:hover {
+            transform: scale(1.02) rotate(2deg);
+            box-shadow: 0 40px 80px rgba(188, 19, 254, 0.15), 0 20px 40px rgba(0, 243, 255, 0.15);
+        }
+
+        .hero-text { display: flex; flex-direction: column; align-items: center; }
+        .clean-title {
+            font-size: 4.5rem; font-weight: 900; letter-spacing: 2px;
+            color: var(--text-main); margin: 0 0 12px 0;
+            text-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
+            transition: text-shadow 0.4s ease;
+        }
+        .clean-subtitle {
+            font-size: 1.1rem; letter-spacing: 8px; font-weight: 700;
+            color: var(--text-sub); margin: 0; text-transform: uppercase;
+        }
+        .clean-subtitle span { color: var(--text-main); }
+
+        /* --- 纯黑白胶囊按钮 --- */
+        .home-actions {
+            position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 16px; z-index: 95;
+        }
+
+        .btn-modern {
+            padding: 16px 40px; border-radius: 999px;
+            font-size: 1rem; font-weight: 600; letter-spacing: 2px;
+            cursor: pointer; border: none; outline: none;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .btn-primary {
+            background-color: var(--text-main); color: #FFF;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
+        }
+        .btn-primary:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0, 243, 255, 0.3);
+            text-shadow: 0 0 8px rgba(0, 243, 255, 0.6);
+        }
+
+        .btn-secondary {
+            background-color: #FFF; color: var(--text-main);
+            border: 1px solid rgba(0,0,0,0.1);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.04);
+        }
+        .btn-secondary:hover {
+            transform: translateY(-4px);
+            border-color: rgba(188, 19, 254, 0.4);
+            box-shadow: 0 15px 30px rgba(188, 19, 254, 0.15);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="scene">
+        
+        <div class="audio-visualizer" id="visualizer"></div>
+
+        <div class="home-top-bar">
+            <a class="nav-link-modern" href="./fiona/" title="去心宜">
+                <span style="font-size: 1.2rem;">🦭</span> 切换角色
+            </a>
+            
+            <div class="stats-card">
+                <span class="stats-label">FOLLOWERS</span>
+                <span class="stats-number" id="fan-count">24,567</span>
+            </div>
+        </div>
+
+        <div class="hero-section">
+            <div class="hero-avatar-wrapper">
+                <div class="character-img-modern"></div>
+            </div>
+            
+            <div class="hero-text">
+                <h1 class="clean-title">思诺 Gladys</h1>
+                <p class="clean-subtitle">Z.J. <span>ENTERTAINMENT</span></p>
+            </div>
+        </div>
+
+        <div class="home-actions">
+            <button type="button" class="btn-modern btn-primary" id="btn-open-playlist">查看歌单</button>
+            <button type="button" class="btn-modern btn-secondary" id="btn-play-random">随机一首</button>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const visualizer = document.getElementById('visualizer');
+            const barCount = 45; 
+            const fragment = document.createDocumentFragment();
+
+            // 1. 依然随机生成波峰基础数据
+            const peaks = [];
+            const numMainPeaks = 1 + Math.floor(Math.random() * 2);
+            for(let i = 0; i < numMainPeaks; i++) {
+                peaks.push({
+                    center: 10 + Math.random() * 25, // 让主波峰更倾向于生成在中间区域
+                    width: 3 + Math.random() * 3,   
+                    height: 0.7 + Math.random() * 0.4 
+                });
+            }
+            const numSubPeaks = 3 + Math.floor(Math.random() * 2);
+            for(let i = 0; i < numSubPeaks; i++) {
+                peaks.push({
+                    center: Math.random() * 45,
+                    width: 3 + Math.random() * 4,
+                    height: 0.2 + Math.random() * 0.3
+                });
+            }
+
+            // 2. 渲染每一根线条
+            for(let i = 0; i < barCount; i++) {
+                let targetHeight = 0.05; 
+
+                // 叠加波峰
+                peaks.forEach(peak => {
+                    const distance = i - peak.center;
+                    const effect = Math.exp(-(distance * distance) / (2 * peak.width * peak.width));
+                    targetHeight += effect * peak.height;
+                });
+
+                // ★ 核心改动：全局正弦包络线 (Global Envelope)
+                // i / (barCount - 1) 会生成 0 到 1 的进度，传入 Math.sin 得到一个完美的半圆弧
+                // 两侧压低到 20% (0.2)，中间放大到 100% (0.2 + 0.8)
+                const globalEnvelope = 0.2 + 0.8 * Math.sin(Math.PI * (i / (barCount - 1)));
+                
+                targetHeight = targetHeight * globalEnvelope; // 乘上遮罩
+
+                // 加入微弱噪点，限制最高 100%
+                targetHeight += Math.random() * 0.03;
+                targetHeight = Math.min(1, targetHeight);
+
+                const duration = 0.8 + Math.random() * 0.7;
+
+                const bar = document.createElement('div');
+                bar.className = 'bar';
+                bar.style.setProperty('--h', `${targetHeight * 100}%`);
+                bar.style.setProperty('--d', `${duration}s`);
+                bar.style.animationDelay = `-${Math.random() * 2}s`; 
+
+                fragment.appendChild(bar);
+            }
+            
+            visualizer.appendChild(fragment);
+        });
+    </script>
+</body>
+</html>

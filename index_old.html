@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-<head>
+    <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="../imgs/icon_xinyi.png" type="image/png">
+    <link rel="icon" href="imgs/icon_snow.png" type="image/png">
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="index.css?v=202603070246">
-    <title>心宜 · Fiona</title>
+    <link rel="stylesheet" href="index_old.css?v=202602231519">
+    <title>思诺 · Gladys</title>
     <script charset="UTF-8" id="LA_COLLECT" src="//sdk.51.la/js-sdk-pro.min.js"></script>
     <script>LA.init({id:"3P3o7vHxi6Fni6t0",ck:"3P3o7vHxi6Fni6t0"})</script>
 </head>
@@ -33,12 +33,12 @@
             </div>
         </div>
 
-        <a class="nav-emoji-link" href="../" title="去思诺">🦁</a>
+        <a class="nav-emoji-link" href="./fiona/" title="去心宜">🦭</a>
 
         <!-- 主页面：图片、文字、粉丝数、两个按钮 -->
         <div class="view-home" id="view-home">
             <div class="layer ui-layer">
-                <h1 class="glitch-title">心宜 Fiona</h1>
+                <h1 class="glitch-title">思诺 Gladys</h1>
                 <p class="subtitle">Z.J. ENTERTAINMENT</p>
             </div>
             <div class="home-top-right">
@@ -86,11 +86,12 @@
                     <svg class="icon-svg icon-pip-close" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 3H3C1.9 3 1 3.88 1 4.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V4.98C23 3.88 22.1 3 21 3zm-2 14h-6v-4h6v4zm2-1.02H3V4.97h18v11.01z"/></svg>
                 </button>
             </div>
-            <!-- 歌词视图 -->
+            <!-- 歌词视图：歌词模式时展示滚动歌词（歌名上移至 btn-settings-wrap 行） -->
             <div class="lyrics-view" id="lyrics-view">
                 <div class="lyrics-scroll" id="lyrics-scroll"></div>
             </div>
             <div class="play-song-name" id="play-song-name">—</div>
+            <!-- 歌名与进度条之间的单行歌词提示 -->
             <div class="play-current-lyric" id="play-current-lyric"></div>
             <div class="play-progress-wrap">
                 <span class="time" id="time-current">0:00</span>
@@ -249,7 +250,7 @@
             </div>
         </div>
 
-        <!-- 管理自定义歌曲 弹层 -->
+        <!-- 管理自定义歌曲 弹层（类歌单：搜索 + 列表 + 修改/删除） -->
         <div class="custom-manage-backdrop" id="custom-manage-backdrop">
             <div class="custom-manage-panel" id="custom-manage-panel">
                 <div class="custom-manage-header">管理自定义歌曲</div>
@@ -330,11 +331,11 @@
     <div id="toast" class="toast" aria-live="polite" role="status"></div>
     <div id="loading-info" class="loading-info" aria-live="polite" role="status"></div>
 
-    <script src="../pinyin_dict_notone.js"></script>
-    <script src="../pinyinUtil.js"></script>
-    <script src="../lyrics-db.js"></script>
-    <script src="../cache-db.js"></script>
-    <script src="../changelog-data.js?v=202603070246"></script>
-    <script src="index.js?v=202603070246"></script>
+    <script src="pinyin_dict_notone.js"></script>
+    <script src="pinyinUtil.js"></script>
+    <script src="lyrics-db.js"></script>
+    <script src="cache-db.js"></script>
+    <script src="changelog-data.js?v=202602231519"></script>
+    <script src="index.js?v=202602231519"></script>
 </body>
 </html>

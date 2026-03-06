@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>思诺 · Gladys (极简设置页 - 完整功能版)</title>
+    <style>
+        /* --- 全局核心变量 --- */
+        :root {
+            --bg-light: #FAFAFC; 
+            --text-main: #111111; 
+            --text-sub: #86868B;
+            --text-muted: #C7C7CC;
+            --neon-blue: #00f3ff;
+            --glass-panel: rgba(255, 255, 255, 0.85);
+            --card-bg: rgba(255, 255, 255, 0.6);
+            --border-light: rgba(0, 0, 0, 0.05);
+        }
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at 50% 50%, #EAEAEA 0%, #FAFAFC 100%);
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+            overflow: hidden; color: var(--text-main);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* --- 全屏毛玻璃遮罩 --- */
+        .settings-backdrop {
+            position: fixed; inset: 0; z-index: 600;
+            background: rgba(245, 245, 247, 0.4);
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        /* --- 设置主面板 --- */
+        .settings-panel {
+            width: 90%; max-width: 440px; max-height: 85vh;
+            background: var(--glass-panel);
+            border-radius: 24px; display: flex; flex-direction: column;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.08), inset 0 0 0 1px rgba(255,255,255,0.6);
+            overflow: hidden;
+            animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes slideUp {
+            0% { transform: translateY(20px) scale(0.98); opacity: 0; }
+            100% { transform: translateY(0) scale(1); opacity: 1; }
+        }
+
+        /* --- 头部 --- */
+        .settings-header {
+            padding: 24px 24px 16px; position: relative;
+            text-align: center; border-bottom: 1px solid var(--border-light);
+        }
+        .settings-title { font-size: 1.15rem; font-weight: 800; margin: 0; letter-spacing: 0.5px; }
+        
+        .btn-close {
+            position: absolute; top: 20px; right: 20px;
+            width: 28px; height: 28px; border-radius: 50%;
+            background: rgba(0,0,0,0.05); border: none;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; color: var(--text-sub); transition: 0.2s;
+        }
+        .btn-close:hover { background: rgba(0,0,0,0.1); color: var(--text-main); }
+
+        /* --- 主体滚动区 --- */
+        .settings-body {
+            flex: 1; overflow-y: auto; padding: 20px 24px 30px;
+            scrollbar-width: none;
+        }
+        .settings-body::-webkit-scrollbar { display: none; }
+
+        /* --- 分组卡片 --- */
+        .settings-group {
+            background: var(--card-bg);
+            border-radius: 16px; margin-bottom: 24px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+            overflow: hidden;
+        }
+        .group-title {
+            font-size: 0.75rem; font-weight: 700; color: var(--text-sub);
+            text-transform: uppercase; letter-spacing: 1px;
+            margin: 0 0 8px 12px;
+        }
+
+        /* --- 基础行样式 --- */
+        .settings-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 16px; min-height: 24px;
+            border-bottom: 1px solid var(--border-light);
+            transition: background 0.2s;
+        }
+        .settings-row:last-child { border-bottom: none; }
+        .row-clickable:hover { background: rgba(0,0,0,0.03); cursor: pointer; }
+
+        .row-label { font-size: 0.95rem; font-weight: 600; color: var(--text-main); }
+        .row-hint { font-size: 0.75rem; color: var(--text-sub); margin-top: 2px; }
+
+        .row-value { font-size: 0.9rem; color: var(--text-sub); font-family: monospace; }
+        .row-arrow { color: var(--text-muted); width: 16px; height: 16px; }
+
+        /* --- 【新增】操作按钮行 (Action Row) --- */
+        .row-action {
+            justify-content: flex-start; gap: 12px;
+            color: var(--neon-blue); /* 使用霓虹蓝作为操作色 */
+        }
+        .row-action .row-label { color: inherit; }
+        .row-action svg { width: 18px; height: 18px; flex-shrink: 0; }
+        /* 避免深色模式下的对比度过高，给霓虹蓝降一点亮度感 */
+        .row-action:hover { background: rgba(0, 243, 255, 0.05); }
+
+        /* --- iOS 滑动开关 --- */
+        .toggle-switch {
+            width: 44px; height: 24px; border-radius: 12px;
+            background: #E5E5EA; position: relative; cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        .toggle-switch::after {
+            content: ''; position: absolute; top: 2px; left: 2px;
+            width: 20px; height: 20px; border-radius: 50%;
+            background: #FFF; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .toggle-switch.active { background: var(--neon-blue); box-shadow: 0 0 10px rgba(0, 243, 255, 0.3); }
+        .toggle-switch.active::after { transform: translateX(20px); }
+
+        /* --- 分段控制器 --- */
+        .segmented-control {
+            display: flex; background: rgba(0,0,0,0.05);
+            border-radius: 8px; padding: 2px; margin-top: 10px;
+            position: relative;
+        }
+        .seg-btn {
+            flex: 1; padding: 6px 0; text-align: center;
+            font-size: 0.8rem; font-weight: 600; color: var(--text-sub);
+            cursor: pointer; border-radius: 6px; position: relative; z-index: 2;
+            transition: color 0.3s;
+        }
+        .seg-btn.active { color: var(--text-main); }
+        .seg-slider {
+            position: absolute; top: 2px; bottom: 2px; left: 2px;
+            background: #FFF; border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08); z-index: 1;
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), width 0.3s;
+        }
+
+        /* 破坏性操作 */
+        .row-destructive .row-label, .row-destructive svg { color: #FF3B30; }
+        .badge-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--neon-blue); box-shadow: 0 0 6px var(--neon-blue);
+            display: inline-block; margin-left: 6px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="settings-backdrop">
+        <div class="settings-panel">
+            
+            <div class="settings-header">
+                <h3 class="settings-title">设置</h3>
+                <button class="btn-close" title="关闭">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+
+            <div class="settings-body">
+                
+                <div class="group-title">歌单与自定义</div>
+                <div class="settings-group">
+                    <div class="settings-row row-clickable row-action">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                        <div class="row-label">开关歌单面板</div>
+                    </div>
+                    <div class="settings-row row-clickable row-action">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        <div class="row-label">导入自定义歌曲</div>
+                    </div>
+                    <div class="settings-row row-clickable row-action">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <div class="row-label">导出配置与歌曲</div>
+                    </div>
+                    <div class="settings-row row-clickable">
+                        <div class="row-label">管理自定义歌单</div>
+                        <svg class="row-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                    </div>
+                </div>
+
+                <div class="group-title">播放设置</div>
+                <div class="settings-group">
+                    <div class="settings-row" style="display: block;">
+                        <div class="row-label">默认音质</div>
+                        <div class="segmented-control">
+                            <div class="seg-slider" style="width: 33.33%; transform: translateX(100%);"></div>
+                            <div class="seg-btn">标准</div>
+                            <div class="seg-btn active">高音质</div>
+                            <div class="seg-btn">无损</div>
+                        </div>
+                    </div>
+                    <div class="settings-row" style="display: block;">
+                        <div class="row-label">缓存策略</div>
+                        <div class="segmented-control">
+                            <div class="seg-slider" style="width: 50%; transform: translateX(0%);"></div>
+                            <div class="seg-btn active">边听边存</div>
+                            <div class="seg-btn">不缓存</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="group-title">系统交互</div>
+                <div class="settings-group">
+                    <div class="settings-row">
+                        <div>
+                            <div class="row-label">系统媒体控制</div>
+                            <div class="row-hint">在锁屏或控制中心显示播放控件</div>
+                        </div>
+                        <div class="toggle-switch active"></div>
+                    </div>
+                    <div class="settings-row">
+                        <div class="row-label">画中画模式 (PiP)</div>
+                        <div class="toggle-switch"></div>
+                    </div>
+                    <div class="settings-row">
+                        <div class="row-label">桌面/锁屏歌词</div>
+                        <div class="toggle-switch active"></div>
+                    </div>
+                </div>
+
+                <div class="group-title">功能管理</div>
+                <div class="settings-group">
+                    <div class="settings-row row-clickable">
+                        <div class="row-label">睡眠定时</div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="row-value">未开启</span>
+                            <svg class="row-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                        </div>
+                    </div>
+                    <div class="settings-row row-clickable row-destructive">
+                        <div class="row-label">清理音频缓存</div>
+                        <span class="row-value">占用: 12.5MB</span>
+                    </div>
+                </div>
+
+                <div class="group-title">关于思诺 Gladys</div>
+                <div class="settings-group">
+                    <div class="settings-row row-clickable">
+                        <div>
+                            <span class="row-label">更新日志</span>
+                            <span class="badge-dot"></span>
+                        </div>
+                        <svg class="row-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                    </div>
+                    <div class="settings-row">
+                        <div class="row-label">联系作者</div>
+                        <span class="row-value" style="font-family: inherit;">@pengyiteng</span>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>思诺 · Gladys (极简播放页)</title>
+    <style>
+        /* --- 核心变量：延续主页的高级黑白灰与专属光晕 --- */
+        :root {
+            --bg-color: #FAFAFC; 
+            --text-main: #111111; 
+            --text-sub: #86868B; /* 苹果常用的次级文本灰 */
+            --neon-blue: #00f3ff;
+            --sinuo-pink: #ff66b2; 
+            --glass-bg: rgba(255, 255, 255, 0.7);
+            --border-light: 1px solid rgba(0, 0, 0, 0.06);
+            --progress-track: rgba(0, 0, 0, 0.08);
+        }
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background-color: var(--bg-color);
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+            overflow: hidden; color: var(--text-main);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        #scene {
+            position: relative; width: 100vw; height: 100vh;
+            display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+        }
+
+        /* --- 顶部导航：极简返回与更多按钮 --- */
+        .play-top-bar {
+            position: absolute; top: 5%; left: 5%; right: 5%;
+            display: flex; justify-content: space-between; align-items: center; z-index: 110;
+        }
+        .btn-nav-icon {
+            width: 40px; height: 40px; border-radius: 50%;
+            background: transparent; border: none; color: var(--text-main);
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.3s ease;
+        }
+        .btn-nav-icon:hover {
+            background: var(--glass-bg);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            color: var(--neon-blue);
+        }
+        .btn-nav-icon svg { width: 24px; height: 24px; stroke-width: 2; }
+
+        /* --- 中心唱片区 --- */
+        .play-record-area {
+            position: absolute;
+            top: 25%; /* 偏上放置，给底部的控制台留出充足空间 */
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        .record-disc {
+            width: 38vh; height: 38vh; border-radius: 50%;
+            /* 模拟苹果音乐的专辑投影 */
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0,0,0,0.05);
+            background: #EAEAEA url('./imgs/snow_char.png') no-repeat center center/cover;
+            /* 播放时的旋转动画 */
+            animation: spin 12s linear infinite;
+        }
+
+        @keyframes spin {
+            100% { transform: rotate(360deg); }
+        }
+
+        /* --- 底部播放控制面板 --- */
+        .play-control-panel {
+            position: absolute;
+            bottom: 8%;
+            width: 85%;
+            max-width: 480px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px; /* 元素间距拉开，增加呼吸感 */
+            z-index: 100;
+        }
+
+        /* 歌曲信息 */
+        .song-info {
+            text-align: center; width: 100%;
+        }
+        .song-title {
+            font-size: 1.8rem; font-weight: 800; letter-spacing: 1px;
+            color: var(--text-main); margin: 0 0 6px 0;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .song-lyric {
+            font-size: 0.95rem; font-weight: 500;
+            color: var(--text-sub); margin: 0;
+            letter-spacing: 0.5px;
+            /* 当前歌词带有一点点渐变透明度，显得更高级 */
+            background: linear-gradient(90deg, #86868B, #B0B0B5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* 进度条区域 */
+        .progress-wrapper {
+            display: flex; align-items: center; width: 100%; gap: 12px;
+        }
+        .time-text {
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            font-size: 0.75rem; font-weight: 600; color: var(--text-sub);
+            font-variant-numeric: tabular-nums; /* 让数字等宽，跳动时进度条不会抖动 */
+            width: 40px; text-align: center;
+        }
+        
+        /* 极简滑块 */
+        .progress-bar-container {
+            flex: 1; height: 24px; display: flex; align-items: center;
+            cursor: pointer; position: relative;
+        }
+        .progress-track {
+            width: 100%; height: 4px; border-radius: 2px;
+            background: var(--progress-track);
+            overflow: hidden; position: relative;
+        }
+        .progress-fill {
+            position: absolute; top: 0; left: 0; height: 100%;
+            background: var(--text-main); /* 黑色填充 */
+            width: 35%; /* 示例进度 */
+            border-radius: 2px;
+            transition: width 0.1s linear;
+        }
+        /* 悬停进度条时，黑色填充泛出一点点霓虹蓝 */
+        .progress-bar-container:hover .progress-fill {
+            background: var(--text-main);
+            box-shadow: 0 0 8px rgba(0, 243, 255, 0.4);
+        }
+        /* 隐藏的滑块圆点，悬停时出现 */
+        .progress-thumb {
+            position: absolute; top: 50%; left: 35%;
+            transform: translate(-50%, -50%) scale(0);
+            width: 12px; height: 12px; border-radius: 50%;
+            background: var(--text-main);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .progress-bar-container:hover .progress-thumb {
+            transform: translate(-50%, -50%) scale(1);
+            background: var(--neon-blue); /* 滑块点亮为霓虹蓝 */
+        }
+
+        /* 播放控制按钮组 */
+        .controls-wrapper {
+            display: flex; align-items: center; justify-content: center;
+            width: 100%; gap: 32px;
+        }
+        .btn-ctrl {
+            background: transparent; border: none;
+            color: var(--text-main); cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s ease;
+        }
+        .btn-ctrl svg { width: 24px; height: 24px; fill: currentColor; }
+        .btn-ctrl:hover {
+            color: var(--text-sub);
+            transform: scale(1.1);
+        }
+        
+        /* 特殊按钮：喜欢、列表、模式 */
+        .btn-small svg { width: 20px; height: 20px; color: var(--text-sub); }
+        .btn-small:hover { color: var(--sinuo-pink); } /* 小按钮悬停泛粉色 */
+
+        /* 巨大的播放/暂停按钮 */
+        .btn-play-pause {
+            width: 64px; height: 64px; border-radius: 50%;
+            background: var(--text-main); color: #FFF;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+        }
+        .btn-play-pause svg { width: 28px; height: 28px; fill: currentColor; }
+        .btn-play-pause:hover {
+            transform: scale(1.05);
+            background: #000;
+            color: #FFF;
+            /* 播放按钮悬停时底层透出霓虹蓝 */
+            box-shadow: 0 15px 30px rgba(0, 243, 255, 0.25);
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="scene">
+        
+        <div class="play-top-bar">
+            <button class="btn-nav-icon" title="返回主页">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="btn-nav-icon" title="更多选项">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+            </button>
+        </div>
+
+        <div class="play-record-area">
+            <div class="record-disc"></div>
+        </div>
+
+        <div class="play-control-panel">
+            
+            <div class="song-info">
+                <h2 class="song-title">孤独北半球</h2>
+                <p class="song-lyric">少了我的手臂当枕头 你习不习惯</p>
+            </div>
+
+            <div class="progress-wrapper">
+                <span class="time-text">01:24</span>
+                <div class="progress-bar-container">
+                    <div class="progress-track">
+                        <div class="progress-fill" style="width: 35%;"></div>
+                    </div>
+                    <div class="progress-thumb" style="left: 35%;"></div>
+                </div>
+                <span class="time-text">04:02</span>
+            </div>
+
+            <div class="controls-wrapper">
+                <button class="btn-ctrl btn-small" title="循环模式">
+                    <svg viewBox="0 0 24 24"><path d="M17 1l4 4-4 4-1.4-1.4 1.6-1.6H5v6H3V4h14.2l-1.6-1.6L17 1zm-10 22l-4-4 4-4 1.4 1.4-1.6 1.6H19v-6h2v8H6.8l1.6 1.6L7 23z"/></svg>
+                </button>
+                
+                <button class="btn-ctrl" title="上一首">
+                    <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+                </button>
+
+                <button class="btn-ctrl btn-play-pause" title="暂停">
+                    <svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                </button>
+
+                <button class="btn-ctrl" title="下一首">
+                    <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                </button>
+
+                <button class="btn-ctrl btn-small" title="加入喜欢">
+                    <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                </button>
+            </div>
+
+        </div>
+
+    </div>
+
+</body>
+</html>

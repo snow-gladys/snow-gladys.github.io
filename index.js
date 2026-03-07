@@ -1704,7 +1704,7 @@
             if (!audioAnalyser) {
                 audioAnalyser = audioCtx.createAnalyser();
                 audioAnalyser.fftSize = 2048;
-                audioAnalyser.smoothingTimeConstant = 0.9;
+                audioAnalyser.smoothingTimeConstant = 0.85;
             }
             // 如果 bgmAudio 被替换（例如预加载切换），重新创建 source
             if (audioSourceEl !== bgmAudio) {
@@ -1753,7 +1753,7 @@
                 visualizerBars.push(bar);
 
                 // 【性能优化】：只在初始化时计算一次正弦包络线！
-                const envelope = 0.4 + 0.6 * Math.sin(Math.PI * (i / (newBarCount - 1)));
+                const envelope = 0.02 + 0.98 * Math.sin(Math.PI * (i / (newBarCount - 1)));
                 envelopeArray.push(envelope);
             }
             playVisualizerEl.appendChild(fragment);
@@ -1804,6 +1804,7 @@
                         let sum = 0;
                         for (let j = startIdx; j < endIdx; j++) sum += window.audioDataArray[j];
                         let value = (sum / (endIdx - startIdx)) / 255; 
+                        value = Math.pow(value, 1.4);
                         
                         const envelope = envelopeArray[i] !== undefined ? envelopeArray[i] : (0.4 + 0.6 * Math.sin(Math.PI * (i / (visualizerBars.length - 1))));
                         value = value * envelope;
@@ -1821,9 +1822,12 @@
                         let sum = 0;
                         for (let j = startIdx; j < endIdx; j++) sum += window.audioDataArray[j];
                         let value = (sum / (endIdx - startIdx)) / 255; 
+                        // 2. 【核心优化】：使用幂函数增加对比度，让凹凸更明显
+                        // 指数越大，高低起伏越剧烈
+                        value = Math.pow(value, 1.4);
                         
                         // 小窗同样应用正弦包络线，让两侧边缘自然收束
-                        const envelope = 0.4 + 0.6 * Math.sin(Math.PI * (i / (pipVisualizerBars.length - 1)));
+                        const envelope = 0.02 + 0.98 * Math.sin(Math.PI * (i / (pipVisualizerBars.length - 1)));
                         value = value * envelope;
                         
                         // 小窗空间较小，强度（intensity）设为 1.2，底线设为 0.05

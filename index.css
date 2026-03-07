@@ -2757,3 +2757,79 @@ input[type=number]::-webkit-outer-spin-button {
         font-size: 0.9rem; /* 手机上字号稍微放大一点，方便点击 */
     }
 }
+
+/* =============================
+   全局提示框 (Toast & Loading 灵动岛)
+   ============================= */
+   
+/* 1. Toast 底部黑色胶囊提示 (取代原有的 alert) */
+.toast {
+    position: fixed;
+    bottom: -80px; /* 初始隐藏在屏幕下方 */
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    color: #fff;
+    padding: 12px 24px;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    z-index: 9999;
+    opacity: 0;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+    white-space: nowrap;
+    max-width: 85vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
+}
+
+.toast.is-visible {
+    bottom: 8vh; /* 弹出时停留在安全高度 */
+    opacity: 1;
+}
+
+/* 2. Loading 顶部灵动岛加载提示 (你截图里的那个) */
+.loading-info {
+    position: fixed;
+    top: -80px; /* 初始隐藏在屏幕上方 */
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    padding: 10px 24px;
+    border-radius: 999px;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+    z-index: 9998;
+    opacity: 0;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 220px;
+}
+
+.loading-info.is-visible {
+    top: max(6vh, 50px); /* 弹出时避开手机刘海和控制中心 */
+    opacity: 1;
+}
+
+.loading-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.loading-detail {
+    font-size: 0.7rem;
+    color: var(--text-sub);
+    font-variant-numeric: tabular-nums;
+}

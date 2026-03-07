@@ -2847,3 +2847,46 @@ input[type=number]::-webkit-outer-spin-button {
     color: var(--text-sub);
     font-variant-numeric: tabular-nums;
 }
+
+/* ==========================================
+   真正的防重叠补丁 (完美适配 Flex 分栏布局)
+   ========================================== */
+
+/* --- 1. 手机端：Flex 容器内的智能截断 --- */
+@media (max-width: 768px) {
+    /* 作用于你顶部栏里的歌名元素 */
+    .lyrics-song-name-bar,
+    .play-song-name {
+        /* 让歌名自动占据剩余的所有空间，把图标安稳地推到右边 */
+        flex: 1 !important; 
+        
+        /* Flex 布局防止文本撑破容器的核心魔法！ */
+        min-width: 0 !important; 
+        
+        /* 彻底清除我上次给的“绝对定位”毒药代码，回归正常排版 */
+        position: relative !important; 
+        transform: none !important;
+        left: auto !important;
+        top: auto !important;
+        max-width: none !important;
+        
+        /* 超过容器宽度时自动变成省略号 ... */
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        
+        /* 字号适当调小，配合留白观感更高级 */
+        font-size: 1.25rem !important; 
+        text-align: left !important;
+    }
+}
+
+/* --- 2. PC 端：左侧播放器的唱片防挤压 --- */
+@media (min-width: 768px) {
+    .character-img.in-play-view,
+    .play-record-area .character-img {
+        /* 核心修复：清除原版的负边距，防止它往下挤压歌名 */
+        margin-top: 0 !important; 
+        margin-bottom: 60px !important; /* 强制给下方的《红色高跟鞋》留出安全呼吸距离 */
+    }
+}

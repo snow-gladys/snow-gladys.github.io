@@ -1694,7 +1694,7 @@
         let visualizerRafId = null;
 
         function ensureAudioAnalyser() {
-            return;
+            if (window.innerWidth <= 768) return;
 
             if (!playVisualizerEl) return;
             if (!window.AudioContext && !window.webkitAudioContext) return;
@@ -1769,7 +1769,7 @@
         });
 
         function startAudioVisualizer() {
-            return;
+            if (window.innerWidth <= 768) return;
 
             if (!playVisualizerEl) return;
             ensureAudioAnalyser();

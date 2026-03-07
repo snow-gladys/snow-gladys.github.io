@@ -812,7 +812,7 @@
             if (window.SG_LYRICS && window.SG_LYRICS.supported) {
                 try {
                     idbBytes = await window.SG_LYRICS.estimateIdbBytes();
-                    lines.push('本地歌词存储：' + formatBytes(idbBytes));
+                    lines.push('本地歌词存储：' + formatBytes(idbBytes) + '，');
                 } catch (e) {}
             }
 
@@ -1676,6 +1676,16 @@
         }
         const btnClosePlaylist = document.getElementById('btn-close-playlist');
         if (btnClosePlaylist) btnClosePlaylist.addEventListener('click', closePlaylist);
+
+        const btnBackHome = document.getElementById('btn-back-home');
+        if (btnBackHome) btnBackHome.addEventListener('click', function () {
+            if (!bgmAudio.paused) {
+                bgmAudio.pause();
+                stopVisuals();
+                updatePlayPauseIcon();
+            }
+            showView('home');
+        });
 
         const btnOpenCatalog = document.getElementById('btn-open-catalog');
         if (btnOpenCatalog) {
@@ -3036,6 +3046,8 @@
         var lyricsViewOpen = false;     // 是否处于歌词全屏视图
         var userHasLyric = false;       // 当前曲目是否有用户自定义歌词
 
+        var availableFallbackLrc = null; // 【新增】：用于暂存探测到的同名歌词文本
+
         // 调轴模式状态
         var adjustMode = false;         // 是否处于调轴模式
         var adjustLyrics = null;        // 调轴中的歌词副本 [{time, text}]
@@ -3124,21 +3136,62 @@
                 
                 var emptyText = document.createElement('div');
                 emptyText.className = 'lyrics-empty-text';
-                emptyText.textContent = '暂无歌词，小伙伴可自行添加 LRC 格式歌词。';
+                emptyText.textContent = availableFallbackLrc ? '暂无歌词，但我们找到了同名文件。' : '暂无歌词，小伙伴可自行添加 LRC 格式歌词。';
                 emptyDiv.appendChild(emptyText);
+
+                // 【核心新增：渲染同名歌词提示和载入按钮】
+                if (availableFallbackLrc) {
+                    var hintText = document.createElement('div');
+                    hintText.style.fontSize = '0.85rem';
+                    hintText.style.color = 'var(--text-main)';
+                    hintText.style.fontWeight = '600';
+                    hintText.style.marginTop = '-12px';
+                    hintText.innerHTML = '✨ 歌词库中检索到同名 LRC 文件';
+                    emptyDiv.appendChild(hintText);
+
+                    var loadBtn = document.createElement('button');
+                    loadBtn.type = 'button';
+                    loadBtn.className = 'btn-add-lyric';
+                    loadBtn.style.background = 'var(--neon-blue)';
+                    loadBtn.style.color = '#000';
+                    loadBtn.innerHTML = `
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/>
+                        </svg>
+                        载入同名歌词
+                    `;
+                    loadBtn.addEventListener('click', function () {
+                        if (!currentPlayingBvid) return;
+                        window.SG_LYRICS.saveUserLrc(currentPlayingBvid, availableFallbackLrc).then(function() {
+                            showToast('同名歌词已载入，可在此基础上修改或调轴。');
+                            lyricsReloadForCurrentSong(); // 重新走一遍加载流程，就会显示正常歌词了！
+                        });
+                    });
+                    emptyDiv.appendChild(loadBtn);
+                }
 
                 if (window.SG_LYRICS && window.SG_LYRICS.supported) {
                     var addBtn = document.createElement('button');
                     addBtn.type = 'button';
                     addBtn.className = 'btn-add-lyric';
-                    // 加上一个小小的 + 号图标
-                    addBtn.innerHTML = `
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                        </svg>
-                        添加歌词
-                    `;
+                    
+                    // 如果有自动载入按钮，就把手动添加按钮降级为弱视觉效果
+                    if (availableFallbackLrc) {
+                        addBtn.style.background = 'transparent';
+                        addBtn.style.color = 'var(--text-sub)';
+                        addBtn.style.border = '1px solid rgba(0,0,0,0.1)';
+                        addBtn.style.boxShadow = 'none';
+                        addBtn.innerHTML = `手动添加空白歌词`;
+                    } else {
+                        addBtn.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            添加歌词
+                        `;
+                    }
+                    
                     addBtn.addEventListener('click', function () {
                         openLyricForm(currentPlayingBvid || '', '');
                     });
@@ -3250,6 +3303,7 @@
             currentLyricIndex = -1;
             lyricsFirstScrollDone = false;
             userHasLyric = false;
+            availableFallbackLrc = null;
             if (playCurrentLyricEl) playCurrentLyricEl.textContent = '';
 
             const btnManage = document.getElementById('btn-lyric-manage-toggle');
@@ -3270,6 +3324,20 @@
 
                 const lines = await window.SG_LYRICS.loadLyrics(currentPlayingBvid);
                 currentLyrics = (lines && lines.length) ? lines : null;
+
+                // 【新增逻辑：如果没找到绑定的歌词，去服务器盲猜同名 LRC 文件】
+                if (!currentLyrics) {
+                    var sName = getSongNameByBvid(currentPlayingBvid);
+                    if (sName && sName !== '—' && sName !== '…') {
+                        try {
+                            var basePath = CONFIG.lyricsBasePath || './lyrics/';
+                            var fbRes = await fetch(basePath + encodeURIComponent(sName) + '.lrc');
+                            if (fbRes.ok) {
+                                availableFallbackLrc = await fbRes.text(); // 获取到了同名文件！
+                            }
+                        } catch (err) {}
+                    }
+                }
 
                 // 4. 根据结果同步更新 UI
                 if (btnManage) {

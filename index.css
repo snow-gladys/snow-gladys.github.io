@@ -713,6 +713,39 @@
             display: flex;
         }
 
+/* 播放页 / 歌词页左上角：返回首页 */
+.btn-back-home {
+    position: absolute;
+    top: 5%;
+    left: 5%;
+    z-index: 100;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: var(--border-light);
+    background: var(--glass-bg);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+    backdrop-filter: blur(20px);
+    transition: all 0.25s ease;
+}
+.btn-back-home .icon-svg {
+    width: 20px;
+    height: 20px;
+    color: var(--text-main);
+}
+.btn-back-home:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 32px rgba(var(--neon-blue-rgb), 0.25);
+    border-color: rgba(var(--neon-blue-rgb), 0.45);
+}
+.btn-back-home:hover .icon-svg {
+    color: var(--neon-blue);
+}
+
 .btn-settings-wrap {
     position: absolute;
     top: 5%;

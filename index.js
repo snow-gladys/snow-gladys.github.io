@@ -2091,19 +2091,24 @@
             // 性能救星：如果浏览器切到后台，立刻停止后续的 UI 渲染，防止系统强杀！
             if (document.hidden) return;
 
-            // UI 更新逻辑
+            // UI 更新逻辑（进度条视觉由 .progress-bar-container 的 --progress 控制，需同步更新容器）
             if (!isDraggingProgress) {
-                timeCurrentEl.textContent = formatTime(t);
+                if (timeCurrentEl) timeCurrentEl.textContent = formatTime(t);
                 if (isFinite(d) && d > 0) {
-                    timeTotalEl.textContent = formatTime(d);
+                    if (timeTotalEl) timeTotalEl.textContent = formatTime(d);
                     const p = (t / d) * 100;
-                    progressBarEl.value = p;
-                    progressBarEl.style.setProperty('--progress', p + '%');
+                    if (progressBarEl) {
+                        progressBarEl.value = p;
+                        progressBarEl.style.setProperty('--progress', p + '%');
+                    }
+                    if (progressBarContainerEl) progressBarContainerEl.style.setProperty('--progress', p + '%');
                 } else {
-                    // 只有在真的还没加载出时长时才归零
-                    timeTotalEl.textContent = '0:00';
-                    progressBarEl.value = 0;
-                    progressBarEl.style.setProperty('--progress', '0%');
+                    if (timeTotalEl) timeTotalEl.textContent = '0:00';
+                    if (progressBarEl) {
+                        progressBarEl.value = 0;
+                        progressBarEl.style.setProperty('--progress', '0%');
+                    }
+                    if (progressBarContainerEl) progressBarContainerEl.style.setProperty('--progress', '0%');
                 }
             }
         }
@@ -2605,7 +2610,8 @@
                 if (isFinite(d) && d > 0) {
                     const p = parseFloat(this.value);
                     this.style.setProperty('--progress', p + '%');
-                    timeCurrentEl.textContent = formatTime((p / 100) * d);
+                    if (progressBarContainerEl) progressBarContainerEl.style.setProperty('--progress', p + '%');
+                    if (timeCurrentEl) timeCurrentEl.textContent = formatTime((p / 100) * d);
                 }
             });
             

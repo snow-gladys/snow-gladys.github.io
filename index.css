@@ -2633,6 +2633,11 @@ input[type=number]::-webkit-outer-spin-button {
     .btn-modern { padding: 14px 0; flex: 1; text-align: center; }
 
     /* --- 2. 播放页控制栏收缩（修复太宽看不到按钮） --- */
+    /* 1. 把唱片整体往上提，远离底部的歌名 */
+    .play-record-area {
+        top: 18%; /* 原来在 PC 端是 25% */
+    }
+
     .play-record-area .character-img { width: 34vh; height: 34vh; }
 
     /* 【新增】：针对普通播放页，抬高底部的控制栏 */
@@ -2640,6 +2645,12 @@ input[type=number]::-webkit-outer-spin-button {
         bottom: 12%; 
     }
     
+    /* 3. 压缩控制面板内的间距 */
+    .play-control-panel {
+        gap: 16px;   /* 压缩内部元素（歌名和进度条等）的间距，原为24px */
+        bottom: 10%; /* 保证安全距离 */
+    }
+
     .controls-wrapper {
         gap: 16px; /* 缩小按钮间距，原为 32px */
     }
@@ -2762,18 +2773,19 @@ input[type=number]::-webkit-outer-spin-button {
    全局提示框 (Toast & Loading 灵动岛)
    ============================= */
    
-/* 1. Toast 底部黑色胶囊提示 (取代原有的 alert) */
+/* 1. Toast 底部黑色提示框 (支持长文本多行完整显示) */
 .toast {
     position: fixed;
-    bottom: -80px; /* 初始隐藏在屏幕下方 */
+    bottom: -80px;
     left: 50%;
     transform: translateX(-50%);
     background: rgba(0, 0, 0, 0.85);
     backdrop-filter: blur(15px);
     -webkit-backdrop-filter: blur(15px);
     color: #fff;
-    padding: 12px 24px;
-    border-radius: 999px;
+    padding: 14px 24px;
+    /* 关键修复 1：把 999px(纯圆角) 改为 20px，防止多行文本时变畸形 */
+    border-radius: 20px; 
     font-size: 0.9rem;
     font-weight: 500;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
@@ -2781,15 +2793,17 @@ input[type=number]::-webkit-outer-spin-button {
     opacity: 0;
     transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     pointer-events: none;
-    white-space: nowrap;
+    
+    /* 关键修复 2：允许文本换行并完整显示 */
+    white-space: pre-wrap; 
+    word-break: break-word;
+    line-height: 1.5;
     max-width: 85vw;
-    overflow: hidden;
-    text-overflow: ellipsis;
     text-align: center;
 }
 
 .toast.is-visible {
-    bottom: 8vh; /* 弹出时停留在安全高度 */
+    bottom: 8vh;
     opacity: 1;
 }
 

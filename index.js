@@ -25,9 +25,6 @@
         (function () {
             var visualizer = document.getElementById('visualizer');
 
-            // 【关键修改】：在这里直接 return 掉，强行终止频谱图的所有后续逻辑
-            return;
-
             if (!visualizer) return;
 
             var barCount = 45;
@@ -1697,6 +1694,8 @@
         let visualizerRafId = null;
 
         function ensureAudioAnalyser() {
+            return;
+
             if (!playVisualizerEl) return;
             if (!window.AudioContext && !window.webkitAudioContext) return;
             if (!audioCtx) {
@@ -1770,6 +1769,8 @@
         });
 
         function startAudioVisualizer() {
+            return;
+
             if (!playVisualizerEl) return;
             ensureAudioAnalyser();
             if (!audioCtx || !audioAnalyser) return;
@@ -2074,17 +2075,23 @@
 
         function updateProgressDisplay() {
             const t = bgmAudio.currentTime;
-            const d = bgmAudio.duration;
+            let d = bgmAudio.duration;
 
-            // 1. 核心业务（就算锁屏在后台也必须执行）：检查是否需要预加载下一首
+            // 【救命药方】：拦截苹果浏览器获取不到总时长（Infinity）导致进度条归零的 Bug
+            if (d === Infinity) {
+                // 如果系统抽风返回 Infinity，我们临时用已播放时间撑起进度条，防止报错
+                d = Math.max(t + 1, 200); 
+            }
+
+            // 核心业务（就算锁屏在后台也必须执行）：检查是否需要预加载下一首
             if (isFinite(d) && d > 0) {
                 onTimeUpdateForPreload();
             }
 
-            // 2. 性能救星：如果浏览器切到后台，立刻停止后续的 UI 渲染，防止 iOS 强杀！
+            // 性能救星：如果浏览器切到后台，立刻停止后续的 UI 渲染，防止系统强杀！
             if (document.hidden) return;
 
-            // 3. UI 更新逻辑（如果是用户正在拖拽进度条，则暂停自动更新防止乱跳）
+            // UI 更新逻辑
             if (!isDraggingProgress) {
                 timeCurrentEl.textContent = formatTime(t);
                 if (isFinite(d) && d > 0) {
@@ -2093,6 +2100,7 @@
                     progressBarEl.value = p;
                     progressBarEl.style.setProperty('--progress', p + '%');
                 } else {
+                    // 只有在真的还没加载出时长时才归零
                     timeTotalEl.textContent = '0:00';
                     progressBarEl.value = 0;
                     progressBarEl.style.setProperty('--progress', '0%');
@@ -2583,30 +2591,37 @@
 
         // 播放条与时间（timeupdate/loadedmetadata/ended 已由 bindAudioEvents 统一绑定，此处不再重复）
 
-        // 拖动进度条跳转
-        // 拖动进度条跳转（修复卡顿、重复鬼畜的关键）
-        let isDraggingProgress = false; // 新增一个拖拽状态标记
+        // 拖动进度条跳转（完美修复移动端松手卡死问题）
+        let isDraggingProgress = false;
         if (progressBarEl) {
-            // 1. 拖拽时：仅更新界面的数字和进度条填充，绝对不要修改音频时间！
-            progressBarEl.addEventListener('input', () => {
+            // 1. 手指按下时，锁定 UI 更新
+            progressBarEl.addEventListener('touchstart', function() { isDraggingProgress = true; }, { passive: true });
+            progressBarEl.addEventListener('mousedown', function() { isDraggingProgress = true; });
+
+            // 2. 拖拽时只更新画面，绝不干扰音频解码器
+            progressBarEl.addEventListener('input', function () {
                 isDraggingProgress = true;
                 const d = bgmAudio.duration;
                 if (isFinite(d) && d > 0) {
-                    const p = parseFloat(progressBarEl.value);
-                    progressBarEl.style.setProperty('--progress', p + '%');
+                    const p = parseFloat(this.value);
+                    this.style.setProperty('--progress', p + '%');
                     timeCurrentEl.textContent = formatTime((p / 100) * d);
                 }
             });
             
-            // 2. 松手时：才真正向底层发送一次跳转指令
-            progressBarEl.addEventListener('change', () => {
+            // 3. 核心：无论用户以什么姿势松手，都确保释放锁定并执行跳转
+            function finishDrag() {
+                if (!isDraggingProgress) return;
                 isDraggingProgress = false;
                 const d = bgmAudio.duration;
                 if (isFinite(d) && d > 0) {
-                    const p = parseFloat(progressBarEl.value) / 100;
-                    bgmAudio.currentTime = p * d;
+                    bgmAudio.currentTime = (parseFloat(progressBarEl.value) / 100) * d;
                 }
-            });
+            }
+
+            progressBarEl.addEventListener('change', finishDrag);
+            progressBarEl.addEventListener('touchend', finishDrag);
+            progressBarEl.addEventListener('mouseup', finishDrag);
         }
 
         // 播放/暂停按钮

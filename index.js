@@ -2365,6 +2365,16 @@
         // 播放函数（预加载缓存 + getLoadableRealUrl 探测 403 重试，失败则弹窗并自动下一首）
         async function playMusic(bvid) {
             if (!bvid) return;
+
+            // 【关键修复：静默解锁】同步调用 play() 占用用户的点击事件授权
+            // 解决 await 等待太久导致浏览器自动播放权限过期的问题 (NotAllowedError)
+            var p1 = bgmAudio.play();
+            if (p1 !== undefined) p1.catch(function(){});
+            if (globalPreloadAudio) {
+                var p2 = globalPreloadAudio.play();
+                if (p2 !== undefined) p2.catch(function(){});
+            }
+
             preloadScheduledForBvid = null;
 
             const useCache = !!(settings && settings.cacheEnabled === 'on' && window.SG_CACHE && window.SG_CACHE.supported);

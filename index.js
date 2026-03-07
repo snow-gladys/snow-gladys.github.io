@@ -2069,24 +2069,30 @@
         }
 
         function updateProgressDisplay() {
-            if (document.hidden) return;
-
             const t = bgmAudio.currentTime;
             const d = bgmAudio.duration;
-            timeCurrentEl.textContent = formatTime(t);
+
+            // 1. 核心业务（就算锁屏在后台也必须执行）：检查是否需要预加载下一首
             if (isFinite(d) && d > 0) {
-                timeTotalEl.textContent = formatTime(d);
-                const p = (t / d) * 100;
-                progressBarEl.value = p;
-                // `--progress` 需要写到容器上，供 .progress-fill / .progress-thumb 读取（它们是 input 的兄弟节点）
-                if (progressBarContainerEl) progressBarContainerEl.style.setProperty('--progress', p + '%');
-                progressBarEl.style.setProperty('--progress', p + '%');
                 onTimeUpdateForPreload();
-            } else {
-                timeTotalEl.textContent = '0:00';
-                progressBarEl.value = 0;
-                if (progressBarContainerEl) progressBarContainerEl.style.setProperty('--progress', '0%');
-                progressBarEl.style.setProperty('--progress', '0%');
+            }
+
+            // 2. 性能救星：如果浏览器切到后台，立刻停止后续的 UI 渲染，防止 iOS 强杀！
+            if (document.hidden) return;
+
+            // 3. UI 更新逻辑（如果是用户正在拖拽进度条，则暂停自动更新防止乱跳）
+            if (!isDraggingProgress) {
+                timeCurrentEl.textContent = formatTime(t);
+                if (isFinite(d) && d > 0) {
+                    timeTotalEl.textContent = formatTime(d);
+                    const p = (t / d) * 100;
+                    progressBarEl.value = p;
+                    progressBarEl.style.setProperty('--progress', p + '%');
+                } else {
+                    timeTotalEl.textContent = '0:00';
+                    progressBarEl.value = 0;
+                    progressBarEl.style.setProperty('--progress', '0%');
+                }
             }
         }
 
@@ -2574,15 +2580,30 @@
         // 播放条与时间（timeupdate/loadedmetadata/ended 已由 bindAudioEvents 统一绑定，此处不再重复）
 
         // 拖动进度条跳转
-        if (progressBarEl) progressBarEl.addEventListener('input', () => {
-            const d = bgmAudio.duration;
-            if (isFinite(d) && d > 0) {
-                const p = parseFloat(progressBarEl.value) / 100;
-                bgmAudio.currentTime = p * d;
-                if (progressBarContainerEl) progressBarContainerEl.style.setProperty('--progress', progressBarEl.value + '%');
-                progressBarEl.style.setProperty('--progress', progressBarEl.value + '%');
-            }
-        });
+        // 拖动进度条跳转（修复卡顿、重复鬼畜的关键）
+        let isDraggingProgress = false; // 新增一个拖拽状态标记
+        if (progressBarEl) {
+            // 1. 拖拽时：仅更新界面的数字和进度条填充，绝对不要修改音频时间！
+            progressBarEl.addEventListener('input', () => {
+                isDraggingProgress = true;
+                const d = bgmAudio.duration;
+                if (isFinite(d) && d > 0) {
+                    const p = parseFloat(progressBarEl.value);
+                    progressBarEl.style.setProperty('--progress', p + '%');
+                    timeCurrentEl.textContent = formatTime((p / 100) * d);
+                }
+            });
+            
+            // 2. 松手时：才真正向底层发送一次跳转指令
+            progressBarEl.addEventListener('change', () => {
+                isDraggingProgress = false;
+                const d = bgmAudio.duration;
+                if (isFinite(d) && d > 0) {
+                    const p = parseFloat(progressBarEl.value) / 100;
+                    bgmAudio.currentTime = p * d;
+                }
+            });
+        }
 
         // 播放/暂停按钮
         btnPlayPause.addEventListener('click', () => {
@@ -2590,9 +2611,9 @@
                 if (bgmAudio.src) {
                     // 长时间暂停后浏览器可能静默断开网络连接（readyState < 2），
                     // 原地 seek 可强制重新触发请求，避免 play() 静默失败
-                    if (bgmAudio.readyState < 2 && isFinite(bgmAudio.currentTime)) {
-                        bgmAudio.currentTime = bgmAudio.currentTime;
-                    }
+                    // if (bgmAudio.readyState < 2 && isFinite(bgmAudio.currentTime)) {
+                    //     bgmAudio.currentTime = bgmAudio.currentTime;
+                    // }
                     bgmAudio.play();
                     if (currentPlayingBvid) {
                         const deg = getRecordRotationDeg(characterImg);

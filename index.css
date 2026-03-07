@@ -2879,6 +2879,27 @@ input[type=number]::-webkit-outer-spin-button {
         font-size: 1.25rem !important; 
         text-align: left !important;
     }
+
+    /* 右上角按钮组（设置、小窗、歌词管理）在手机端纵向排列 */
+    .btn-settings-wrap {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    /* 歌词管理菜单：移到整列按钮下方，避免与右侧按钮重叠 */
+    .btn-settings-wrap .lyric-manage-menu {
+        top: calc(100% + 8px);
+        right: 0;
+        left: auto;
+    }
+
+    #btn-lyric-manage-toggle{
+        order: 1;
+    }
+
+    .btn-pip-float {
+        order: 0;
+    }
 }
 
 /* --- 2. PC 端：左侧播放器的唱片防挤压 --- */

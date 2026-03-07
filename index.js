@@ -24,6 +24,10 @@
         // 首页频谱背景（与 index_new 风格一致）
         (function () {
             var visualizer = document.getElementById('visualizer');
+
+            // 【关键修改】：在这里直接 return 掉，强行终止频谱图的所有后续逻辑
+            return;
+
             if (!visualizer) return;
 
             var barCount = 45;

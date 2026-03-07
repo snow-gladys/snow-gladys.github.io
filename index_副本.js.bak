@@ -77,34 +77,14 @@
             visualizer.appendChild(fragment);
         })();
 
-        // --- 0. 配置中心（支持多站点：通过 window.SG_PLAYER_CONFIG 覆盖，心宜等复用此逻辑）---
-        var SG_PLAYER_CONFIG = window.SG_PLAYER_CONFIG || {};
-        var CONFIG = {
-            storageKeys: {
-                fav: SG_PLAYER_CONFIG.storageKeys && SG_PLAYER_CONFIG.storageKeys.fav !== undefined ? SG_PLAYER_CONFIG.storageKeys.fav : 'sg_fav',
-                playMode: SG_PLAYER_CONFIG.storageKeys && SG_PLAYER_CONFIG.storageKeys.playMode !== undefined ? SG_PLAYER_CONFIG.storageKeys.playMode : 'sg_play_mode',
-                custom: SG_PLAYER_CONFIG.storageKeys && SG_PLAYER_CONFIG.storageKeys.custom !== undefined ? SG_PLAYER_CONFIG.storageKeys.custom : 'sg_custom_songs'
-            },
-            settingsCookie: SG_PLAYER_CONFIG.settingsCookie !== undefined ? SG_PLAYER_CONFIG.settingsCookie : 'sg_settings',
-            defaultTitle: SG_PLAYER_CONFIG.defaultTitle !== undefined ? SG_PLAYER_CONFIG.defaultTitle : '思诺 · Gladys',
-            titleSuffix: SG_PLAYER_CONFIG.titleSuffix !== undefined ? SG_PLAYER_CONFIG.titleSuffix : '思诺',
-            vmid: SG_PLAYER_CONFIG.vmid !== undefined ? SG_PLAYER_CONFIG.vmid : '3537115310721781',
-            apiBase: SG_PLAYER_CONFIG.apiBase !== undefined ? SG_PLAYER_CONFIG.apiBase : 'https://snow-gladys-api-zone-3msnp1a62hlu-1304656834.eo-edgefunctions.com',
-            version: SG_PLAYER_CONFIG.version !== undefined ? SG_PLAYER_CONFIG.version : '0.0.9(测)',
-            exportFilename: SG_PLAYER_CONFIG.exportFilename !== undefined ? SG_PLAYER_CONFIG.exportFilename : 'custom_songs_sinuo.txt',
-            lyricsBasePath: SG_PLAYER_CONFIG.lyricsBasePath
-        };
-
-        const DEFAULT_TITLE = CONFIG.defaultTitle;
-        const CURRENT_VERSION = CONFIG.version;
+        // --- 0. 配置中心 ---
+        const DEFAULT_TITLE = '思诺 · Gladys';
+        const CURRENT_VERSION = '0.0.9(测)';
         // 确保在任何函数使用前就声明当前播放的 bvid
         let currentPlayingBvid = '';
 
         // IndexedDB 可用性检测（由 lyrics-db.js 注入 window.SG_LYRICS）
         (function checkIdbSupport() {
-            if (CONFIG.lyricsBasePath && window.SG_LYRICS && typeof window.SG_LYRICS.setBasePath === 'function') {
-                window.SG_LYRICS.setBasePath(CONFIG.lyricsBasePath);
-            }
             if (window.SG_LYRICS && !window.SG_LYRICS.supported) {
                 var el = document.getElementById('toast');
                 if (!el) return;
@@ -113,14 +93,18 @@
                 setTimeout(function () { el.classList.remove('is-visible'); }, 6000);
             }
         })();
-        const API_BASE = CONFIG.apiBase;
+        // 如果你绑定了 api.snow-gladys.com，请使用下面第一行
+        // const API_BASE = 'https://api.snow-gladys.com'; 
+        // 如果没绑定成功，暂时用 Worker 原生地址：
+        const API_BASE = 'https://snow-gladys-api-zone-3msnp1a62hlu-1304656834.eo-edgefunctions.com'; 
 
         // --- 1. 获取粉丝数逻辑 ---
         const fanCountElement = document.getElementById('fan-count');
         
         async function fetchFanCount() {
             try {
-                const response = await fetch(`${API_BASE}/fans?vmid=${CONFIG.vmid}`);
+                const VMID_SINUO = '3537115310721781';
+                const response = await fetch(`${API_BASE}/fans?vmid=${VMID_SINUO}`);
                 if (!response.ok) throw new Error();
                 
                 const data = await response.json();
@@ -135,8 +119,8 @@
         fetchFanCount(); // 立即运行一次
 
         // --- 1.5 收藏（Local Storage，容量大、无 cookie 上限）---
-        const FAV_STORAGE_KEY = CONFIG.storageKeys.fav;
-        const PLAY_MODE_STORAGE_KEY = CONFIG.storageKeys.playMode;
+        const FAV_STORAGE_KEY = 'sg_fav';
+        const PLAY_MODE_STORAGE_KEY = 'sg_play_mode';
         let favoritesSet = new Set();
 
         function getFavoritesFromStorage() {
@@ -190,9 +174,9 @@
         }
 
         // --- 1.5.2 设置（Cookie）与自定义歌单（Local Storage）---
-        const SETTINGS_COOKIE = CONFIG.settingsCookie;
+        const SETTINGS_COOKIE = 'sg_settings';
         const SETTINGS_MAX_AGE = 365 * 24 * 60 * 60;
-        const CUSTOM_STORAGE_KEY = CONFIG.storageKeys.custom;
+        const CUSTOM_STORAGE_KEY = 'sg_custom_songs';
 
         function getSettingsFromCookie() {
             const fallback = {
@@ -254,8 +238,8 @@
          * 下一版推送可注释掉下方调用即可关闭迁移。
          */
         function migrateCookieToLocalStorage() {
-            var favRaw = document.cookie.split(';').map(function (s) { return s.trim(); }).find(function (s) { return s.startsWith(FAV_STORAGE_KEY + '='); });
-            var customRaw = document.cookie.split(';').map(function (s) { return s.trim(); }).find(function (s) { return s.startsWith(CUSTOM_STORAGE_KEY + '='); });
+            var favRaw = document.cookie.split(';').map(function (s) { return s.trim(); }).find(function (s) { return s.startsWith('sg_fav='); });
+            var customRaw = document.cookie.split(';').map(function (s) { return s.trim(); }).find(function (s) { return s.startsWith('sg_custom_songs='); });
             var oldFavArr = [];
             var oldCustomArr = [];
             try {
@@ -939,7 +923,7 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = CONFIG.exportFilename;
+            a.download = 'custom_songs_sinuo.txt';
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -2366,7 +2350,7 @@
             if (currentPlayingBvid && !bgmAudio.paused) {
                 const idx = getCurrentIndex();
                 const name = (idx >= 0 && songList[idx]) ? (songList[idx].name || songList[idx].title || '—') : '…';
-                document.title = name + ' · ' + CONFIG.titleSuffix;
+                document.title = name + ' · 思诺';
             } else {
                 document.title = DEFAULT_TITLE;
             }

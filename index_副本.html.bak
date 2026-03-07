@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="../imgs/icon_xinyi.png" type="image/png">
-    <title>心宜 · Fiona</title>
-    <link rel="stylesheet" href="../index.css?v=202603071420">
-    <link rel="stylesheet" href="theme.css">
+    <link rel="icon" href="imgs/icon_snow.png" type="image/png">
+    <title>思诺 · Gladys</title>
+    <link rel="stylesheet" href="index.css?v=202603071351">
 </head>
 <body>
 
@@ -17,8 +16,8 @@
 
         <!-- 顶部状态栏：切换角色 + 粉丝数 + 设置 -->
             <div class="home-top-bar">
-                <a class="nav-link-modern nav-emoji-link" href="../" title="去思诺">
-                    <span style="font-size: 1.2rem;">🦁</span>
+                <a class="nav-link-modern nav-emoji-link" href="./fiona/" title="去心宜">
+                    <span style="font-size: 1.2rem;">🦭</span>
                 </a>
 
                 <div class="home-top-right">
@@ -44,7 +43,7 @@
                 </div>
 
                 <div class="hero-text">
-                    <h1 class="clean-title">心宜 Fiona</h1>
+                    <h1 class="clean-title">思诺 Gladys</h1>
                     <p class="clean-subtitle">Z.J. <span>ENTERTAINMENT</span></p>
                 </div>
             </div>
@@ -568,13 +567,12 @@
     <div id="toast" class="toast" aria-live="polite" role="status"></div>
     <div id="loading-info" class="loading-info" aria-live="polite" role="status"></div>
 
-    <script src="player-config.js"></script>
-    <script src="../pinyin_dict_notone.js"></script>
-    <script src="../pinyinUtil.js"></script>
-    <script src="../lyrics-db.js"></script>
-    <script src="../cache-db.js"></script>
-    <script src="../changelog-data.js?v=202603071420"></script>
-    <script src="../index.js?v=202603071420"></script>
+    <script src="pinyin_dict_notone.js"></script>
+    <script src="pinyinUtil.js"></script>
+    <script src="lyrics-db.js"></script>
+    <script src="cache-db.js"></script>
+    <script src="changelog-data.js?v=202603071351"></script>
+    <script src="index.js?v=202603071351"></script>
 </body>
 </html>
 

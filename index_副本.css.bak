@@ -3,15 +3,11 @@
     --text-main: #111111;
     --text-sub: #999999;
             --neon-blue: #00f3ff;
-    --neon-blue-rgb: 0, 243, 255;
-    --neon-blue-soft: rgba(var(--neon-blue-rgb), 0.08);
+    --neon-blue-soft: rgba(0, 243, 255, 0.08);
     --theme-pink: #f472a8;
     --glass-bg: rgba(255, 255, 255, 0.7);
     --border-light: 1px solid rgba(0, 0, 0, 0.06);
     --progress-track: rgba(0, 0, 0, 0.08);
-    /* 多站点共用：思诺/心宜等通过 theme 覆盖图片 */
-    --img-character: url('./imgs/snow_char.png');
-    --img-vinyl: url('./imgs/vinyl.png');
         }
         
         body,
@@ -205,8 +201,8 @@
 
 .btn-settings-minimal:hover {
     transform: translateY(-2px);
-    box-shadow: 0 14px 32px rgba(var(--neon-blue-rgb), 0.25);
-    border-color: rgba(var(--neon-blue-rgb), 0.45);
+    box-shadow: 0 14px 32px rgba(0, 243, 255, 0.25);
+    border-color: rgba(0, 243, 255, 0.45);
 }
 
 .btn-settings-minimal:hover .icon-svg {
@@ -247,7 +243,7 @@
     width: 38vh;
     height: 38vh;
     border-radius: 50%;
-    background: #EAEAEA var(--img-character) no-repeat center center/cover;
+    background: #EAEAEA url('./imgs/snow_char.png') no-repeat center center/cover;
     box-shadow:
         0 30px 60px rgba(0, 0, 0, 0.1),
         inset 0 0 0 1px rgba(0, 0, 0, 0.05);
@@ -259,7 +255,7 @@
     transform: scale(1.02) rotate(2deg);
     box-shadow:
         0 40px 80px rgba(188, 19, 254, 0.15),
-        0 20px 40px rgba(var(--neon-blue-rgb), 0.15);
+        0 20px 40px rgba(0, 243, 255, 0.15);
 }
 
 .hero-text {
@@ -322,8 +318,8 @@
 
 .btn-primary:hover {
     transform: translateY(-4px);
-    box-shadow: 0 20px 40px rgba(var(--neon-blue-rgb), 0.35);
-    text-shadow: 0 0 8px rgba(var(--neon-blue-rgb), 0.7);
+    box-shadow: 0 20px 40px rgba(0, 243, 255, 0.35);
+    text-shadow: 0 0 8px rgba(0, 243, 255, 0.7);
 }
 
 .btn-secondary {
@@ -335,8 +331,8 @@
 
 .btn-secondary:hover {
     transform: translateY(-4px);
-    border-color: rgba(var(--neon-blue-rgb), 0.4);
-    box-shadow: 0 15px 30px rgba(var(--neon-blue-rgb), 0.25);
+    border-color: rgba(0, 243, 255, 0.4);
+    box-shadow: 0 15px 30px rgba(0, 243, 255, 0.25);
 }
 
 /* 歌单弹层：默认隐藏，仅 is-open 时显示 */
@@ -455,8 +451,8 @@
 }
 
 .playlist-search:focus {
-    border-color: rgba(var(--neon-blue-rgb), 0.5);
-    box-shadow: 0 0 0 1px rgba(var(--neon-blue-rgb), 0.25);
+    border-color: rgba(0, 243, 255, 0.5);
+    box-shadow: 0 0 0 1px rgba(0, 243, 255, 0.25);
     background: rgba(255, 255, 255, 1);
 }
 
@@ -487,7 +483,7 @@
 .playlist-filter-btn.active {
     border-color: var(--neon-blue);
     color: var(--neon-blue);
-    box-shadow: 0 0 0 1px rgba(var(--neon-blue-rgb), 0.25);
+    box-shadow: 0 0 0 1px rgba(0, 243, 255, 0.25);
 }
 
 .playlist-filter-btn.active .icon-heart-outline {
@@ -629,7 +625,7 @@
     border-radius: 3px;
     border: 1px solid var(--neon-blue);
     padding: 0 4px;
-    background: rgba(var(--neon-blue-rgb), 0.05);
+    background: rgba(0, 243, 255, 0.05);
     text-transform: uppercase;
 }
 
@@ -677,8 +673,8 @@
 .alpha-bar-item.has-items {
     color: var(--neon-blue);
     cursor: pointer;
-    border-color: rgba(var(--neon-blue-rgb), 0.6);
-    background: rgba(var(--neon-blue-rgb), 0.05);
+    border-color: rgba(0, 243, 255, 0.6);
+    background: rgba(0, 243, 255, 0.05);
 }
 
 .alpha-bar-item.no-items {
@@ -746,8 +742,8 @@
 
 .btn-settings:hover {
     transform: translateY(-2px);
-    box-shadow: 0 14px 32px rgba(var(--neon-blue-rgb), 0.25);
-    border-color: rgba(var(--neon-blue-rgb), 0.45);
+    box-shadow: 0 14px 32px rgba(0, 243, 255, 0.25);
+    border-color: rgba(0, 243, 255, 0.45);
 }
 
 .btn-settings:hover .icon-svg {
@@ -797,8 +793,8 @@
 
 .btn-pip-float:hover {
     transform: translateY(-1px);
-    border-color: rgba(var(--neon-blue-rgb), 0.45);
-    box-shadow: 0 10px 24px rgba(var(--neon-blue-rgb), 0.18);
+    border-color: rgba(0, 243, 255, 0.45);
+    box-shadow: 0 10px 24px rgba(0, 243, 255, 0.18);
 }
 
 /* 中心唱片：与 index_old 一致的黑胶层（.character-img + .vinyl-ring） */
@@ -849,7 +845,7 @@
     width: 70%;
     height: 70%;
     border-radius: 50%;
-    background: var(--img-character) no-repeat center center/cover;
+    background: url('./imgs/snow_char.png') no-repeat center center/cover;
     box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.2);
     z-index: 2;
 }
@@ -857,7 +853,7 @@
 .play-record-area .vinyl-ring {
     position: absolute;
     inset: 0;
-    background: var(--img-vinyl) no-repeat center center/contain;
+    background: url('./imgs/vinyl.png') no-repeat center center/contain;
     pointer-events: none;
     z-index: 1;
     opacity: 1;
@@ -1067,7 +1063,7 @@
 }
 
 .progress-bar-container:hover .progress-fill {
-    box-shadow: 0 0 8px rgba(var(--neon-blue-rgb), 0.4);
+    box-shadow: 0 0 8px rgba(0, 243, 255, 0.4);
 }
 
 .progress-bar-container:hover .progress-thumb {
@@ -1153,7 +1149,7 @@
     transform: scale(1.05);
     background: #000;
     color: #FFF;
-    box-shadow: 0 15px 30px rgba(var(--neon-blue-rgb), 0.25);
+    box-shadow: 0 15px 30px rgba(0, 243, 255, 0.25);
 }
 
 /* 播放/暂停只显示当前状态的一个图标 */
@@ -1341,7 +1337,7 @@
 }
 .row-action .row-label { color: inherit; font-weight: 600; }
 .row-action svg { width: 18px; height: 18px; flex-shrink: 0; }
-.row-action:hover { background: rgba(var(--neon-blue-rgb), 0.05); }
+.row-action:hover { background: rgba(0, 243, 255, 0.05); }
 
 .btn-row-link {
     border: none;
@@ -1550,8 +1546,8 @@
 }
 
 .custom-manage-search input:focus {
-    border-color: rgba(var(--neon-blue-rgb), 0.6);
-    box-shadow: 0 0 0 1px rgba(var(--neon-blue-rgb), 0.25);
+    border-color: rgba(0, 243, 255, 0.6);
+    box-shadow: 0 0 0 1px rgba(0, 243, 255, 0.25);
     background: #fff;
 }
 
@@ -1736,8 +1732,8 @@
 
 .custom-form-body input:focus,
 .custom-form-body textarea:focus {
-    border-color: rgba(var(--neon-blue-rgb), 0.6);
-    box-shadow: 0 0 0 1px rgba(var(--neon-blue-rgb), 0.25);
+    border-color: rgba(0, 243, 255, 0.6);
+    box-shadow: 0 0 0 1px rgba(0, 243, 255, 0.25);
     background: #fff;
 }
 
@@ -2104,8 +2100,8 @@
     transition: all 0.25s ease;
 }
 .btn-custom-action:hover {
-    background: rgba(var(--neon-blue-rgb), 0.08);
-    border-color: rgba(var(--neon-blue-rgb), 0.3);
+    background: rgba(0, 243, 255, 0.08);
+    border-color: rgba(0, 243, 255, 0.3);
     color: var(--neon-blue);
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0,0,0,0.03);
@@ -2116,7 +2112,7 @@
 /* 开启状态：亮蓝 + 外发光，无黑边（对齐 tmp/settings.html） */
 .toggle-switch.is-on {
     background: var(--neon-blue);
-    box-shadow: 0 0 10px rgba(var(--neon-blue-rgb), 0.3);
+    box-shadow: 0 0 10px rgba(0, 243, 255, 0.3);
 }
 
 /* 开启时把白色圆钮滑到右侧（与 tmp/settings.html 一致，位移 20px） */
@@ -2174,7 +2170,7 @@
     transform: translateY(-2px);
     background-color: #000;
     /* 悬停时透出微弱的思诺蓝光晕 */
-    box-shadow: 0 12px 28px rgba(var(--neon-blue-rgb), 0.25);
+    box-shadow: 0 12px 28px rgba(0, 243, 255, 0.25);
 }
 
 /* --- 歌词编辑区高级感样式 --- */
@@ -2198,7 +2194,7 @@
 .lyric-edit-area:focus {
     background: #FFF;
     border-color: var(--neon-blue);
-    box-shadow: 0 0 0 3px rgba(var(--neon-blue-rgb), 0.1);
+    box-shadow: 0 0 0 3px rgba(0, 243, 255, 0.1);
 }
 
 .custom-form-lyrics-label-row {
@@ -2361,7 +2357,7 @@
 /* 当前播放到的高亮行 */
 .adjust-lyric-row.is-current {
     background: var(--neon-blue-soft);
-    border-color: rgba(var(--neon-blue-rgb), 0.2);
+    border-color: rgba(0, 243, 255, 0.2);
     transform: translateX(8px);
 }
 
@@ -2369,7 +2365,7 @@
     background: var(--neon-blue);
     color: #000;
     font-weight: 700;
-    box-shadow: 0 4px 12px rgba(var(--neon-blue-rgb), 0.3);
+    box-shadow: 0 4px 12px rgba(0, 243, 255, 0.3);
 }
 
 .adjust-lyric-row.is-current .adjust-lyric-text {
@@ -2426,7 +2422,7 @@
 }
 .btn-adjust-save:hover {
     background: #000;
-    box-shadow: 0 12px 24px rgba(var(--neon-blue-rgb), 0.3);
+    box-shadow: 0 12px 24px rgba(0, 243, 255, 0.3);
     transform: translateY(-2px);
 }
 
@@ -2480,7 +2476,7 @@ input[type=number]::-webkit-outer-spin-button {
     background: var(--neon-blue) !important;
     color: #000 !important;
     border-color: var(--neon-blue) !important;
-    box-shadow: 0 0 8px rgba(var(--neon-blue-rgb), 0.4);
+    box-shadow: 0 0 8px rgba(0, 243, 255, 0.4);
     transform: scale(1.1);
 }
 
@@ -2577,7 +2573,7 @@ input[type=number]::-webkit-outer-spin-button {
 
 /* 代码标签美化 */
 .changelog-body code {
-    background: rgba(var(--neon-blue-rgb), 0.05);
+    background: rgba(0, 243, 255, 0.05);
     color: var(--neon-blue);
     padding: 2px 6px;
     border-radius: 4px;

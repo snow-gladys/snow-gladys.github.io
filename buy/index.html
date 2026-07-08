@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>枝江补完计划</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="page-header">
+        <div>
+          <h1>枝江补完计划</h1>
+          <p class="status-line" data-status>准备更新</p>
+        </div>
+        <div class="header-actions">
+          <button class="sort-button" type="button" data-sort-unreached aria-pressed="false">
+            <span class="label-full">未成团销量降序</span>
+            <span class="label-short">降序</span>
+          </button>
+          <button class="refresh-button" type="button" data-refresh>刷新</button>
+        </div>
+      </header>
+
+      <section class="summary-bar" aria-label="汇总">
+        <div>
+          <span>商品</span>
+          <strong data-total-count>0</strong>
+        </div>
+        <div>
+          <span>达50</span>
+          <strong data-reached-50>0</strong>
+        </div>
+        <div>
+          <span>达100</span>
+          <strong data-reached-100>0</strong>
+        </div>
+      </section>
+
+      <nav class="filter-bar" aria-label="分类筛选" data-filters></nav>
+
+      <section class="product-list" aria-live="polite" data-product-list></section>
+      <p class="empty-state" data-empty hidden>当前分类没有商品</p>
+    </main>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

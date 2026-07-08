@@ -269,6 +269,10 @@ export function shouldUseDirectLiveFetch(locationLike = globalThis.location) {
   return hostname === "localhost" || hostname === "127.0.0.1";
 }
 
+export function shouldShowRefreshButton(locationLike = globalThis.location) {
+  return shouldUseDirectLiveFetch(locationLike);
+}
+
 export async function loadLiveItemsForCurrentOrigin(itemIds, fetcher = fetch, locationLike = globalThis.location) {
   if (shouldUseDirectLiveFetch(locationLike)) {
     return fetchLiveItemsWithFallback(itemIds, fetcher);
@@ -393,6 +397,9 @@ export async function loadDashboard() {
   const statusRoot = document.querySelector("[data-status]");
   const refreshButton = document.querySelector("[data-refresh]");
   const sortButton = document.querySelector("[data-sort-unreached]");
+  if (refreshButton && !shouldShowRefreshButton()) {
+    refreshButton.hidden = true;
+  }
 
   function render() {
     renderFilters(state.products, state.activeCategory);

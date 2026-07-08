@@ -8,6 +8,7 @@ const NAMED_CATEGORIES = CATEGORIES.filter((category) => category !== "全部" &
 
 export const WEIDIAN_ENDPOINT =
   "https://thor.weidian.com/decorate/shopDetail.sync.getItemListForCommonItemSection/1.0";
+export const SNAPSHOT_ITEMS_URL = "data/live-items.json";
 
 export const WEIDIAN_PARAMS = {
   ctx: "0;0;0;1733177613;0;0;0;0;0;-1;-1;0;0;0;0",
@@ -229,6 +230,59 @@ export async function fetchLiveItems(itemIds, fetcher = fetch) {
   return payload?.result?.itemList || [];
 }
 
+export function normalizeLiveItemsPayload(payload) {
+  if (Array.isArray(payload)) return { items: payload, updatedAt: "" };
+  if (Array.isArray(payload?.items)) return { items: payload.items, updatedAt: payload.updatedAt || "" };
+  if (Array.isArray(payload?.result?.itemList)) {
+    return { items: payload.result.itemList, updatedAt: payload.updatedAt || "" };
+  }
+  return { items: [], updatedAt: payload?.updatedAt || "" };
+}
+
+export async function fetchSnapshotItems(fetcher = fetch) {
+  const response = await fetcher(SNAPSHOT_ITEMS_URL, { cache: "no-store" });
+  if (!response.ok) throw new Error(`快照数据加载失败：${response.status}`);
+  return normalizeLiveItemsPayload(await response.json());
+}
+
+export async function fetchLiveItemsWithFallback(itemIds, fetcher = fetch) {
+  try {
+    return {
+      items: await fetchLiveItems(itemIds, fetcher),
+      source: "live",
+      updatedAt: "",
+      error: "",
+    };
+  } catch (error) {
+    const snapshot = await fetchSnapshotItems(fetcher);
+    return {
+      items: snapshot.items,
+      source: "snapshot",
+      updatedAt: snapshot.updatedAt,
+      error: error.message || "实时数据获取失败",
+    };
+  }
+}
+
+export function shouldUseDirectLiveFetch(locationLike = globalThis.location) {
+  const hostname = locationLike?.hostname;
+  return hostname === "localhost" || hostname === "127.0.0.1";
+}
+
+export async function loadLiveItemsForCurrentOrigin(itemIds, fetcher = fetch, locationLike = globalThis.location) {
+  if (shouldUseDirectLiveFetch(locationLike)) {
+    return fetchLiveItemsWithFallback(itemIds, fetcher);
+  }
+
+  const snapshot = await fetchSnapshotItems(fetcher);
+  return {
+    items: snapshot.items,
+    source: "snapshot",
+    updatedAt: snapshot.updatedAt,
+    error: "线上环境使用同源快照，避免微店接口跨域限制",
+  };
+}
+
 export function filterProducts(products, category) {
   if (!category || category === "全部") return products;
   return products.filter((product) => {
@@ -361,18 +415,22 @@ export async function loadDashboard() {
 
       const configRows = parseCsv(await csvResponse.text());
       const enabledRows = configRows.filter(isEnabled);
-      let liveItems = [];
-      let liveError = "";
-      try {
-        liveItems = await fetchLiveItems(enabledRows.map((row) => row.itemId));
-      } catch (error) {
-        liveError = error.message || "实时数据获取失败";
-      }
+      const liveResult = await loadLiveItemsForCurrentOrigin(enabledRows.map((row) => row.itemId));
+      const liveItems = liveResult.items;
       state.products = mergeProducts(configRows, liveItems);
       render();
       const now = new Date();
       if (statusRoot) {
-        statusRoot.textContent = liveError || `已更新 ${now.toLocaleTimeString("zh-CN", { hour12: false })}`;
+        if (liveResult.source === "snapshot") {
+          const snapshotTime = liveResult.updatedAt
+            ? new Date(liveResult.updatedAt).toLocaleString("zh-CN", { hour12: false })
+            : "";
+          statusRoot.textContent = snapshotTime
+            ? `实时接口受限，显示快照 ${snapshotTime}`
+            : "实时接口受限，显示本地快照";
+        } else {
+          statusRoot.textContent = `已更新 ${now.toLocaleTimeString("zh-CN", { hour12: false })}`;
+        }
       }
     } catch (error) {
       if (statusRoot) statusRoot.textContent = error.message || "实时数据获取失败";

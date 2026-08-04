@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-04T09:24:55.740Z",
+  "updatedAt": "2026-08-04T11:48:10.328Z",
   "items": [
     {
       "creditJoin": false,
@@ -186,13 +186,13 @@
       "itemUrl": "https://weidian.com/item.html?itemID=7766708315",
       "originalPrice": null,
       "preSale": false,
-      "price": "125",
+      "price": "75",
       "priceTag": null,
       "promotionCommission": null,
       "punish": 0,
-      "sold": "16",
+      "sold": "18",
       "status": 1,
-      "stock": 194,
+      "stock": 192,
       "tagDO": null,
       "takePrice": null
     },

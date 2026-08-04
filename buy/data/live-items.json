@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-04T11:48:10.328Z",
+  "updatedAt": "2026-08-04T14:12:09.788Z",
   "items": [
     {
       "creditJoin": false,
@@ -182,7 +182,12 @@
       "itemId": "7766708315",
       "itemImg": "https://si.geilicdn.com/weidian1920033542-09ac0000019fa7c9ae6b0a811411_2048_2732.jpg",
       "itemName": "A-SOUL贝拉拉驼玩偶配件可拆，50成团125元，100团75元，销量70时会把之前125元买的退款重新拍75预计9月截单，+10元可获得两个驼驼通用武器配件",
-      "itemTag": [],
+      "itemTag": [
+        {
+          "tagTitle": "包邮",
+          "tagType": 6
+        }
+      ],
       "itemUrl": "https://weidian.com/item.html?itemID=7766708315",
       "originalPrice": null,
       "preSale": false,
@@ -190,9 +195,9 @@
       "priceTag": null,
       "promotionCommission": null,
       "punish": 0,
-      "sold": "18",
+      "sold": "20",
       "status": 1,
-      "stock": 192,
+      "stock": 190,
       "tagDO": null,
       "takePrice": null
     },

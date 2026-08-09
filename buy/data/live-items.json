@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-09T14:02:02.097Z",
+  "updatedAt": "2026-08-09T14:55:33.445Z",
   "items": [
     {
       "creditJoin": false,
@@ -77,9 +77,9 @@
       "priceTag": null,
       "promotionCommission": null,
       "punish": 0,
-      "sold": "50",
+      "sold": "52",
       "status": 1,
-      "stock": 250,
+      "stock": 248,
       "tagDO": null,
       "takePrice": null
     },

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-29T18:52:01.181Z",
+  "updatedAt": "2026-08-29T21:31:42.816Z",
   "items": [
     {
       "creditJoin": false,
@@ -424,42 +424,6 @@
       "sold": "23",
       "status": 1,
       "stock": 277,
-      "tagDO": null,
-      "takePrice": null
-    },
-    {
-      "creditJoin": false,
-      "discount": null,
-      "extend": {
-        "catalystTxt": null,
-        "experienceUserBuyCountTxt": null,
-        "experienceUserIcon": null,
-        "experienceUserId": null,
-        "experienceUserName": null,
-        "feedId": null,
-        "interestFreeText": null,
-        "knowledge": null,
-        "knowledgeItemType": null,
-        "knowledgeReItemCnt": null,
-        "targetUrl": null
-      },
-      "hasSku": true,
-      "imgSuffix": null,
-      "itemComment": "",
-      "itemId": "7653376357",
-      "itemImg": "https://si.geilicdn.com/weidian1920033542-07340000019bbab92ddb0a210256_1822_2391.jpg",
-      "itemName": "枝江娱乐心宜思诺的宜驼诺驼现货",
-      "itemTag": [],
-      "itemUrl": "https://weidian.com/item.html?itemID=7653376357",
-      "originalPrice": null,
-      "preSale": false,
-      "price": "60",
-      "priceTag": null,
-      "promotionCommission": null,
-      "punish": 0,
-      "sold": "210",
-      "status": 1,
-      "stock": 390,
       "tagDO": null,
       "takePrice": null
     }

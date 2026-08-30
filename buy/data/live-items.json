@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-30T01:38:01.048Z",
+  "updatedAt": "2026-08-30T07:24:42.486Z",
   "items": [
     {
       "creditJoin": false,
@@ -36,9 +36,9 @@
       "priceTag": null,
       "promotionCommission": null,
       "punish": 0,
-      "sold": "25",
+      "sold": "26",
       "status": 1,
-      "stock": 275,
+      "stock": 274,
       "tagDO": null,
       "takePrice": null
     },
@@ -77,9 +77,9 @@
       "priceTag": null,
       "promotionCommission": null,
       "punish": 0,
-      "sold": "61",
+      "sold": "62",
       "status": 1,
-      "stock": 239,
+      "stock": 238,
       "tagDO": null,
       "takePrice": null
     },
@@ -195,9 +195,9 @@
       "priceTag": null,
       "promotionCommission": null,
       "punish": 0,
-      "sold": "41",
+      "sold": "42",
       "status": 1,
-      "stock": 169,
+      "stock": 168,
       "tagDO": null,
       "takePrice": null
     },

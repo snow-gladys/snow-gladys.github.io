@@ -1,0 +1,22 @@
+【冠军资料更新说明】
+
+1. 把冠军的正方形照片放进 champions/images 文件夹。
+   建议命名：s1.jpg、s2.jpg、s3.jpg……
+   建议尺寸：至少 1200 × 1200 像素，JPG、PNG、WebP 均可。
+
+2. 用记事本打开 champions/players.js。
+
+3. 找到对应赛季，例如 S1，把：
+   champion: "冠军姓名一"
+   改成真实姓名，例如：
+   champion: "张三"
+
+4. 把照片路径由：
+   photo: ""
+   改成：
+   photo: "images/s1.jpg"
+
+5. 赛季结束后，把对应赛季的 status 从 "upcoming" 改为 "completed"，
+   然后填写冠军姓名、说明和照片路径。
+
+注意：英文引号、逗号和花括号不要删除。保存后刷新 main.html 即可看到更新。

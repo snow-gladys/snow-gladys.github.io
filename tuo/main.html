@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#070708" />
+    <meta
+      name="description"
+      content="小当家杯斗地主大赛官方冠军荣誉墙，记录 S1 至 S9 以及冠军赛的荣耀时刻。"
+    />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%23070708'/%3E%3Cpath d='M19 17h26v8c0 9-5 16-13 19-8-3-13-10-13-19v-8Z' fill='%23d5ad62'/%3E%3Cpath d='M14 20h7v5c0 5-2 8-7 9m36-14h-7v5c0 5 2 8 7 9M32 43v7m-9 0h18' fill='none' stroke='%23f4dfac' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
+    <title>小当家杯 · 斗地主大赛</title>
+    <link rel="stylesheet" href="main.css" />
+  </head>
+  <body>
+    <div class="page-glow page-glow--one" aria-hidden="true"></div>
+    <div class="page-glow page-glow--two" aria-hidden="true"></div>
+
+    <header class="site-header" id="top">
+      <a class="brand" href="#top" aria-label="返回顶部">
+        <span class="brand-mark" aria-hidden="true">♠</span>
+        <span>小当家杯</span>
+      </a>
+      <nav class="nav" aria-label="主导航">
+        <a href="#seasons">赛季</a>
+        <a href="#hall">冠军</a>
+        <a href="#finals">冠军赛</a>
+      </nav>
+      <span class="season-status"><i></i>S5 已结束</span>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy reveal">
+          <p class="eyebrow">XIAODANGJIA CUP · FIVE SEASONS COMPLETE</p>
+          <h1 id="hero-title">牌局未定，<br /><span>传奇继续。</span></h1>
+          <p class="hero-intro">
+            九个赛季，一场终极冠军赛。每一次出牌都被看见，
+            每一位冠军都将在这里留下名字。
+          </p>
+          <div class="hero-actions">
+            <a class="primary-button" href="#hall">查看冠军荣誉墙</a>
+            <span class="round-counter"><b>05</b><small>/ 09 SEASONS</small></span>
+          </div>
+        </div>
+
+        <div class="hero-stage reveal" aria-label="第五赛季已结束">
+          <div class="orbit orbit--outer"></div>
+          <div class="orbit orbit--inner"></div>
+          <div class="card-fan card-fan--left">♣</div>
+          <div class="card-fan card-fan--right">♦</div>
+          <div class="trophy">
+            <span class="trophy-suit">♠</span>
+            <strong>S5</strong>
+            <small>SEASON COMPLETE</small>
+          </div>
+          <p class="stage-caption">第五赛季 · 荣耀已经加冕</p>
+        </div>
+
+        <div class="scroll-cue" aria-hidden="true"><span></span>SCROLL</div>
+      </section>
+
+      <section class="season-section" id="seasons" aria-labelledby="season-title">
+        <div class="section-heading reveal">
+          <div>
+            <p class="eyebrow">THE JOURNEY</p>
+            <h2 id="season-title">十座席位，一段传奇</h2>
+          </div>
+          <p>从首季开牌到巅峰对决，所有荣耀都有迹可循。</p>
+        </div>
+        <div class="season-track reveal" id="season-track" aria-label="赛季进度"></div>
+      </section>
+
+      <section class="hall-section" id="hall" aria-labelledby="hall-title">
+        <div class="section-heading reveal">
+          <div>
+            <p class="eyebrow">HALL OF CHAMPIONS</p>
+            <h2 id="hall-title">冠军荣誉墙</h2>
+          </div>
+          <p>这里不记录运气，只铭刻最终站到牌桌中央的人。</p>
+        </div>
+        <div class="champion-grid" id="champion-grid"></div>
+      </section>
+
+      <section class="finals-section reveal" id="finals" aria-labelledby="finals-title">
+        <div class="finals-number" aria-hidden="true">∞</div>
+        <div class="finals-copy">
+          <p class="eyebrow">THE GRAND FINAL</p>
+          <h2 id="finals-title">终局，只留一个名字。</h2>
+          <p>九位赛季冠军集结于此，争夺“小当家杯”最高荣誉。</p>
+        </div>
+        <div class="finals-lock">
+          <span aria-hidden="true">◇</span>
+          <small>UNLOCKS AFTER S9</small>
+          <strong>冠军赛</strong>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <a class="brand" href="#top"><span class="brand-mark">♠</span><span>小当家杯</span></a>
+      <p>斗地主大赛 · 荣耀自此被铭记</p>
+      <span>© <span id="year"></span> XIAODANGJIA CUP</span>
+    </footer>
+
+    <script src="champions/players.js"></script>
+    <script src="main.js"></script>
+  </body>
+</html>

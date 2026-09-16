@@ -6,7 +6,7 @@
 window.CHAMPIONS_DATA = {
   seasons: [
     { id: "S1", status: "completed", champion: "冠军姓名一", subtitle: "首届冠军 · 荣耀启程", photo: "" },
-    { id: "S2", status: "completed", champion: "冠军姓名二", subtitle: "第二赛季冠军", photo: "" },
+    { id: "S2", status: "completed", champion: "迟菓kawaii", subtitle: "第二赛季冠军", photo: "images/s2.jpg" },
     { id: "S3", status: "completed", champion: "一笑似流年", subtitle: "第三赛季冠军", photo: "images/s3.jpg" },
     { id: "S4", status: "completed", champion: "冠军姓名四", subtitle: "第四赛季冠军", photo: "" },
     { id: "S5", status: "completed", champion: "冠军姓名五", subtitle: "第五赛季冠军", photo: "" },

@@ -9,7 +9,7 @@ window.CHAMPIONS_DATA = {
     { id: "S2", status: "completed", champion: "迟菓kawaii", subtitle: "第二赛季冠军", photo: "images/s2.jpg" },
     { id: "S3", status: "completed", champion: "一笑似流年", subtitle: "第三赛季冠军", photo: "images/s3.jpg" },
     { id: "S4", status: "completed", champion: "冠军姓名四", subtitle: "第四赛季冠军", photo: "" },
-    { id: "S5", status: "completed", champion: "冠军姓名五", subtitle: "第五赛季冠军", photo: "" },
+    { id: "S5", status: "completed", champion: "好想吃东西", subtitle: "第五赛季冠军", photo: "images/s5.jpg" },
     { id: "S6", status: "upcoming", champion: "", subtitle: "", photo: "" },
     { id: "S7", status: "upcoming", champion: "", subtitle: "", photo: "" },
     { id: "S8", status: "upcoming", champion: "", subtitle: "", photo: "" },

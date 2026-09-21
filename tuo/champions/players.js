@@ -11,7 +11,7 @@ window.CHAMPIONS_DATA = {
     { id: "S4", status: "completed", champion: "你怎么知道我推一万五千舰", subtitle: "第四赛季冠军", photo: "images/s4.jpg" },
     { id: "S5", status: "completed", champion: "好想吃东西", subtitle: "第五赛季冠军", photo: "images/s5.jpg" },
     { id: "S6", status: "completed", champion: "🍊", subtitle: "第六赛季冠军", photo: "images/s6.jpg" },
-    { id: "S7", status: "upcoming", champion: "", subtitle: "", photo: "" },
+    { id: "S7", status: "completed", champion: "风琳幻月", subtitle: "第七赛季冠军", photo: "images/s7.jpg" },
     { id: "S8", status: "upcoming", champion: "", subtitle: "", photo: "" },
     { id: "S9", status: "upcoming", champion: "", subtitle: "", photo: "" }
   ]

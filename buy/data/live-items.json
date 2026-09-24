@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-24T01:28:36.795Z",
+  "updatedAt": "2026-09-24T06:42:52.513Z",
   "items": [
     {
       "creditJoin": false,
@@ -195,9 +195,9 @@
       "priceTag": null,
       "promotionCommission": null,
       "punish": 0,
-      "sold": "53",
+      "sold": "54",
       "status": 1,
-      "stock": 157,
+      "stock": 156,
       "tagDO": null,
       "takePrice": null
     },
@@ -263,7 +263,7 @@
       "itemComment": "",
       "itemId": "7739020267",
       "itemImg": "https://si.geilicdn.com/weidian1920033542-7af60000019f0360f65d0a20e273_1626_1095.jpg",
-      "itemName": "狗耳月牙然驼和小恶魔然驼20+cm’50成团110元，单个达到75团时会退款改价成70元",
+      "itemName": "狗耳月牙然驼和小恶魔然驼20+cm’，单个达到70成团，70元一只",
       "itemTag": [
         {
           "tagTitle": "包邮",
@@ -273,13 +273,13 @@
       "itemUrl": "https://weidian.com/item.html?itemID=7739020267",
       "originalPrice": null,
       "preSale": false,
-      "price": "110",
+      "price": "70",
       "priceTag": null,
       "promotionCommission": null,
       "punish": 0,
-      "sold": "15",
+      "sold": "16",
       "status": 1,
-      "stock": 589,
+      "stock": 588,
       "tagDO": null,
       "takePrice": null
     },

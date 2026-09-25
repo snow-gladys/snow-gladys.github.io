@@ -12,7 +12,7 @@ window.CHAMPIONS_DATA = {
     { id: "S5", status: "completed", champion: "好想吃东西", subtitle: "第五赛季冠军", photo: "images/s5.jpg" },
     { id: "S6", status: "completed", champion: "🍊", subtitle: "第六赛季冠军", photo: "images/s6.jpg" },
     { id: "S7", status: "completed", champion: "风琳幻月", subtitle: "第七赛季冠军", photo: "images/s7.jpg" },
-    { id: "S8", status: "upcoming", champion: "", subtitle: "", photo: "" },
-    { id: "S9", status: "upcoming", champion: "", subtitle: "", photo: "" }
+    { id: "S8", status: "completed", champion: "Grothendieck", subtitle: "第八赛季冠军", photo: "images/s8.jpg" },
+    { id: "S9", status: "completed", champion: "星", subtitle: "第九赛季冠军", photo: "images/s9.jpg" }
   ]
 };

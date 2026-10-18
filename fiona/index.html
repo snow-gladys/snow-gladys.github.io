@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="../imgs/icon_xinyi.png" type="image/png">
     <title>心宜 · Fiona</title>
-    <link rel="stylesheet" href="../index.css?v=20261018-perf">
+    <link rel="stylesheet" href="../index.css?v=20261018-player-ui">
     <link rel="stylesheet" href="theme.css?v=20261018-perf">
 </head>
 <body>
@@ -55,6 +55,22 @@
                 <button type="button" class="btn-modern btn-secondary" id="btn-open-playlist">查看歌单</button>
                 <!-- 黑底白字：随机一首 -->
                 <button type="button" class="btn-modern btn-primary" id="btn-play-random">随机一首</button>
+            </div>
+
+            <div class="home-now-playing" id="home-now-playing" hidden aria-label="正在播放">
+                <button type="button" class="home-now-playing-main" id="home-now-playing-open" aria-label="打开当前歌曲">
+                    <span class="home-now-playing-cover" aria-hidden="true"></span>
+                    <span class="home-now-playing-copy">
+                        <span class="home-now-playing-status" id="home-now-playing-status">正在播放</span>
+                        <span class="home-now-playing-title" id="home-now-playing-title"></span>
+                    </span>
+                    <svg class="home-now-playing-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
+                </button>
+                <button type="button" class="home-now-playing-toggle btn-play-pause" id="home-now-playing-toggle" aria-label="暂停播放">
+                    <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7L8 5z"/></svg>
+                    <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                </button>
+                <div class="home-now-playing-progress" aria-hidden="true"><span id="home-now-playing-progress"></span></div>
             </div>
         </div>
 
@@ -191,17 +207,12 @@
 
                 <div class="controls-wrapper">
                     <!-- 左侧：歌词视图按钮（沿用旧版逻辑，切换歌词全屏视图） -->
-                    <button type="button" class="btn-ctrl btn-small btn-lyrics" id="btn-lyrics" title="歌词" aria-label="歌词">
-                        <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <line x1="3" y1="6" x2="15" y2="6" />
-                            <line x1="3" y1="10" x2="21" y2="10" />
-                            <line x1="3" y1="14" x2="15" y2="14" />
-                            <line x1="3" y1="18" x2="19" y2="18" />
-                        </svg>
+                    <button type="button" class="btn-ctrl btn-small btn-lyrics btn-with-label" id="btn-lyrics" title="歌词" aria-label="显示歌词" aria-pressed="false">
+                        <span class="control-lyric-symbol" aria-hidden="true">词</span>
+                        <span class="control-label" aria-hidden="true">歌词</span>
                     </button>
 
-                    <button type="button" class="btn-ctrl btn-small btn-mode-cycle is-mode-list" id="btn-mode-cycle" title="播放模式"
+                    <button type="button" class="btn-ctrl btn-small btn-mode-cycle btn-with-label is-mode-list" id="btn-mode-cycle" title="播放模式"
                         aria-label="播放模式">
                         <!-- 列表循环：与 tmp/play 一致，fill 细线 -->
                         <svg class="icon-mode icon-mode-list" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -233,15 +244,16 @@
                             <!-- 中间对勾 -->
                             <polyline points="8 12 11 15 16 10" fill="none" stroke="currentColor" stroke-width="2" />
                         </svg>
+                        <span class="control-label" id="play-mode-label" aria-hidden="true">列表循环</span>
                     </button>
 
-                    <button type="button" class="btn-ctrl" id="btn-prev" title="上一首">
+                    <button type="button" class="btn-ctrl" id="btn-prev" title="上一首" aria-label="上一首">
                         <svg viewBox="0 0 24 24">
                             <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
                         </svg>
                     </button>
 
-                    <button type="button" class="btn-ctrl btn-play-pause" id="btn-play-pause" title="播放/暂停">
+                    <button type="button" class="btn-ctrl btn-play-pause" id="btn-play-pause" title="播放/暂停" aria-label="播放">
                         <svg class="icon-svg icon-play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                             <path d="M8 5v14l11-7L8 5z" />
                         </svg>
@@ -250,13 +262,13 @@
                         </svg>
                     </button>
 
-                    <button type="button" class="btn-ctrl" id="btn-next" title="下一首">
+                    <button type="button" class="btn-ctrl" id="btn-next" title="下一首" aria-label="下一首">
                         <svg viewBox="0 0 24 24">
                             <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
                         </svg>
                     </button>
 
-                    <button type="button" class="btn-ctrl btn-small btn-fav" id="btn-fav" title="收藏">
+                    <button type="button" class="btn-ctrl btn-small btn-fav" id="btn-fav" title="收藏" aria-label="收藏当前歌曲" aria-pressed="false">
                         <svg class="icon-svg icon-star-outline" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2" stroke-linejoin="round" aria-hidden="true">
                             <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
@@ -268,11 +280,11 @@
                     </button>
 
                     <!-- 右侧：歌单按钮（与首页“查看歌单”行为一致，打开歌单面板） -->
-                    <button type="button" class="btn-ctrl btn-small" id="btn-open-catalog" title="歌单"
-                        aria-label="歌单">
-                        <svg class="icon-svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                            <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
+                    <button type="button" class="btn-ctrl btn-small btn-with-label" id="btn-open-catalog" title="歌单" aria-label="打开歌单">
+                        <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M3 5h10M3 10h8M3 15h6M19 4v12"/><ellipse cx="16.5" cy="16.5" rx="2.5" ry="2"/>
                         </svg>
+                        <span class="control-label" aria-hidden="true">歌单</span>
                     </button>
                 </div>
             </div>
@@ -570,6 +582,24 @@
         </div>
     </div>
 
+    <section class="playback-recovery" id="playback-recovery" hidden aria-label="播放恢复操作">
+        <div class="playback-recovery-heading">
+            <span class="playback-recovery-eyebrow">播放遇到了一点问题</span>
+            <button type="button" class="playback-recovery-close" id="playback-recovery-close" aria-label="关闭播放提示">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+            </button>
+        </div>
+        <div role="alert" aria-atomic="true">
+            <p class="playback-recovery-song" id="playback-recovery-song"></p>
+            <p class="playback-recovery-message" id="playback-recovery-message"></p>
+        </div>
+        <div class="playback-recovery-actions">
+            <button type="button" class="playback-retry" id="playback-retry">重试</button>
+            <button type="button" id="playback-next">下一首</button>
+            <a id="playback-bilibili" target="_blank" rel="noopener noreferrer">去 B 站看看 <span aria-hidden="true">↗</span></a>
+        </div>
+    </section>
+
     <div id="toast" class="toast" aria-live="polite" role="status"></div>
     <div id="loading-info" class="loading-info" aria-live="polite" role="status"></div>
 
@@ -580,7 +610,7 @@
     <script src="../cache-db.js?v=20261018-perf"></script>
     <script src="../changelog-data.js?v=202603071511"></script>
     <script src="../bili-api.js?v=20261018-perf"></script>
-    <script src="../index.js?v=20261018-perf"></script>
+    <script src="../index.js?v=20261018-player-ui"></script>
 </body>
 </html>
 

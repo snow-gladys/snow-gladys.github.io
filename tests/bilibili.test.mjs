@@ -316,10 +316,11 @@ async function playback({ preload = false, expired = false, playError, resolveEr
     const sandbox = vm.createContext({
         window: {}, settings: { cacheEnabled: 'off' }, Date, URL,
         playRequestVersion: 0, releaseCachedAudioUrl() {}, audioCacheDownloadController: null,
+        clearPlaybackError() {},
         preloadCache: preload ? { bvid: BV, url: 'https://edge.example/old', createdAt: Date.now() - (expired ? 61000 : 0) } : null,
         bgmAudio: audioObject(), globalPreloadAudio: audioObject(), Audio: audioObject,
         clearPreload() {}, bindAudioEvents() {}, stopInitialPreload() {},
-        handleAudioEnded() {}, handleAudioPlay() {}, handleAudioPause() {},
+        handleAudioEnded() {}, handleAudioPlay() {}, handleAudioPause() {}, handleAudioError() {},
         showLoadingInfo() {}, hideLoadingInfo() {}, updateProgressDisplay() {}, updatePlaySongName() {},
         updatePlayPauseIcon() {}, updateMediaSession() {}, currentPlayingBvid: '',
         startVisuals() { visuals++; },

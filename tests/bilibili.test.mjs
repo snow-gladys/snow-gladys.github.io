@@ -301,24 +301,28 @@ test('both pages load the shared API before the player and retain BV input', () 
     }
 });
 
-async function playback({ preload = false, expired = false, playError, resolveError, retryError, rapidSwitch = false, hls = false, cache = false } = {}) {
-    const start = playerSource.indexOf('async function playMusic(bvid)');
+async function playback({ preload = false, expired = false, playError, resolveError, retryError, rapidSwitch = false, hls = false, cache = false, cachedBlob = null } = {}) {
+    const start = playerSource.indexOf('async function playMusic(bvid, options)');
     const end = playerSource.indexOf('\n        function handlePlayError(', start);
     let plays = 0, resolves = 0, refreshes = 0, visuals = 0;
     const errors = [], downloads = [];
     let releaseOld;
     function audioObject() {
         return {
-            src: '', pause() {}, load() {}, remove() {}, removeEventListener() {}, removeAttribute() {},
+            src: '', pause() {}, load() {}, remove() {}, addEventListener() {}, removeEventListener() {}, removeAttribute() {},
+            currentTime: 0, duration: 60, paused: false, buffered: { length: 1, start: () => 0, end: () => 30 },
             async play() { plays++; if (playError && plays === 1) throw playError; },
         };
     }
     const sandbox = vm.createContext({
-        window: { SG_CACHE: { supported: true, getCachedBlob: async () => null, hasCached: async () => false, saveToCache() {} } },
-        settings: { cacheEnabled: cache ? 'on' : 'off' }, Date, URL, AbortController,
+        window: { SG_CACHE: { supported: true, getCachedBlob: async () => cachedBlob, hasCached: async () => false, saveToCache() {} } },
+        settings: { cacheEnabled: cache ? 'on' : 'off' }, Date, URL, AbortController, setImmediate,
+        listeningLibrary: { anchor: null }, bulkCache: null,
+        playScope: 'all', adjustMode: false, pendingPlayback: null, sessionAudioBvid: '',
+        savePlaybackSession() {}, rememberStartedPlayback() {}, applyResumePosition() {},
         cachedBvidsSet: new Set(), updatePlayDownloadsButton() {},
         fetch: async url => { downloads.push(url); return new Response('audio'); },
-        playRequestVersion: 0, releaseCachedAudioUrl() {}, audioCacheDownloadController: null,
+        playRequestVersion: 0, releaseCachedAudioUrl() {}, cancelAudioCacheDownload: null,
         clearPlaybackError() {},
         preloadCache: preload ? { bvid: BV, url: 'https://edge.example/old', createdAt: Date.now() - (expired ? 61000 : 0) } : null,
         bgmAudio: audioObject(), globalPreloadAudio: audioObject(), Audio: audioObject,
@@ -342,8 +346,9 @@ async function playback({ preload = false, expired = false, playError, resolveEr
         console: { error() {} },
         releaseOld() { releaseOld(); },
     });
+    vm.runInContext(readFileSync(new URL('../playback-buffer.js', import.meta.url), 'utf8'), sandbox);
     const action = rapidSwitch
-        ? `(async () => { const old = playMusic('${BV}'); await playMusic('BV1Sf421Q7Rt'); releaseOld(); await old; })();`
+        ? `(async () => { const old = playMusic('${BV}'); await new Promise(setImmediate); await playMusic('BV1Sf421Q7Rt'); releaseOld(); await old; })();`
         : '\nplayMusic(' + JSON.stringify(BV) + ');';
     await vm.runInContext(playerSource.slice(start, end) + '\n' + action, sandbox);
     await new Promise(resolve => setImmediate(resolve));
@@ -414,4 +419,25 @@ test('a slower previous track cannot overwrite the latest selection', async () =
     assert.equal(result.bvid, 'BV1Sf421Q7Rt');
     assert.equal(result.src, 'https://edge.example/new');
     assert.equal(result.plays, 1);
+});
+
+test('manual cached audio is preferred in normal playback even with automatic caching off', async () => {
+    const result = await playback({ cachedBlob: new Blob(['audio'], { type: 'audio/mp4' }) });
+    assert.equal(result.resolves, 0); assert.equal(result.plays, 1); assert.match(result.src, /^blob:/);
+    URL.revokeObjectURL(result.src);
+});
+
+test('canceling batch metadata never aborts a shared foreground resolution', async () => {
+    let finishForeground, calls = 0;
+    const client = browser((_url, options) => {
+        calls++;
+        if (!options || !options.signal) return new Promise(resolve => { finishForeground = () => resolve(json({ url: MEDIA })); });
+        return new Promise((_resolve, reject) => options.signal.addEventListener('abort', () => reject(new DOMException('cancel', 'AbortError'))));
+    }).createClient('https://edge.example');
+    const foreground = client.resolve(BV, 'medium');
+    const controller = new AbortController();
+    const batch = client.resolve(BV, 'medium', false, { signal: controller.signal });
+    const rejected = assert.rejects(batch, error => error.name === 'AbortError');
+    controller.abort(); await rejected;
+    finishForeground(); assert.equal((await foreground).url, MEDIA); assert.equal(calls, 2);
 });

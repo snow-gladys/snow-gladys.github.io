@@ -65,7 +65,8 @@
                     var tx = db.transaction(STORE_NAME, 'readonly');
                     var req = tx.objectStore(STORE_NAME).get(bvid);
                     req.onsuccess = function () {
-                        resolve(req.result && req.result.blob ? req.result.blob : null);
+                        var row = req.result;
+                        resolve(row && row.blob ? row.blob : row && row.buffer ? new Blob([row.buffer], { type: row.mimeType || 'audio/mp4' }) : null);
                     };
                     req.onerror = function () {
                         resolve(null);
@@ -77,23 +78,32 @@
             });
     }
 
-    /** 将音频 Blob 写入缓存 */
+    function putCacheRecord(db, record) {
+        return new Promise(function (resolve, reject) {
+            var tx = db.transaction(STORE_NAME, 'readwrite');
+            var req = tx.objectStore(STORE_NAME).put(record);
+            // 等事务提交后再标记为已下载，避免写入失败却显示缓存成功。
+            tx.oncomplete = function () { resolve(); };
+            tx.onabort = tx.onerror = function () { reject(tx.error || new Error('Cache transaction failed')); };
+            req.onerror = function (e) { reject(e.target.error); };
+        });
+    }
+
+    /** 优先保存 Blob；部分 WebKit 环境无法存 Blob 时回退 ArrayBuffer。 */
     function saveToCache(bvid, blob) {
-        if (!bvid || !blob || !(blob instanceof Blob)) return Promise.resolve();
+        if (!bvid || !blob || !(blob instanceof Blob)) return Promise.resolve(false);
         return openDB()
-            .then(function (db) {
-                return new Promise(function (resolve, reject) {
-                    var tx = db.transaction(STORE_NAME, 'readwrite');
-                    var req = tx.objectStore(STORE_NAME).put({ bvid: bvid, blob: blob });
-                    req.onsuccess = function () {
-                        resolve();
-                    };
-                    req.onerror = function (e) {
-                        reject(e.target.error);
-                    };
-                });
+            .then(async function (db) {
+                try {
+                    await putCacheRecord(db, { bvid: bvid, blob: blob });
+                } catch (error) {
+                    if (!error || !['UnknownError', 'DataCloneError'].includes(error.name)) throw error;
+                    var buffer = await blob.arrayBuffer();
+                    await putCacheRecord(db, { bvid: bvid, buffer: buffer, mimeType: blob.type });
+                }
+                return true;
             })
-            .catch(function () {});
+            .catch(function () { return false; });
     }
 
     /** 只查询键，不把音频 Blob 从数据库取回。 */
@@ -142,6 +152,7 @@
                         if (cursor) {
                             var row = cursor.value;
                             if (row.blob && row.blob.size) total += row.blob.size;
+                            else if (row.buffer && row.buffer.byteLength) total += row.buffer.byteLength;
                             cursor.continue();
                         } else {
                             resolve(total);

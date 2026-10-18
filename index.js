@@ -140,6 +140,25 @@
         // --- 1.5 收藏（Local Storage，容量大、无 cookie 上限）---
         const FAV_STORAGE_KEY = CONFIG.storageKeys.fav;
         const PLAY_MODE_STORAGE_KEY = CONFIG.storageKeys.playMode;
+        const PLAY_SCOPE_STORAGE_KEY = PLAY_MODE_STORAGE_KEY + '_scope';
+        const PLAY_SESSION_STORAGE_KEY = PLAY_MODE_STORAGE_KEY + '_session';
+        const randomQueue = window.SG_PLAYBACK_STATE.createQueue();
+        let libraryStorage = null;
+        try { libraryStorage = localStorage; } catch (_) {}
+        const listeningLibrary = window.SG_LISTENING.create({ storage: libraryStorage, key: PLAY_MODE_STORAGE_KEY + '_library',
+            onError: function () { showToast('浏览器存储不可用，本次修改暂时只在当前页面保留。'); },
+            onChange: function () {
+                playlistRenderKey = '';
+                syncLibraryTabs();
+                if (viewPlaylist.classList.contains('is-open')) renderPlaylist();
+            },
+        });
+        let bulkCache = null;
+        let resumeSession = null;
+        try { resumeSession = window.SG_PLAYBACK_STATE.readSession(localStorage, PLAY_SESSION_STORAGE_KEY); } catch (_) {}
+        let sessionAudioBvid = '';
+        let pendingPlayback = null;
+        let lastSessionWrite = 0;
         let favoritesSet = new Set();
 
         function getFavoritesFromStorage() {
@@ -172,8 +191,12 @@
                 alert('浏览器本地存储(Local Storage)不可用，无法使用收藏功能。');
                 return;
             }
-            if (favoritesSet.size === 0 && playMode === 'favorites' && btnModeCycle) setPlayMode('list');
+            if (favoritesSet.size === 0 && playScope === 'favorites') setPlayScope('all');
             updatePlayFavoritesButton();
+            syncPlaybackOptions();
+            playlistRenderKey = '';
+            if (viewPlaylist.classList.contains('is-open')) renderPlaylist();
+            renderBulkCache();
         }
 
         function isFavorite(bvid) {
@@ -187,9 +210,10 @@
 
         function updatePlayDownloadsButton() {
             const btn = document.getElementById('btn-play-downloads');
-            if (!btn) return;
             const hasDownloads = cachedBvidsSet && cachedBvidsSet.size > 0;
-            btn.style.display = hasDownloads ? '' : 'none';
+            if (btn) btn.style.display = hasDownloads ? '' : 'none';
+            if (!hasDownloads && playScope === 'downloaded') setPlayScope('all');
+            syncPlaybackOptions();
         }
 
         // --- 1.5.2 设置（Cookie）与自定义歌单（Local Storage）---
@@ -360,16 +384,17 @@
 
         function syncHomePlayer() {
             if (!homePlayerEl) return;
-            const id = loadingBvid || currentPlayingBvid;
+            const saved = !currentPlayingBvid && resumeSession && songList.some(song => song.bvid === resumeSession.bvid) ? resumeSession : null;
+            const id = loadingBvid || currentPlayingBvid || (saved && saved.bvid);
             homePlayerEl.hidden = !id;
             viewHome.classList.toggle('has-now-playing', !!id);
             if (!id) return;
             const name = getSongNameByBvid(id);
-            const status = loadingBvid ? '正在加载' : failedPlaybackBvid === id ? '暂时无法播放' : bgmAudio.paused ? '已暂停' : '正在播放';
+            const status = loadingBvid ? '正在加载' : saved ? '上次听到 ' + formatTime(saved.time) + ' · 点击继续' : failedPlaybackBvid === id ? '暂时无法播放' : bgmAudio.paused ? '已暂停' : '正在播放';
             if (homePlayerTitleEl.textContent !== name) homePlayerTitleEl.textContent = name;
             if (homePlayerStatusEl.textContent !== status) homePlayerStatusEl.textContent = status;
             const open = document.getElementById('home-now-playing-open');
-            open.setAttribute('aria-label', '打开歌曲《' + name + '》的播放页');
+            open.setAttribute('aria-label', (saved ? '继续播放' : '打开歌曲') + '《' + name + '》' + (saved ? '' : '的播放页'));
             homePlayerToggleEl.classList.toggle('is-playing', !bgmAudio.paused && !loadingBvid);
             homePlayerToggleEl.disabled = !!loadingBvid;
             homePlayerToggleEl.setAttribute('aria-label', loadingBvid ? '正在加载歌曲' : bgmAudio.paused ? '继续播放' : '暂停播放');
@@ -378,10 +403,60 @@
 
         function syncHomePlayerProgress() {
             if (!homePlayerEl || homePlayerEl.hidden || viewHome.style.display === 'none' || document.hidden) return;
+            if (!currentPlayingBvid && resumeSession) {
+                const progress = resumeSession.duration > 0 ? Math.min(1, resumeSession.time / resumeSession.duration) : 0;
+                homePlayerProgressEl.style.transform = 'scaleX(' + progress + ')';
+                return;
+            }
             const duration = bgmAudio.duration;
             const progress = (!loadingBvid || loadingBvid === currentPlayingBvid) && isFinite(duration) && duration > 0
                 ? Math.max(0, Math.min(1, bgmAudio.currentTime / duration)) : 0;
             homePlayerProgressEl.style.transform = 'scaleX(' + progress + ')';
+        }
+
+        function savePlaybackSession(force) {
+            if (!currentPlayingBvid || sessionAudioBvid !== currentPlayingBvid ||
+                (pendingPlayback && (!pendingPlayback.started || pendingPlayback.time > 0 && !pendingPlayback.positionApplied)) || !Number.isFinite(bgmAudio.currentTime)) return;
+            if (!force && Date.now() - lastSessionWrite < 5000) return;
+            const session = { bvid: currentPlayingBvid, time: bgmAudio.currentTime,
+                duration: isFinite(bgmAudio.duration) ? bgmAudio.duration : 0, scope: playScope, order: playMode };
+            try {
+                localStorage.setItem(PLAY_SESSION_STORAGE_KEY, JSON.stringify(session));
+                resumeSession = session;
+                lastSessionWrite = Date.now();
+            } catch (_) {}
+        }
+
+        function applyResumePosition() {
+            if (!pendingPlayback || !pendingPlayback.ready || pendingPlayback.positionApplied || sessionAudioBvid !== currentPlayingBvid || bgmAudio.readyState < 1) return;
+            const time = window.SG_PLAYBACK_STATE.resumeTime(pendingPlayback.time, bgmAudio.duration);
+            if (time === null) return;
+            try {
+                // 新音频已经从 0 开始，避免 WebKit 为一次无意义的 seek 阻塞 play()。
+                if (time !== 0 || bgmAudio.currentTime > 0.1) bgmAudio.currentTime = time;
+                pendingPlayback.positionApplied = true;
+            } catch (_) {}
+        }
+
+        function rememberStartedPlayback() {
+            if (!pendingPlayback || !pendingPlayback.ready || pendingPlayback.bvid !== currentPlayingBvid || pendingPlayback.started || pendingPlayback.version !== playRequestVersion || sessionAudioBvid !== currentPlayingBvid) return;
+            applyResumePosition();
+            pendingPlayback.started = true;
+            const startedSong = getSongInfo(currentPlayingBvid);
+            randomQueue.commit(currentPlayingBvid, pendingPlayback.direction);
+            if (pendingPlayback.queueEntryId) listeningLibrary.startQueued(pendingPlayback.queueEntryId, pendingPlayback.queueAnchor);
+            else if (!pendingPlayback.preserveQueueAnchor) listeningLibrary.leaveQueue();
+            listeningLibrary.record(startedSong);
+            savePlaybackSession(true);
+        }
+
+        async function resumeLastPlayback() {
+            const saved = resumeSession;
+            if (!saved || !songList.some(song => song.bvid === saved.bvid)) return;
+            setPlayScope(saved.scope);
+            setPlayMode(saved.order);
+            showView('play');
+            return playMusic(saved.bvid, { resumeTime: saved.time, preserveQueueAnchor: true });
         }
 
         function clearPlaybackError() {
@@ -395,37 +470,49 @@
             const bvid = failedPlaybackBvid;
             if (!bvid) return;
             const resumeDirectly = failedPlaybackKind === 'autoplay' && bvid === currentPlayingBvid && bgmAudio.src;
+            const time = bvid === currentPlayingBvid && sessionAudioBvid === bvid ? bgmAudio.currentTime
+                : pendingPlayback && pendingPlayback.bvid === bvid ? pendingPlayback.time : 0;
             clearPlaybackError();
-            if (!resumeDirectly) return playMusic(bvid);
+            if (!resumeDirectly) return playMusic(bvid, { resumeTime: time,
+                queueEntryId: pendingPlayback && pendingPlayback.bvid === bvid ? pendingPlayback.queueEntryId : null });
             try {
                 await bgmAudio.play();
+                rememberStartedPlayback();
                 updatePlayPauseIcon();
             } catch (error) { handlePlayError(bvid, error); }
         }
 
         function playNextAfterFailure() {
             const failed = failedPlaybackBvid;
+            const failedEntry = listeningLibrary.list('queue').find(item => item.bvid === failed);
+            if (failedEntry) listeningLibrary.remove(failedEntry.id);
+            const queued = getQueuedNext();
+            if (queued) { playMusic(queued.bvid, { direction: 'forward', queueEntryId: queued.id }); return; }
             const list = getEffectiveList();
             if (!list.some(song => song.bvid && song.bvid !== failed)) return;
             const index = list.findIndex(song => song.bvid === failed);
             let next;
             if (playMode === 'random') {
-                const candidates = list.filter(song => song.bvid && song.bvid !== failed);
-                next = candidates[getRandomIndex(candidates.length, -1)];
+                randomQueue.skip(failed);
+                const id = randomQueue.peekNext(list.filter(song => song.bvid !== failed && !listeningLibrary.isExcluded(song.bvid)).map(song => song.bvid), currentPlayingBvid);
+                next = list.find(song => song.bvid === id);
             } else {
                 for (let offset = 1; offset <= list.length; offset++) {
                     const candidate = list[(index + offset) % list.length];
                     if (candidate.bvid && candidate.bvid !== failed) { next = candidate; break; }
                 }
             }
-            if (next) playMusic(next.bvid);
+            if (next) playMusic(next.bvid, { direction: 'forward' });
         }
 
         const playlistSearchEl = document.getElementById('playlist-search');
         const playlistFilterBtn = document.getElementById('playlist-filter-btn');
         let playlistFilterFavorites = false;
+        let playlistTab = 'songs';
 
-        function openPlaylist(focusIndex) {
+        function openPlaylist(focusIndex, tab) {
+            if (tab) playlistTab = tab;
+            syncLibraryTabs();
             if (playlistSearchEl) playlistSearchEl.value = '';
             renderPlaylist();
             if (window.SG_CACHE && window.SG_CACHE.supported && typeof window.SG_CACHE.listCachedBvids === 'function') {
@@ -439,6 +526,7 @@
             // 等 DOM 渲染完成后再滚动到当前播放行
             const scrollToIdx = focusIndex != null && focusIndex >= 0 ? focusIndex : getCurrentIndex();
             requestAnimationFrame(function () {
+                if (playlistTab !== 'songs') return;
                 const item = playlistListEl.querySelector(`[data-index="${scrollToIdx}"]`);
                 if (item) item.scrollIntoView({ block: 'center', behavior: 'instant' });
             });
@@ -446,6 +534,95 @@
 
         function closePlaylist() {
             showView(viewPlay.classList.contains('is-active') ? 'play' : 'home');
+        }
+
+        function getSongInfo(bvid) {
+            return songList.find(song => song.bvid === bvid) || mainList.find(song => song.bvid === bvid) ||
+                liveList.find(song => song.bvid === bvid) || customList.find(song => song.bvid === bvid) ||
+                listeningLibrary.list('recent').find(song => song.bvid === bvid) || listeningLibrary.list('queue').find(song => song.bvid === bvid) ||
+                listeningLibrary.list('excluded').find(song => song.bvid === bvid) || { bvid: bvid, name: bvid };
+        }
+
+        function getQueuedNext() {
+            return listeningLibrary.list('queue').find(item => playScope !== 'downloaded' || cachedBvidsSet.has(item.bvid)) || null;
+        }
+
+        function getRandomList() {
+            return getEffectiveList().filter(song => !listeningLibrary.isExcluded(song.bvid));
+        }
+
+        function syncLibraryTabs() {
+            document.querySelectorAll('[data-library-tab]').forEach(function (button) {
+                const tab = button.dataset.libraryTab;
+                button.setAttribute('aria-pressed', String(tab === playlistTab));
+                if (tab === 'queue') button.textContent = '待播' + (listeningLibrary.list('queue').length ? ' ' + listeningLibrary.list('queue').length : '');
+            });
+            const clear = document.getElementById('library-clear');
+            if (clear) {
+                clear.hidden = !['queue', 'recent'].includes(playlistTab);
+                clear.textContent = playlistTab === 'queue' ? '清空待播' : '清空记录';
+            }
+            const hint = document.getElementById('library-hint');
+            if (hint) {
+                hint.parentElement.hidden = playlistTab === 'songs';
+                hint.hidden = playlistTab === 'songs';
+                hint.textContent = ({ queue: playScope === 'downloaded' ? '下载模式下仅播放已缓存的待播歌曲，听完接回原来的顺序。' : '待播歌曲优先播放，听完接回原来的顺序。',
+                    recent: '保留最近听过的 100 首歌曲，可搜索、播放或收藏。', excluded: '这些歌曲不参与随机，仍可手动播放；在更多操作中随时恢复。' })[playlistTab] || '';
+            }
+        }
+
+        function renderLibraryPlaylist(query) {
+            const source = listeningLibrary.list(playlistTab);
+            const items = source.filter(song => (!query || (song.name || '').toLowerCase().includes(query) || song.bvid.toLowerCase().includes(query)) &&
+                (!playlistFilterFavorites || isFavorite(song.bvid)));
+            playlistCountEl.textContent = query || playlistFilterFavorites ? items.length + ' / ' + source.length : String(source.length);
+            playlistAlphaBarEl.replaceChildren();
+            const fragment = document.createDocumentFragment();
+            items.forEach(song => {
+                const entry = { ...song, queueEntryId: playlistTab === 'queue' ? song.id : null };
+                fragment.appendChild(createPlaylistItemEl(entry, playlistTab + ':' + (song.id || song.bvid), currentPlayingBvid));
+            });
+            if (!items.length) {
+                const empty = document.createElement('p'); empty.className = 'library-empty';
+                empty.textContent = query || playlistFilterFavorites ? '没有找到符合条件的歌曲。' : ({ queue: '还没有待播歌曲。在歌曲右侧点“···”，即可加入。', recent: '听过的歌曲会出现在这里。', excluded: '还没有排除歌曲。' })[playlistTab];
+                fragment.appendChild(empty);
+            }
+            playlistListEl.replaceChildren(fragment);
+        }
+
+        let actionSongBvid = '', actionQueueId = null;
+        function openSongActions(bvid, queueId) {
+            actionSongBvid = bvid; actionQueueId = queueId || null;
+            const dialog = document.getElementById('song-actions-dialog');
+            document.getElementById('song-actions-title').textContent = getSongNameByBvid(bvid);
+            document.querySelector('[data-song-action="favorite"]').textContent = isFavorite(bvid) ? '取消收藏' : '收藏歌曲';
+            document.querySelector('[data-song-action="exclude"]').textContent = listeningLibrary.isExcluded(bvid) ? '恢复参与随机' : '不参与随机';
+            const queue = listeningLibrary.list('queue'), index = queue.findIndex(item => item.id === actionQueueId);
+            ['up', 'down', 'remove'].forEach(function (action) {
+                const button = document.querySelector('[data-song-action="' + action + '"]');
+                button.hidden = index < 0;
+                button.disabled = action === 'up' && index === 0 || action === 'down' && index === queue.length - 1;
+            });
+            if (!dialog.open) dialog.showModal();
+        }
+
+        function changeSongAction(action) {
+            const song = getSongInfo(actionSongBvid);
+            if (action === 'next' || action === 'append') {
+                if (playScope === 'downloaded' && !cachedBvidsSet.has(song.bvid)) { showToast('下载模式下，请先缓存这首歌，或切换为全部歌曲。'); return; }
+                if (!listeningLibrary.add(song, action === 'next')) { showToast('待播队列已满，请先移除一些歌曲。'); return; }
+                invalidateNextPlayback();
+                showToast(action === 'next' ? '已设为下一首播放。' : '已加入待播队列。');
+            } else if (action === 'favorite') { toggleFavorite(song.bvid); updateFavButton(); }
+            else if (action === 'exclude') {
+                const excluded = !listeningLibrary.isExcluded(song.bvid);
+                listeningLibrary.exclude(song, excluded);
+                clearPreload(); stopInitialPreload(); preloadScheduledForBvid = null;
+                if (!currentPlayingBvid) runInitialPreload();
+                showToast(excluded ? '已不参与随机，手动点播仍可播放。' : '已恢复参与随机。');
+            } else if (action === 'remove') { listeningLibrary.remove(actionQueueId); invalidateNextPlayback(); }
+            else if (action === 'up' || action === 'down') { listeningLibrary.move(actionQueueId, action === 'up' ? -1 : 1); invalidateNextPlayback(); }
+            document.getElementById('song-actions-dialog').close();
         }
 
         // ── 拼音首字母工具 ────────────────────────────────────────────
@@ -494,7 +671,7 @@
         // ── 创建单个歌单条目 DOM ──────────────────────────────────────
         function createPlaylistItemEl(s, i, curBvid) {
             const isCurrent = (s.bvid || '') === curBvid;
-            const state = [isCurrent, isFavorite(s.bvid), cachedBvidsSet.has(s.bvid || '')].join(':');
+            const state = [isCurrent, isFavorite(s.bvid), cachedBvidsSet.has(s.bvid || ''), listeningLibrary.isExcluded(s.bvid), s.name, s.playedAt || ''].join(':');
             const cached = playlistRows.get(i);
             if (cached && cached.state === state) return cached.element;
             const btn = document.createElement('button');
@@ -502,6 +679,7 @@
             btn.className = 'playlist-item' + (isCurrent ? ' current' : '');
             btn.dataset.bvid = s.bvid || '';
             btn.dataset.index = i;
+            if (s.queueEntryId) btn.dataset.queueEntryId = s.queueEntryId;
 
             // 左侧主内容：歌名 + 徽标（用户、自定义、LIVE），结构对齐 tmp/playlist.html
             const mainWrap = document.createElement('span');
@@ -510,7 +688,17 @@
             const nameEl = document.createElement('span');
             nameEl.className = 'playlist-item-name';
             nameEl.textContent = s.name || s.title || '';
-            mainWrap.appendChild(nameEl);
+            const copy = document.createElement('span');
+            copy.className = 'playlist-item-copy';
+            copy.appendChild(nameEl);
+            if (s.playedAt || listeningLibrary.isExcluded(s.bvid)) {
+                const meta = document.createElement('small');
+                meta.className = 'playlist-item-meta';
+                meta.textContent = [s.playedAt ? new Date(s.playedAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
+                    listeningLibrary.isExcluded(s.bvid) ? '不参与随机' : ''].filter(Boolean).join(' · ');
+                copy.appendChild(meta);
+            }
+            mainWrap.appendChild(copy);
 
             const isCached = !!(s.bvid && cachedBvidsSet && cachedBvidsSet.has(s.bvid || ''));
             if (s.isCustom) {
@@ -547,15 +735,26 @@
             }
 
             btn.appendChild(rightWrap);
-            playlistRows.set(i, { state: state, element: btn });
-            return btn;
+            const row = document.createElement('div');
+            row.className = 'playlist-entry';
+            row.appendChild(btn);
+            const more = document.createElement('button');
+            more.type = 'button'; more.className = 'playlist-more'; more.textContent = '···';
+            more.setAttribute('aria-label', '《' + (s.name || s.bvid) + '》的更多操作');
+            more.dataset.bvid = s.bvid;
+            if (s.queueEntryId) more.dataset.queueEntryId = s.queueEntryId;
+            row.appendChild(more);
+            playlistRows.set(i, { state: state, element: row });
+            return row;
         }
 
         // 列表节点会复用，统一监听点击，避免每次渲染创建一批闭包。
         if (playlistListEl) playlistListEl.addEventListener('click', function (event) {
+            const more = event.target.closest('.playlist-more');
+            if (more) { openSongActions(more.dataset.bvid, more.dataset.queueEntryId); return; }
             const item = event.target.closest('.playlist-item');
             if (!item || !playlistListEl.contains(item)) return;
-            playMusic(item.dataset.bvid || '');
+            playMusic(item.dataset.bvid || '', { queueEntryId: item.dataset.queueEntryId });
             closePlaylist();
             showView('play');
         });
@@ -564,9 +763,11 @@
             if (!playlistListEl) return;
             const query = (playlistSearchEl && playlistSearchEl.value || '').trim().toLowerCase();
             const renderKey = JSON.stringify([playlistRevision, query, playlistFilterFavorites, currentPlayingBvid,
-                Array.from(favoritesSet), Array.from(cachedBvidsSet)]);
+                Array.from(favoritesSet), Array.from(cachedBvidsSet), playlistTab, listeningLibrary.revision]);
             if (renderKey === playlistRenderKey) return;
             playlistRenderKey = renderKey;
+            syncLibraryTabs();
+            if (playlistTab !== 'songs') { renderLibraryPlaylist(query); return; }
             if (!playlistSortedItems) {
                 playlistSortedItems = songList.map(function (s, i) {
                     s._sortKey = getSongSortLetter(s.name || s.title || '');
@@ -641,6 +842,8 @@
             playlistRevision++;
             playlistSortedItems = null;
             playlistRows.clear();
+            syncHomePlayer();
+            syncPlaybackOptions();
         }
 
         async function loadSongs() {
@@ -1510,9 +1713,15 @@
                 buttons.forEach(function (btn) {
                     btn.addEventListener('click', function () {
                         const mode = btn.getAttribute('data-mode') || 'medium';
+                        if (settings.audioMode !== mode) {
+                            clearPreload();
+                            stopInitialPreload();
+                            preloadScheduledForBvid = null;
+                        }
                         settings.audioMode = mode;
                         saveSettingsToCookie(settings);
                         syncQualityButtons();
+                        if (!currentPlayingBvid) runInitialPreload();
                     });
                 });
             })();
@@ -1571,8 +1780,13 @@
                 if (!btn || !window.SG_CACHE || !window.SG_CACHE.supported || typeof window.SG_CACHE.clearAll !== 'function') return;
                 btn.addEventListener('click', async function () {
                     if (!confirm('确定要清理所有音频缓存吗？这不会影响歌词、自定义歌曲或其他设置。')) return;
+                    if (bulkCache) bulkCache.cancel();
+                    if (cancelAudioCacheDownload) { cancelAudioCacheDownload(); cancelAudioCacheDownload = null; }
                     try {
                         await window.SG_CACHE.clearAll();
+                        cachedBvidsSet.clear(); updatePlayDownloadsButton();
+                        playlistRenderKey = '';
+                        if (viewPlaylist.classList.contains('is-open')) renderPlaylist();
                         await refreshStorageUsageDisplay();
                         showToast('音频缓存已清理。', 2600);
                     } catch (e) {
@@ -1744,8 +1958,11 @@
         if (btnPlayRandom) {
             btnPlayRandom.addEventListener('click', () => {
                 if (!songList.length) return;
-                const i = getRandomIndex(songList.length, -1);
-                playMusic(songList[i].bvid || '');
+                const bvid = getHomeRandomBvid();
+                if (!bvid) { showToast('没有可随机播放的歌曲，可在歌单的“已排除”中恢复。'); return; }
+                setPlayScope('all');
+                setPlayMode('random');
+                playMusic(bvid);
                 showView('play');
             });
         }
@@ -1755,8 +1972,8 @@
             btnPlayFavorites.addEventListener('click', () => {
                 const favList = getFavoritesList();
                 if (!favList.length) return;
-                setPlayMode('favorites');
-                playMusic(favList[0].bvid || '');
+                setPlayScope('favorites');
+                playMusic(playMode === 'random' ? getNextBvid() : favList[0].bvid || '');
                 showView('play');
             });
         }
@@ -1768,8 +1985,8 @@
                     showToast('当前没有已下载歌曲', 2600);
                     return;
                 }
-                setPlayMode('downloaded');
-                playMusic(dlList[0].bvid || '');
+                setPlayScope('downloaded');
+                playMusic(playMode === 'random' ? getNextBvid() : dlList[0].bvid || '');
                 showView('play');
             });
         }
@@ -1976,6 +2193,7 @@
             }
         }
         document.addEventListener('visibilitychange', function () {
+            if (document.hidden) savePlaybackSession(true);
             document.body.classList.toggle('is-background', document.hidden);
             stopAudioVisualizer();
             if (!bgmAudio.paused) {
@@ -1983,10 +2201,11 @@
                 if (!document.hidden) updateProgressDisplay();
             }
         });
+        window.addEventListener('pagehide', function () { savePlaybackSession(true); });
         let globalPreloadAudio = createPlayerAudio();
         let activeCachedAudioUrl = null;
         let playRequestVersion = 0;
-        let audioCacheDownloadController = null;
+        let cancelAudioCacheDownload = null;
 
         function releaseCachedAudioUrl() {
             if (activeCachedAudioUrl) URL.revokeObjectURL(activeCachedAudioUrl);
@@ -2079,6 +2298,8 @@
             updateMediaSession();
         }
         function handleAudioPause() {
+            savePlaybackSession(true);
+            if (bulkCache) bulkCache.notify();
             updatePlayPauseIcon();
             stopVisuals();
             updateMediaSession();
@@ -2102,17 +2323,17 @@
         showView('home');
 
         // --- 预加载与 API 调用（在结束前一定时间尝试直链预加载）---
-        const PRELOAD_AHEAD_SEC = 10;
+        const PRELOAD_AHEAD_SEC = 30;
         let preloadCache = null;
         let preloadInFlight = null;
         let preloadScheduledForBvid = null;
         let preloadGeneration = 0;
-        /** 随机模式下「已确定的下一首」bvid，与预加载一致，保证能命中缓存 */
-        let nextRandomBvid = null;
+        let initialPreloadBvid = null;
+        let initialPreloadForResume = false;
 
         /** 根据 bvid 取歌名（用于弹窗提示） */
         function getSongNameByBvid(bvid) {
-            var s = songList.find(function (x) { return (x.bvid || '') === (bvid || ''); });
+            var s = getSongInfo(bvid);
             return s ? (s.name || s.title || bvid) : (bvid || '未知');
         }
 
@@ -2182,6 +2403,7 @@
             return 0;
         }
         let playMode = 'list';        // 'list' | 'single' | 'random'
+        let playScope = 'all';        // 'all' | 'favorites' | 'downloaded'
 
         const btnPlayPause = document.getElementById('btn-play-pause');
         const btnModeCycle = document.getElementById('btn-mode-cycle');
@@ -2198,6 +2420,8 @@
         }
 
         function updateProgressDisplay() {
+            applyResumePosition();
+            savePlaybackSession(false);
             const t = bgmAudio.currentTime;
             let d = bgmAudio.duration;
 
@@ -2213,6 +2437,7 @@
             }
 
             // 性能救星：如果浏览器切到后台，立刻停止后续的 UI 渲染，防止系统强杀！
+            if (bulkCache) bulkCache.notify();
             if (document.hidden) return;
             syncHomePlayerProgress();
 
@@ -2238,25 +2463,58 @@
             }
         }
 
-        const MODE_TITLES = {
-            list: '列表循环',
-            single: '单曲循环',
-            random: '随机播放',
-            favorites: '收藏列表循环',
-            downloaded: '播放下载'
-        };
-        function setPlayMode(mode) {
-            playMode = mode;
-            if (mode !== 'random') nextRandomBvid = null;
+        const MODE_TITLES = { list: '列表循环', single: '单曲循环', random: '随机播放' };
+        const SCOPE_TITLES = { all: '全部歌曲', favorites: '我的收藏', downloaded: '已下载' };
+
+        function invalidateNextPlayback() {
+            // 首页尚未播放时保留已准备好的第一首。
+            if (currentPlayingBvid) {
+                clearPreload();
+                stopInitialPreload();
+            }
+            preloadScheduledForBvid = null;
+        }
+
+        function syncPlaybackOptions() {
+            const summary = SCOPE_TITLES[playScope] + ' · ' + MODE_TITLES[playMode];
             if (btnModeCycle) {
                 btnModeCycle.classList.remove('is-mode-list', 'is-mode-single', 'is-mode-random', 'is-mode-favorites', 'is-mode-downloaded');
-                btnModeCycle.classList.add('is-mode-' + (mode || 'list'));
-                btnModeCycle.title = MODE_TITLES[mode] || MODE_TITLES.list;
-                btnModeCycle.setAttribute('aria-label', (MODE_TITLES[mode] || MODE_TITLES.list) + '，点击切换播放模式');
+                btnModeCycle.classList.add('is-mode-' + playMode);
+                btnModeCycle.title = summary;
+                btnModeCycle.setAttribute('aria-label', summary + '，打开播放方式');
                 const label = document.getElementById('play-mode-label');
-                if (label) label.textContent = ({ list: '列表循环', single: '单曲循环', random: '随机播放', favorites: '收藏循环', downloaded: '下载循环' })[mode] || '列表循环';
+                if (label) label.textContent = playScope === 'all' ? MODE_TITLES[playMode]
+                    : ({ favorites: '收藏', downloaded: '下载' })[playScope] + '·' + ({ list: '循环', single: '单曲', random: '随机' })[playMode];
             }
-            try { localStorage.setItem(PLAY_MODE_STORAGE_KEY, mode || 'list'); } catch (e) {}
+            document.querySelectorAll('[data-play-scope]').forEach(function (button) {
+                button.setAttribute('aria-pressed', String(button.dataset.playScope === playScope));
+                button.disabled = button.dataset.playScope === 'favorites' && !getFavoritesList().length ||
+                    button.dataset.playScope === 'downloaded' && !getDownloadedList().length;
+            });
+            document.querySelectorAll('[data-play-order]').forEach(function (button) {
+                button.setAttribute('aria-pressed', String(button.dataset.playOrder === playMode));
+            });
+            const status = document.getElementById('playback-options-status');
+            if (status) status.textContent = summary;
+        }
+
+        function setPlayMode(mode) {
+            if (!['list', 'single', 'random'].includes(mode)) mode = 'list';
+            if (playMode !== mode) invalidateNextPlayback();
+            playMode = mode;
+            syncPlaybackOptions();
+            try { localStorage.setItem(PLAY_MODE_STORAGE_KEY, mode); } catch (_) {}
+            savePlaybackSession(true);
+        }
+
+        function setPlayScope(scope) {
+            if (!['all', 'favorites', 'downloaded'].includes(scope)) scope = 'all';
+            if (scope === 'favorites' && !favoritesSet.size || scope === 'downloaded' && !cachedBvidsSet.size) scope = 'all';
+            if (playScope !== scope) invalidateNextPlayback();
+            playScope = scope;
+            syncPlaybackOptions();
+            try { localStorage.setItem(PLAY_SCOPE_STORAGE_KEY, scope); } catch (_) {}
+            savePlaybackSession(true);
         }
 
         /** 收藏列表（保持 songList 顺序） */
@@ -2274,8 +2532,8 @@
 
         /** 当前模式下的可播列表 */
         function getEffectiveList() {
-            if (playMode === 'favorites') return getFavoritesList();
-            if (playMode === 'downloaded') return getDownloadedList();
+            if (playScope === 'favorites') return getFavoritesList();
+            if (playScope === 'downloaded') return getDownloadedList();
             return songList;
         }
 
@@ -2311,38 +2569,43 @@
         }
 
         function getNextBvid() {
-            const list = getEffectiveList();
+            const queued = getQueuedNext();
+            if (queued) return queued.bvid;
+            const list = playMode === 'random' ? getRandomList() : getEffectiveList();
             if (!list.length) return null;
-            const idxEff = getCurrentIndexInEffectiveList();
-            if (playMode === 'single') return currentPlayingBvid;
-            if (playMode === 'random') {
-                const idx = getCurrentIndex();
-                const i = getRandomIndex(songList.length, idx);
-                return songList[i].bvid || null;
-            }
-            if (playMode === 'favorites') {
-                const nextIdx = idxEff < 0 ? 0 : (idxEff + 1) % list.length;
-                return list[nextIdx].bvid || null;
-            }
-            const idx = getCurrentIndex();
-            const nextIdx = idx < 0 ? 0 : (idx + 1) % songList.length;
-            return songList[nextIdx].bvid || null;
+            const anchor = listeningLibrary.anchor || currentPlayingBvid;
+            if (playMode === 'single') return anchor && list.some(song => song.bvid === anchor) ? anchor : list[0].bvid;
+            if (playMode === 'random') return randomQueue.peekNext(list.map(song => song.bvid), currentPlayingBvid);
+            const index = list.findIndex(song => song.bvid === anchor);
+            return list[index < 0 ? 0 : (index + 1) % list.length].bvid || null;
         }
 
         function clearPreload() {
             preloadGeneration++;
             preloadCache = null;
             preloadInFlight = null;
-            nextRandomBvid = null;
+            initialPreloadBvid = null;
+            initialPreloadForResume = false;
+        }
+
+        function getHomeRandomBvid() {
+            // 首次随机已经在进入首页时抽好，点击时复用同一首，避免白做预加载。
+            const prepared = !currentPlayingBvid && !initialPreloadForResume && initialPreloadBvid;
+            if (prepared && !listeningLibrary.isExcluded(prepared) && songList.some(song => song.bvid === prepared)) return prepared;
+            return randomQueue.peekNext(songList.filter(song => !listeningLibrary.isExcluded(song.bvid)).map(song => song.bvid), currentPlayingBvid) || '';
         }
 
         /** 首页进入时静默预加载一首歌（不播放、不展示），以便首次播放时提速；随机选一首 */
         function runInitialPreload() {
             if (songList.length === 0) return;
             if (currentPlayingBvid) return;
-            var idx = getRandomIndex(songList.length, -1);
-            var bvid = (songList[idx].bvid || '').trim();
+            if (playScope === 'downloaded') return;
+            const candidates = songList.filter(song => !listeningLibrary.isExcluded(song.bvid));
+            var idx = getRandomIndex(candidates.length, -1);
+            initialPreloadForResume = !!(resumeSession && songList.some(song => song.bvid === resumeSession.bvid));
+            var bvid = initialPreloadForResume ? resumeSession.bvid : (candidates[idx] && candidates[idx].bvid || '').trim();
             if (!bvid) return;
+            initialPreloadBvid = bvid;
             const generation = preloadGeneration;
             fetchResolveViaProxy(bvid).then(function (result) {
                 if (!result || !result.url) return;
@@ -2365,12 +2628,12 @@
          * 使用 resolve + proxy，失败后不立即重试，避免放大上游风控。
          */
         function tryPreloadNext() {
+            if (playScope === 'downloaded') return;
             const nextBvid = getNextBvid();
             if (!nextBvid || nextBvid === currentPlayingBvid) return;
             if (preloadCache && preloadCache.bvid === nextBvid && Date.now() - preloadCache.createdAt < 60000) return;
             if (preloadInFlight === nextBvid) return;
             preloadInFlight = nextBvid;
-            if (playMode === 'random') nextRandomBvid = nextBvid;
             (async function () {
                 const result = await fetchResolveViaProxy(nextBvid);
                 const url = result && result.url;
@@ -2389,52 +2652,24 @@
             });
         }
 
-        /** 剩余时间 ≤ PRELOAD_AHEAD_SEC 时触发一次预加载 */
+        /** 提前准备下一首，但优先保证当前歌曲的播放缓冲。 */
         function onTimeUpdateForPreload() {
-            var d = bgmAudio.duration;
-            var t = bgmAudio.currentTime;
-            if (!isFinite(d) || d <= 0) return;
-            if (d - t > PRELOAD_AHEAD_SEC) return;
+            if (!window.SG_PLAYBACK_BUFFER.shouldPreload(bgmAudio, PRELOAD_AHEAD_SEC)) return;
             if (currentPlayingBvid === preloadScheduledForBvid) return;
             preloadScheduledForBvid = currentPlayingBvid;
             tryPreloadNext();
         }
 
         function playNextByMode() {
-            const list = getEffectiveList();
-            if (!list.length) return;
-            const idxEff = getCurrentIndexInEffectiveList();
-            if (playMode === 'single' && currentPlayingBvid) {
-                if (bgmAudio.src) {
-                    bgmAudio.currentTime = 0;
-                    bgmAudio.play();
-                    startVisuals(currentPlayingBvid);
-                    updatePlayPauseIcon();
-                } else {
-                    playMusic(currentPlayingBvid);
-                }
+            const next = getNextBvid();
+            if (!next) { if (playMode === 'random') showToast('没有可随机播放的歌曲，可在歌单的“已排除”中恢复。'); return; }
+            const queued = getQueuedNext();
+            if (!queued && playMode === 'single' && next === currentPlayingBvid && bgmAudio.src) {
+                bgmAudio.currentTime = 0;
+                togglePlayback();
                 return;
             }
-            if (playMode === 'random') {
-                if (nextRandomBvid) {
-                    const b = nextRandomBvid;
-                    nextRandomBvid = null;
-                    playMusic(b);
-                } else {
-                    const idx = getCurrentIndex();
-                    const i = getRandomIndex(songList.length, idx);
-                    playMusic(songList[i].bvid || '');
-                }
-                return;
-            }
-            if (playMode === 'favorites') {
-                const nextIdx = idxEff < 0 ? 0 : (idxEff + 1) % list.length;
-                playMusic(list[nextIdx].bvid || '');
-                return;
-            }
-            const idx = getCurrentIndex();
-            const nextIdx = idx < 0 ? 0 : (idx + 1) % songList.length;
-            playMusic(songList[nextIdx].bvid || '');
+            playMusic(next, { direction: 'forward', queueEntryId: queued && queued.bvid === next ? queued.id : null });
         }
 
         function updatePlayPauseIcon() {
@@ -2449,20 +2684,14 @@
 
         function updatePlaySongName() {
             if (!playSongNameEl) return;
-            const idx = getCurrentIndex();
-            if (idx >= 0 && songList[idx]) {
-                playSongNameEl.textContent = songList[idx].name || songList[idx].title || '—';
-            } else {
-                playSongNameEl.textContent = currentPlayingBvid ? '…' : '—';
-            }
+            playSongNameEl.textContent = currentPlayingBvid ? getSongNameByBvid(currentPlayingBvid) : '—';
             updateFavButton();
             updateDocumentTitle();
         }
 
         function updateDocumentTitle() {
             if (currentPlayingBvid && !bgmAudio.paused) {
-                const idx = getCurrentIndex();
-                const name = (idx >= 0 && songList[idx]) ? (songList[idx].name || songList[idx].title || '—') : '…';
+                const name = getSongNameByBvid(currentPlayingBvid);
                 document.title = name + ' · ' + CONFIG.titleSuffix;
             } else {
                 document.title = DEFAULT_TITLE;
@@ -2484,8 +2713,7 @@
                 }
                 navigator.mediaSession.playbackState = bgmAudio.paused ? 'paused' : 'playing';
                 if (currentPlayingBvid) {
-                    const idx = getCurrentIndex();
-                    const name = (idx >= 0 && songList[idx]) ? (songList[idx].name || songList[idx].title || '—') : '—';
+                    const name = getSongNameByBvid(currentPlayingBvid);
                     const useLockscreenLyric = (settings && settings.lockscreenLyric) === 'on';
                     const hasLyrics = typeof currentLyrics !== 'undefined' && currentLyrics && currentLyrics.length > 0;
                     const currentTxt = (hasLyrics && currentLyricIndex >= 0 && currentLyrics[currentLyricIndex])
@@ -2508,13 +2736,25 @@
         }
 
         // 原生 HLS / 普通音频播放，复用预加载并保留失败恢复。
-        async function playMusic(bvid) {
+        async function playMusic(bvid, options) {
             if (!bvid) return;
+            if (adjustMode && adjustBvid !== bvid) {
+                if (adjustSaving) { showToast('正在保存调轴，请稍候。'); return; }
+                if (!confirm('正在调轴，是否不保存并切换歌曲？')) return;
+                cancelAdjustMode();
+            }
+            savePlaybackSession(true);
             clearPlaybackError();
             const requestVersion = ++playRequestVersion;
-            if (audioCacheDownloadController) {
-                audioCacheDownloadController.abort();
-                audioCacheDownloadController = null;
+            pendingPlayback = { bvid: bvid, version: requestVersion, time: options && options.resumeTime || 0,
+                direction: options && options.direction, queueEntryId: options && options.queueEntryId,
+                queueAnchor: listeningLibrary.anchor || currentPlayingBvid,
+                preserveQueueAnchor: options && options.preserveQueueAnchor,
+                started: false, ready: false, positionApplied: false };
+            if (bulkCache && bulkCache.isActive()) bulkCache.pause('切换歌曲，已暂停缓存；缓冲充足后可继续。');
+            if (cancelAudioCacheDownload) {
+                cancelAudioCacheDownload();
+                cancelAudioCacheDownload = null;
             }
 
             preloadScheduledForBvid = null;
@@ -2523,7 +2763,7 @@
                 stopInitialPreload();
             }
 
-            const useCache = !!(settings && settings.cacheEnabled === 'on' && window.SG_CACHE && window.SG_CACHE.supported);
+            const useCache = !!(window.SG_CACHE && window.SG_CACHE.supported);
 
             // 若已开启缓存，优先尝试从 IndexedDB 读取缓存播放
             if (useCache && window.SG_CACHE && typeof window.SG_CACHE.getCachedBlob === 'function') {
@@ -2540,6 +2780,8 @@
                         activeCachedAudioUrl = URL.createObjectURL(cachedBlob);
                         bgmAudio.src = activeCachedAudioUrl;
                         bgmAudio.volume = 0.5;
+                        sessionAudioBvid = bvid;
+                        pendingPlayback.ready = true;
 
                         showLoadingInfo(bvid, 'buffering');
                         updateProgressDisplay();
@@ -2548,6 +2790,7 @@
                         try {
                             await bgmAudio.play();
                             if (requestVersion !== playRequestVersion) return;
+                            rememberStartedPlayback();
                             hideLoadingInfo();
                             startVisuals(bvid);
                             updatePlayPauseIcon();
@@ -2561,6 +2804,12 @@
                         return;
                     }
                 } catch (e) { /* 缓存异常时回退到正常流程 */ }
+            }
+
+            if (playScope === 'downloaded') {
+                hideLoadingInfo();
+                handlePlayError(bvid, new Error('这首歌的本地缓存已不可用，请切换下一首，或改为全部歌曲后重试。'));
+                return;
             }
 
             // 标记：是否使用了预加载对象
@@ -2634,6 +2883,8 @@
                 bgmAudio.volume = 0.5;
             }
 
+            sessionAudioBvid = bvid;
+            pendingPlayback.ready = true;
             showLoadingInfo(bvid, 'buffering');
             updateProgressDisplay();
             updatePlaySongName();
@@ -2641,6 +2892,7 @@
             try {
                 await bgmAudio.play();
                 if (requestVersion !== playRequestVersion) return;
+                rememberStartedPlayback();
                 clearPlaybackError();
                 hideLoadingInfo();
             } catch (err) {
@@ -2653,8 +2905,11 @@
                         realUrl = directUrl !== realUrl ? directUrl : await getLoadableRealUrl(bvid, null);
                         if (requestVersion !== playRequestVersion) return;
                         bgmAudio.src = realUrl;
+                        pendingPlayback.positionApplied = false;
+                        applyResumePosition();
                         await bgmAudio.play();
                         if (requestVersion !== playRequestVersion) return;
+                        rememberStartedPlayback();
                         clearPlaybackError();
                         hideLoadingInfo();
                     } catch (retryError) {
@@ -2673,8 +2928,8 @@
                 }
             }
 
-            // 播放成功后，如已开启缓存，则在后台拉取音频并写入 IndexedDB（避免阻塞播放）
-            if (useCache && window.SG_CACHE && window.SG_CACHE.supported &&
+            // 缓冲充足或暂停时才下载离线缓存，缓冲不足时优先播放。
+            if (useCache && settings.cacheEnabled === 'on' && window.SG_CACHE && window.SG_CACHE.supported &&
                 typeof window.SG_CACHE.saveToCache === 'function' &&
                 typeof window.SG_CACHE.getCachedBlob === 'function' && realUrl) {
                 try {
@@ -2682,21 +2937,19 @@
                         ? window.SG_CACHE.hasCached(bvid) : window.SG_CACHE.getCachedBlob(bvid);
                     hasCache.then(function (cached) {
                         if (cached || requestVersion !== playRequestVersion) return null;
-                        const controller = new AbortController();
-                        audioCacheDownloadController = controller;
-                        // 下载保存原音频，不能把 HLS 播放列表当成音频缓存。
-                        return fetch(realUrl.replace('/hls.m3u8?', '/proxy?'), { signal: controller.signal }).then(function (r) {
-                            if (!r.ok) return null;
-                            return r.blob();
-                        }).then(function (blob2) {
-                            if (blob2) {
-                                window.SG_CACHE.saveToCache(bvid, blob2);
-                                if (cachedBvidsSet) {
+                        cancelAudioCacheDownload = window.SG_PLAYBACK_BUFFER.cacheWhenBuffered({
+                            audio: bgmAudio,
+                            url: realUrl.replace('/hls.m3u8?', '/proxy?'),
+                            isCurrent: function () { return requestVersion === playRequestVersion && settings.cacheEnabled === 'on' && (!bulkCache || !bulkCache.isActive()); },
+                            save: function (blob) { return window.SG_CACHE.saveToCache(bvid, blob); },
+                            onSaved: async function () {
+                                if (await window.SG_CACHE.hasCached(bvid)) {
                                     cachedBvidsSet.add(bvid);
                                     updatePlayDownloadsButton();
+                                    playlistRenderKey = '';
                                 }
-                            }
-                        }).catch(function () { });
+                            },
+                        });
                     }).catch(function () { });
                 } catch (e) { }
             }
@@ -2719,7 +2972,9 @@
             document.getElementById('playback-recovery-message').textContent = message;
             document.getElementById('playback-retry').textContent = failedPlaybackKind === 'autoplay' ? '点击播放' : '重试';
             document.getElementById('playback-bilibili').href = 'https://www.bilibili.com/video/' + encodeURIComponent(bvid);
-            document.getElementById('playback-next').disabled = !getEffectiveList().some(song => song.bvid && song.bvid !== bvid);
+            const queuedNext = listeningLibrary.list('queue').some(song => song.bvid !== bvid && (playScope !== 'downloaded' || cachedBvidsSet.has(song.bvid)));
+            const candidates = playMode === 'random' ? getRandomList() : getEffectiveList();
+            document.getElementById('playback-next').disabled = !queuedNext && !candidates.some(song => song.bvid && song.bvid !== bvid);
             playbackRecoveryEl.hidden = false;
             syncHomePlayer();
         }
@@ -2779,6 +3034,7 @@
 
         // 所有播放入口共用错误处理，避免恢复播放时出现未处理的异常。
         async function togglePlayback() {
+            if (!currentPlayingBvid && resumeSession) return resumeLastPlayback();
             if (!bgmAudio.paused) {
                 bgmAudio.pause();
                 stopVisuals();
@@ -2795,6 +3051,7 @@
             try {
                 await bgmAudio.play();
                 if (version !== playRequestVersion || bvid !== currentPlayingBvid) return;
+                rememberStartedPlayback();
                 updatePlayPauseIcon();
             } catch (error) {
                 if (version === playRequestVersion && bvid === currentPlayingBvid) handlePlayError(bvid, error);
@@ -2804,6 +3061,7 @@
         if (homePlayerToggleEl) homePlayerToggleEl.addEventListener('click', togglePlayback);
         const homePlayerOpenEl = document.getElementById('home-now-playing-open');
         if (homePlayerOpenEl) homePlayerOpenEl.addEventListener('click', function () {
+            if (!currentPlayingBvid && resumeSession) { resumeLastPlayback(); return; }
             showView('play');
             if (currentPlayingBvid && !bgmAudio.paused) startVisuals(currentPlayingBvid);
             updateProgressDisplay();
@@ -2815,29 +3073,35 @@
         const recoveryCloseButton = document.getElementById('playback-recovery-close');
         if (recoveryCloseButton) recoveryCloseButton.addEventListener('click', clearPlaybackError);
 
-        // 模式循环按钮：列表 → 单曲 → 随机 →（有收藏时）播放收藏 → 列表
-        function getModeOrder() {
-            const base = ['list', 'single', 'random'];
-            if (favoritesSet.size) base.push('favorites');
-            if (cachedBvidsSet && cachedBvidsSet.size) base.push('downloaded');
-            return base;
-        }
-        if (btnModeCycle) {
-            btnModeCycle.addEventListener('click', () => {
-                const order = getModeOrder();
-                let idx = order.indexOf(playMode);
-                if (idx < 0) idx = 0;
-                const next = order[(idx + 1) % order.length];
-                setPlayMode(next);
-            });
-        }
+        const playbackOptionsDialog = document.getElementById('playback-options-dialog');
+        if (btnModeCycle) btnModeCycle.addEventListener('click', function () {
+            syncPlaybackOptions();
+            if (!playbackOptionsDialog.open) playbackOptionsDialog.showModal();
+        });
+        document.querySelectorAll('[data-play-scope]').forEach(function (button) {
+            button.addEventListener('click', function () { setPlayScope(button.dataset.playScope); });
+        });
+        document.querySelectorAll('[data-play-order]').forEach(function (button) {
+            button.addEventListener('click', function () { setPlayMode(button.dataset.playOrder); });
+        });
+        document.getElementById('playback-options-close').addEventListener('click', function () { playbackOptionsDialog.close(); });
+        playbackOptionsDialog.addEventListener('click', function (event) {
+            if (event.target !== playbackOptionsDialog) return;
+            const bounds = playbackOptionsDialog.getBoundingClientRect();
+            if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) playbackOptionsDialog.close();
+        });
         (function initPlayMode() {
-            var saved = '';
-            try { saved = localStorage.getItem(PLAY_MODE_STORAGE_KEY) || ''; } catch (e) {}
-            if (['list', 'single', 'random', 'favorites', 'downloaded'].indexOf(saved) < 0) saved = 'list';
-            if (saved === 'favorites' && favoritesSet.size === 0) saved = 'list';
-            if (saved === 'downloaded' && (!cachedBvidsSet || !cachedBvidsSet.size)) saved = 'list';
-            setPlayMode(saved);
+            let order = 'list', scope = 'all';
+            try {
+                const saved = localStorage.getItem(PLAY_MODE_STORAGE_KEY) || 'list';
+                order = ['list', 'single', 'random'].includes(saved) ? saved : 'list';
+                scope = localStorage.getItem(PLAY_SCOPE_STORAGE_KEY) || (['favorites', 'downloaded'].includes(saved) ? saved : 'all');
+            } catch (_) {}
+            // 已下载列表由 IndexedDB 异步读取，读取完成后再校正范围。
+            playScope = ['all', 'favorites', 'downloaded'].includes(scope) ? scope : 'all';
+            if (playScope === 'favorites' && !favoritesSet.size || playScope === 'downloaded' && (!window.SG_CACHE || !window.SG_CACHE.supported)) playScope = 'all';
+            try { localStorage.setItem(PLAY_SCOPE_STORAGE_KEY, playScope); } catch (_) {}
+            setPlayMode(order);
         })();
         updatePlayPauseIcon();
 
@@ -2871,34 +3135,25 @@
         function goPrev() {
             const list = getEffectiveList();
             if (!list.length) return;
-            const idxEff = getCurrentIndexInEffectiveList();
             if (playMode === 'random') {
-                const idx = getCurrentIndex();
-                const i = getRandomIndex(songList.length, idx);
-                playMusic(songList[i].bvid || '');
+                const previous = randomQueue.peekPrevious(list.map(song => song.bvid));
+                if (previous) playMusic(previous, { direction: 'back' });
+                else showToast('还没有更早的播放记录。');
             } else {
-                const prevIdx = idxEff <= 0 ? list.length - 1 : idxEff - 1;
-                playMusic(list[prevIdx].bvid || '');
+                const index = getCurrentIndexInEffectiveList();
+                playMusic(list[index <= 0 ? list.length - 1 : index - 1].bvid || '');
             }
         }
         function goNext() {
+            const queued = getQueuedNext();
+            if (queued) { playMusic(queued.bvid, { direction: 'forward', queueEntryId: queued.id }); return; }
             const list = getEffectiveList();
             if (!list.length) return;
-            const idxEff = getCurrentIndexInEffectiveList();
-            if (playMode === 'random') {
-                if (nextRandomBvid) {
-                    const b = nextRandomBvid;
-                    nextRandomBvid = null;
-                    playMusic(b);
-                } else {
-                    const idx = getCurrentIndex();
-                    const i = getRandomIndex(songList.length, idx);
-                    playMusic(songList[i].bvid || '');
-                }
-            } else {
-                const nextIdx = idxEff < 0 ? 0 : (idxEff + 1) % list.length;
-                playMusic(list[nextIdx].bvid || '');
-            }
+            // 手动下一首在单曲循环时仍然切到下一首。
+            const index = list.findIndex(song => song.bvid === (listeningLibrary.anchor || currentPlayingBvid));
+            const next = playMode === 'random' ? getNextBvid() : list[index < 0 ? 0 : (index + 1) % list.length].bvid;
+            if (next) playMusic(next, { direction: 'forward' });
+            else showToast('没有可随机播放的歌曲，可在歌单的“已排除”中恢复。');
         }
         if (btnPrev) btnPrev.addEventListener('click', goPrev);
         if (btnNext) btnNext.addEventListener('click', goNext);
@@ -3172,6 +3427,10 @@
         var adjustRows = [];
         var activeAdjustRow = null;
         var adjustHighlightIndex = -2;
+        var adjustOriginalLyrics = null;
+        var adjustShiftBase = null;
+        var adjustShiftSeconds = 0;
+        var adjustSaving = false;
 
         var btnLyrics = document.getElementById('btn-lyrics');
         var lyricsViewEl = document.getElementById('lyrics-view');
@@ -3216,18 +3475,15 @@
             }
             if (lyricsViewOpen) {
                 lyricsFirstScrollDone = false; // 每次进入歌词模式重新计算第一次滚动
-                renderLyricsScroll();
+                if (adjustMode) renderAdjustScroll();
+                else renderLyricsScroll();
             }
         }
 
         /** 将 [{time, text}] 转换为 LRC 文本 */
         function lyricsToLrcText(lines) {
             return lines.filter(function (l) { return l.text; }).map(function (l) {
-                var t = l.time;
-                var min = Math.floor(t / 60);
-                var sec = Math.floor(t % 60);
-                var ms = Math.round((t - Math.floor(t)) * 100);
-                return '[' + String(min).padStart(2, '0') + ':' + String(sec).padStart(2, '0') + '.' + String(ms).padStart(2, '0') + '] ' + l.text;
+                return '[' + formatLrcTime(l.time) + '] ' + l.text;
             }).join('\n');
         }
 
@@ -3251,6 +3507,7 @@
 
         /** 渲染歌词滚动区域 */
         function renderLyricsScroll() {
+            if (adjustMode) { renderAdjustScroll(); return; }
             if (!lyricsScrollEl) return;
             lyricsScrollEl.innerHTML = '';
             lyricLineElements = [];
@@ -3580,8 +3837,22 @@
             // 1. 顶部提示说明 (带 Icon)
             var hintEl = document.createElement('div');
             hintEl.className = 'adjust-hint';
-            hintEl.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> 播放到合适的时间点，点击对应歌词行即可对齐时间';
+            hintEl.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> 播放到对应歌词时，点击该行对齐';
             lyricsScrollEl.appendChild(hintEl);
+
+            const shiftControls = document.createElement('div');
+            shiftControls.className = 'lyric-shift-controls';
+            shiftControls.setAttribute('role', 'group');
+            shiftControls.setAttribute('aria-label', '整首歌词微调');
+            shiftControls.innerHTML = '<button type="button" data-lyric-shift="-0.5">提前 0.5 秒</button>' +
+                '<button type="button" data-lyric-shift="0.5">延后 0.5 秒</button>' +
+                '<button type="button" id="lyric-shift-reset" aria-label="重置本次调整" title="恢复进入调轴时的时间">重置</button>' +
+                '<span class="lyric-shift-status" id="lyric-shift-status" role="status">整首微调 · 保存后生效</span>';
+            shiftControls.querySelectorAll('[data-lyric-shift]').forEach(function (button) {
+                button.addEventListener('click', function () { shiftAdjustLyrics(Number(button.dataset.lyricShift)); });
+            });
+            shiftControls.querySelector('#lyric-shift-reset').addEventListener('click', resetAdjustLyrics);
+            lyricsScrollEl.appendChild(shiftControls);
 
             // 2. 渲染时间轴列表
             adjustLyrics.forEach(function (line, idx) {
@@ -3643,9 +3914,10 @@
 
         /** 格式化秒数为 LRC 时间格式 MM:SS.cs */
         function formatLrcTime(t) {
-            var min = Math.floor(t / 60);
-            var sec = Math.floor(t % 60);
-            var cs = Math.round((t - Math.floor(t)) * 100);
+            var total = Math.max(0, Math.round(t * 100));
+            var min = Math.floor(total / 6000);
+            var sec = Math.floor(total / 100) % 60;
+            var cs = total % 100;
             return String(min).padStart(2, '0') + ':' + String(sec).padStart(2, '0') + '.' + String(cs).padStart(2, '0');
         }
 
@@ -3663,7 +3935,7 @@
 
         /** 对指定歌词行应用当前进度时间，后续行同步偏移 */
         function applyAdjustTime(idx) {
-            if (!adjustLyrics) return;
+            if (!adjustLyrics || adjustSaving) return;
             var newTime = bgmAudio.currentTime;
 
             // 不得超过上一句（可等于）
@@ -3689,10 +3961,41 @@
             });
 
             showToast('已设置第 ' + (idx + 1) + ' 行时间。');
+            adjustShiftBase = adjustLyrics.map(line => ({ time: line.time, text: line.text }));
+            adjustShiftSeconds = 0;
+            document.getElementById('lyric-shift-status').textContent = '逐句调整后，可继续整首微调 · 保存后生效';
+        }
+
+        function refreshAdjustTimes() {
+            lyricsScrollEl.querySelectorAll('.adjust-lyric-row').forEach(function (row) {
+                row.querySelector('.adjust-lyric-time').textContent = formatLrcTime(adjustLyrics[Number(row.dataset.idx)].time);
+            });
+            adjustHighlightIndex = -2;
+            updateAdjustHighlight();
+        }
+
+        function shiftAdjustLyrics(seconds) {
+            if (!adjustMode || !adjustShiftBase || adjustSaving) return;
+            adjustShiftSeconds = Math.round((adjustShiftSeconds + seconds) * 10) / 10;
+            // 每次从基准计算，提前到 0 秒后再延后也不会丢失原时间。
+            adjustLyrics = window.SG_PLAYBACK_STATE.shiftLyrics(adjustShiftBase, adjustShiftSeconds);
+            refreshAdjustTimes();
+            document.getElementById('lyric-shift-status').textContent = (adjustShiftSeconds === 0 ? '未偏移' :
+                '整首' + (adjustShiftSeconds < 0 ? '提前 ' : '延后 ') + Math.abs(adjustShiftSeconds).toFixed(1) + ' 秒') + ' · 保存后生效';
+        }
+
+        function resetAdjustLyrics() {
+            if (!adjustMode || !adjustOriginalLyrics || adjustSaving) return;
+            adjustLyrics = window.SG_PLAYBACK_STATE.shiftLyrics(adjustOriginalLyrics, 0);
+            adjustShiftBase = window.SG_PLAYBACK_STATE.shiftLyrics(adjustOriginalLyrics, 0);
+            adjustShiftSeconds = 0;
+            refreshAdjustTimes();
+            document.getElementById('lyric-shift-status').textContent = '已恢复进入调轴时的时间 · 保存后生效';
         }
 
         /** 进入调轴模式 */
         function enterAdjustMode() {
+            if (adjustMode) return;
             if (!currentLyrics || !currentLyrics.length) {
                 showToast('当前无歌词，无法调轴。');
                 return;
@@ -3705,14 +4008,21 @@
             adjustBvid = currentPlayingBvid || '';
             // 深拷贝歌词
             adjustLyrics = currentLyrics.map(function (l) { return { time: l.time, text: l.text }; });
+            adjustOriginalLyrics = window.SG_PLAYBACK_STATE.shiftLyrics(currentLyrics, 0);
+            adjustShiftBase = window.SG_PLAYBACK_STATE.shiftLyrics(currentLyrics, 0);
+            adjustShiftSeconds = 0;
             renderAdjustScroll();
         }
 
         /** 保存调轴结果 */
         function saveAdjustMode() {
+            if (adjustSaving) return;
             if (!adjustLyrics || !adjustBvid) { cancelAdjustMode(); return; }
             var lrcText = lyricsToLrcText(adjustLyrics);
+            adjustSaving = true;
+            lyricsViewEl.querySelectorAll('.lyric-shift-controls button, .btn-adjust-action').forEach(button => { button.disabled = true; });
             window.SG_LYRICS.saveUserLrc(adjustBvid, lrcText).then(function () {
+                adjustSaving = false;
                 showToast('调轴已保存生效。');
                 
                 // 清理状态与悬浮栏
@@ -3725,12 +4035,15 @@
                 // 重新加载并渲染常规歌词
                 lyricsReloadForCurrentSong();
             }).catch(function () {
+                adjustSaving = false;
+                lyricsViewEl.querySelectorAll('.lyric-shift-controls button, .btn-adjust-action').forEach(button => { button.disabled = false; });
                 showToast('保存失败，请重试。');
             });
         }
 
         /** 取消调轴模式 */
         function cancelAdjustMode() {
+            if (adjustSaving) return;
             adjustMode = false;
             adjustLyrics = null;
             adjustBvid = '';
@@ -3759,22 +4072,9 @@
         updatePlaySongName = function () {
             var prevBvid = adjustBvid;
             _origUpdatePlaySongNameForLyrics();
-            // 只有 bvid 真正变化（切歌）时才处理调轴退出
-            if (adjustMode && currentPlayingBvid !== prevBvid) {
-                var confirmed = confirm('正在调轴，是否不保存退出调轴？');
-                if (confirmed) {
-                    adjustMode = false;
-                    adjustLyrics = null;
-                    adjustBvid = '';
-                    lyricsReloadForCurrentSong();
-                } else {
-                    // 用户选择取消：保持调轴状态，重新渲染调轴视图
-                    adjustBvid = currentPlayingBvid || '';
-                    renderAdjustScroll();
-                }
-            } else if (!adjustMode) {
-                lyricsReloadForCurrentSong();
-            }
+            // 调轴的退出确认在切歌前完成，避免旧歌词关联到新歌曲。
+            if (adjustMode && currentPlayingBvid !== prevBvid) cancelAdjustMode();
+            if (!adjustMode) lyricsReloadForCurrentSong();
             if (lyricsSongNameBar) {
                 var idx = getCurrentIndex();
                 lyricsSongNameBar.textContent = (idx >= 0 && songList[idx]) ? (songList[idx].name || songList[idx].title || '—') : '—';
@@ -3998,3 +4298,99 @@
         // 歌词模块完成所有 patch 后，重新绑定 audio 事件，
         // 确保 timeupdate 触发的是包含歌词高亮的最新 updateProgressDisplay
         bindAudioEvents(bgmAudio);
+
+        function favoriteSongsForCache() {
+            const known = [...mainList, ...liveList, ...customList, ...listeningLibrary.list('recent'), ...listeningLibrary.list('queue')];
+            const seen = new Set();
+            return known.filter(song => song.bvid && isFavorite(song.bvid) && !seen.has(song.bvid) && seen.add(song.bvid))
+                .map(song => ({ bvid: song.bvid, name: song.name || song.title || song.bvid }));
+        }
+
+        function renderBulkCache() {
+            const start = document.getElementById('bulk-cache-start');
+            if (!start) return;
+            const supported = !!(window.SG_CACHE && window.SG_CACHE.supported);
+            const snapshot = bulkCache ? bulkCache.snapshot() : { state: 'idle', total: 0, done: 0, failed: 0, items: [] };
+            start.disabled = !supported || !favoriteSongsForCache().length;
+            start.hidden = ['running', 'paused'].includes(snapshot.state) && snapshot.total > 0;
+            document.getElementById('bulk-cache-pause').hidden = snapshot.state !== 'running';
+            document.getElementById('bulk-cache-resume').hidden = snapshot.state !== 'paused' || !snapshot.items.some(item => item.status === 'pending');
+            document.getElementById('bulk-cache-retry').hidden = !snapshot.failed || snapshot.state === 'running';
+            document.getElementById('bulk-cache-cancel').hidden = !snapshot.total;
+            const status = document.getElementById('bulk-cache-status');
+            status.textContent = !supported ? '当前浏览器不支持音频缓存。' : snapshot.total ?
+                '已缓存 ' + snapshot.done + ' / ' + snapshot.total + ' 首' + (snapshot.failed ? ' · 失败 ' + snapshot.failed + ' 首' : '') +
+                (snapshot.message ? '。' + snapshot.message : snapshot.state === 'complete' ? '。任务已完成。' : '') : '将收藏歌曲一次准备好，已缓存的歌曲会自动跳过。';
+            const progress = document.getElementById('bulk-cache-progress');
+            progress.hidden = !snapshot.total; progress.max = Math.max(1, snapshot.total); progress.value = snapshot.done + snapshot.failed;
+            const failures = document.getElementById('bulk-cache-failures');
+            failures.hidden = !snapshot.failed;
+            document.getElementById('bulk-cache-failure-count').textContent = '查看失败歌曲（' + snapshot.failed + '）';
+            const list = document.getElementById('bulk-cache-failure-list');
+            const fragment = document.createDocumentFragment();
+            snapshot.items.filter(item => item.status === 'failed').forEach(function (item) {
+                const row = document.createElement('li'); row.textContent = item.name + '：' + item.error; fragment.appendChild(row);
+            });
+            list.replaceChildren(fragment);
+            const marker = snapshot.state + ':' + snapshot.done + ':' + snapshot.failed;
+            if (snapshot.total && snapshot.state === 'complete' && marker !== lastBulkCacheStatus) refreshStorageUsageDisplay();
+            lastBulkCacheStatus = marker;
+        }
+
+        let lastBulkCacheStatus = '';
+        (function initListeningTools() {
+            document.querySelectorAll('[data-library-tab]').forEach(function (button) {
+                button.addEventListener('click', function () {
+                    playlistTab = button.dataset.libraryTab;
+                    if (playlistSearchEl) playlistSearchEl.value = '';
+                    playlistRenderKey = ''; syncLibraryTabs(); renderPlaylist();
+                    playlistListEl.scrollTop = 0;
+                });
+            });
+            document.getElementById('library-clear').addEventListener('click', function () {
+                if (playlistTab === 'queue') { listeningLibrary.clearQueue(); invalidateNextPlayback(); }
+                else if (playlistTab === 'recent') {
+                    if (confirm('清空最近播放记录？')) listeningLibrary.clearRecent();
+                }
+            });
+            const actions = document.getElementById('song-actions-dialog');
+            document.getElementById('song-actions-close').addEventListener('click', () => actions.close());
+            actions.addEventListener('click', function (event) {
+                const button = event.target.closest('[data-song-action]');
+                if (button) changeSongAction(button.dataset.songAction);
+                else if (event.target === actions) {
+                    const bounds = actions.getBoundingClientRect();
+                    if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) actions.close();
+                }
+            });
+            if (window.SG_CACHE && window.SG_CACHE.supported) {
+                bulkCache = window.SG_FAVORITES_CACHE.create({ storage: libraryStorage, key: PLAY_MODE_STORAGE_KEY + '_cache_job',
+                    has: bvid => window.SG_CACHE.hasCached(bvid),
+                    resolve: async function (bvid, mode, signal) { return (await biliClient.resolve(bvid, mode, false, { signal: signal })).proxyUrl; },
+                    save: (bvid, blob) => window.SG_CACHE.saveToCache(bvid, blob),
+                    canDownload: function () {
+                        if (loadingBvid) return false;
+                        const buffered = window.SG_PLAYBACK_BUFFER.ahead(bgmAudio);
+                        return bgmAudio.paused || buffered >= 20 || Number.isFinite(bgmAudio.duration) && buffered + 0.25 >= bgmAudio.duration - bgmAudio.currentTime;
+                    },
+                    onSaved: function (bvid) {
+                        cachedBvidsSet.add(bvid); updatePlayDownloadsButton(); playlistRenderKey = '';
+                        if (viewPlaylist.classList.contains('is-open')) renderPlaylist();
+                    },
+                    onChange: renderBulkCache,
+                });
+            }
+            function prepareBulkCache() {
+                if (cancelAudioCacheDownload) { cancelAudioCacheDownload(); cancelAudioCacheDownload = null; }
+            }
+            document.getElementById('bulk-cache-start').addEventListener('click', function () {
+                if (!bulkCache) return;
+                prepareBulkCache();
+                bulkCache.start(favoriteSongsForCache(), getCurrentAudioMode());
+            });
+            document.getElementById('bulk-cache-pause').addEventListener('click', () => bulkCache && bulkCache.pause());
+            document.getElementById('bulk-cache-resume').addEventListener('click', function () { if (bulkCache) { prepareBulkCache(); bulkCache.resume(); } });
+            document.getElementById('bulk-cache-retry').addEventListener('click', function () { if (bulkCache) { prepareBulkCache(); bulkCache.retry(); } });
+            document.getElementById('bulk-cache-cancel').addEventListener('click', function () { if (bulkCache) bulkCache.cancel(); });
+            syncLibraryTabs(); renderBulkCache();
+        })();

@@ -398,6 +398,35 @@ body.is-background #scene * {
 .home-now-playing .home-now-playing-toggle { width: 42px; height: 42px; border: 0; cursor: pointer; box-shadow: none; display: grid; place-items: center; }
 .home-now-playing .home-now-playing-toggle svg { width: 20px; height: 20px; }
 .home-now-playing-toggle:disabled { opacity: 0.4; cursor: wait; }
+.playback-options-dialog {
+    width: min(420px, calc(100vw - 36px));
+    max-height: calc(100dvh - 48px);
+    overflow: auto;
+    box-sizing: border-box;
+    border: 1px solid rgba(0,0,0,0.06);
+    border-radius: 24px;
+    padding: 24px;
+    color: var(--text-main);
+    background: #fff;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.15);
+}
+.playback-options-dialog::backdrop { background: rgba(0,0,0,0.25); backdrop-filter: blur(6px); }
+.playback-options-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+.playback-options-heading h3 { margin: 0; font-size: 18px; }
+.playback-options-dialog fieldset { border: 0; padding: 0; margin: 0 0 22px; min-width: 0; }
+.playback-options-dialog legend { margin-bottom: 10px; padding: 0; font-size: 13px; color: var(--text-sub); }
+.playback-option-buttons { display: flex; gap: 6px; padding: 4px; border-radius: 14px; background: #f5f5f7; }
+.playback-option-buttons button { flex: 1; min-width: 0; min-height: 44px; padding: 8px 2px; border: 0; border-radius: 10px; background: transparent; color: var(--text-sub); font: inherit; font-size: 12px; cursor: pointer; }
+.playback-option-buttons button[aria-pressed="true"] { background: #fff; color: var(--text-main); box-shadow: 0 2px 8px rgba(0,0,0,0.06); font-weight: 600; }
+.playback-option-buttons button:disabled { opacity: 0.35; cursor: default; }
+.playback-option-buttons button:focus-visible, .lyric-shift-controls button:focus-visible { outline: 2px solid var(--text-main); outline-offset: 2px; }
+.playback-options-status { font-size: 13px; font-weight: 600; margin: 0 0 8px; }
+.playback-options-hint { font-size: 12px; color: var(--text-sub); line-height: 1.6; margin: 0; }
+.lyric-shift-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; padding: 8px 0; margin-bottom: 8px; }
+.lyric-shift-controls button { min-height: 44px; border: 1px solid rgba(0,0,0,0.06); border-radius: 999px; padding: 8px 10px; background: rgba(255,255,255,0.9); color: var(--text-main); font: inherit; font-size: 12px; cursor: pointer; }
+.lyrics-view:has(.lyric-shift-controls) .adjust-hint { margin-bottom: 8px; }
+.lyric-shift-controls button:disabled { opacity: 0.4; cursor: wait; }
+.lyric-shift-status { width: 100%; color: var(--text-sub); font-size: 12px; text-align: center; }
 .home-now-playing-progress { position: absolute; bottom: 0; left: 0; width: 100%; height: 2px; background: rgba(0,0,0,0.035); }
 .home-now-playing-progress span { display: block; height: 100%; background: #888; transform-origin: left; transform: scaleX(0); }
 
@@ -677,6 +706,36 @@ body.is-background #scene * {
     background: var(--neon-blue-soft);
     border-left-color: var(--neon-blue);
 }
+
+.library-tabs { display: flex; gap: 4px; margin: 4px 20px 8px; padding: 4px; background: rgba(0,0,0,0.035); border-radius: 14px; }
+.library-tabs button { flex: 1; min-width: 0; min-height: 44px; border: 0; border-radius: 10px; background: transparent; color: var(--text-sub); font: inherit; font-size: 12px; cursor: pointer; }
+.library-tabs button[aria-pressed="true"] { background: #fff; color: var(--text-main); font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+.library-description { display: flex; align-items: flex-start; gap: 10px; padding: 0 24px 6px; }
+.library-description p { flex: 1; margin: 0; font-size: 11px; line-height: 1.6; color: var(--text-sub); }
+.library-description button { flex-shrink: 0; min-height: 36px; border: 0; padding: 0; color: var(--text-sub); background: none; font-size: 11px; cursor: pointer; }
+.playlist-entry { display: flex; align-items: stretch; min-width: 0; }
+.playlist-entry .playlist-item { flex: 1; width: auto; min-width: 0; padding-right: 8px; }
+.playlist-item-copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.playlist-item-meta { font-size: 10px; font-weight: 400; line-height: 1.4; color: var(--text-sub); white-space: normal; }
+.playlist-more { flex-shrink: 0; min-width: 44px; min-height: 44px; padding: 0 12px; margin-right: 8px; border: 0; border-radius: 12px; background: transparent; color: var(--text-sub); font-size: 20px; cursor: pointer; }
+.playlist-more:hover { background: rgba(0,0,0,0.035); }
+.library-empty { padding: 32px 24px; color: var(--text-sub); line-height: 1.8; font-size: 13px; text-align: center; }
+.song-actions-dialog .playback-options-heading { gap: 16px; }
+.song-actions-dialog h3 { min-width: 0; overflow-wrap: anywhere; }
+.song-action-buttons { display: flex; flex-direction: column; gap: 8px; }
+.song-action-buttons button:disabled { opacity: 0.35; cursor: default; }
+.song-action-buttons button, .bulk-cache-actions button { min-height: 44px; border: 1px solid rgba(0,0,0,0.06); border-radius: 12px; background: #f5f5f7; color: var(--text-main); padding: 10px 14px; font: inherit; font-size: 13px; cursor: pointer; }
+.bulk-cache-section { gap: 10px; }
+.bulk-cache-section .row-hint { margin: 0; line-height: 1.7; }
+.bulk-cache-section progress { width: 100%; height: 6px; accent-color: #555; }
+.bulk-cache-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.bulk-cache-actions button { font-size: 12px; }
+.bulk-cache-actions button:disabled { opacity: 0.4; cursor: default; }
+#bulk-cache-failures { width: 100%; font-size: 12px; color: var(--text-sub); line-height: 1.7; }
+#bulk-cache-failures summary { cursor: pointer; padding: 6px 0; }
+#bulk-cache-failure-list { padding-left: 18px; max-height: 160px; overflow-y: auto; overflow-wrap: anywhere; }
+.library-description[hidden], .library-description [hidden], .bulk-cache-section [hidden], .song-action-buttons [hidden] { display: none; }
+.library-tabs button:focus-visible, .playlist-more:focus-visible, .song-action-buttons button:focus-visible, .bulk-cache-actions button:focus-visible { outline: 2px solid var(--text-main); outline-offset: 2px; }
 
 .playlist-item-main {
     display: flex;

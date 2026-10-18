@@ -20,8 +20,9 @@ for (const mode of ['list', 'single', 'random']) {
         const played = [];
         const sandbox = vm.createContext({
             failedPlaybackBvid: B, currentPlayingBvid: A, playMode: mode,
+            listeningLibrary: { list: () => [], isExcluded: () => false }, getQueuedNext: () => null,
             getEffectiveList: () => [A, B, C].map(bvid => ({ bvid })),
-            getRandomIndex: () => 0,
+            randomQueue: { skip() {}, peekNext: () => A },
             playMusic: id => played.push(id),
         });
         vm.runInContext(functionSource('playNextAfterFailure', '\n        const playlistSearchEl') + '\nplayNextAfterFailure();', sandbox);
@@ -31,6 +32,7 @@ for (const mode of ['list', 'single', 'random']) {
 
 test('a one-song list is not repeatedly retried by the next action', () => {
     const sandbox = vm.createContext({
+        listeningLibrary: { list: () => [] }, getQueuedNext: () => null,
         failedPlaybackBvid: A, getEffectiveList: () => [{ bvid: A }],
         playMusic() { assert.fail('must not retry automatically'); },
     });
@@ -42,7 +44,8 @@ test('autoplay recovery calls play immediately without a new resolution request'
     const sandbox = vm.createContext({
         failedPlaybackBvid: A, currentPlayingBvid: A, failedPlaybackKind: 'autoplay',
         bgmAudio: { src: 'https://example/audio', async play() { played++; } },
-        clearPlaybackError() { cleared++; }, updatePlayPauseIcon() {},
+        pendingPlayback: null, sessionAudioBvid: '',
+        clearPlaybackError() { cleared++; }, rememberStartedPlayback() {}, updatePlayPauseIcon() {},
         playMusic() { assert.fail('autoplay recovery must retain the gesture'); },
         handlePlayError() { assert.fail('unexpected play error'); },
     });
@@ -56,6 +59,7 @@ test('ordinary error retry resolves the failed song, even if another song is sti
     const played = [];
     const sandbox = vm.createContext({
         failedPlaybackBvid: B, currentPlayingBvid: A, failedPlaybackKind: '',
+        pendingPlayback: null, sessionAudioBvid: '',
         clearPlaybackError() {}, playMusic: id => played.push(id),
     });
     vm.runInContext('async ' + functionSource('retryPlayback', '\n        function playNextAfterFailure'), sandbox);
@@ -68,6 +72,7 @@ test('recovery card exposes the song and safe destination without leaking opaque
     const recovery = { hidden: true };
     const sandbox = vm.createContext({
         failedPlaybackBvid: '', failedPlaybackKind: '', currentPlayingBvid: A,
+        playMode: 'list', playScope: 'all', listeningLibrary: { list: () => [] },
         bgmAudio: { paused: true }, playbackRecoveryEl: recovery,
         document: { getElementById: id => elements[id] },
         getSongNameByBvid: () => '测试歌曲', getEffectiveList: () => [{ bvid: B }],

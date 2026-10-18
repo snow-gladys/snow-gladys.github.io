@@ -245,19 +245,16 @@ async function hlsPlaylist(request, url, corsHeaders) {
           if (response.body) await response.body.cancel();
           throw new ApiError(502, "INVALID_AUDIO_INDEX", "音频索引读取失败，请使用普通播放。", { stage: "hls" });
         }
-        const reader = response.body.getReader(), chunks = [];
-        let read = 0;
-        for (;;) {
-          const chunk = await reader.read();
-          if (chunk.done) break;
-          read += chunk.value.length;
-          if (read > length) { await reader.cancel(); throw new ApiError(502, "INVALID_AUDIO_INDEX", "音频索引长度异常。"); }
-          chunks.push(chunk.value);
+        const contentLength = response.headers.get("Content-Length");
+        if (contentLength !== null && Number(contentLength) !== length) {
+          if (response.body) await response.body.cancel();
+          throw new ApiError(502, "INVALID_AUDIO_INDEX", "音频索引长度异常。");
         }
-        if (read !== length) throw new ApiError(502, "INVALID_AUDIO_INDEX", "音频索引不完整。");
-        const bytes = new Uint8Array(read); let offset = 0;
-        for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-        const parsed = parseAudioIndex(bytes.buffer, index.start);
+        // 索引已限制在 256 KiB 内，小于 EdgeOne arrayBuffer() 的 1 MiB 上限。
+        // 使用运行时提供的二进制读取方法，避免依赖流块类型和结束状态差异。
+        const buffer = await response.arrayBuffer();
+        if (buffer.byteLength !== length) throw new ApiError(502, "INVALID_AUDIO_INDEX", "音频索引不完整。");
+        const parsed = parseAudioIndex(buffer, index.start);
         if (parsed.some(item => item.offset + item.length > Number(expected[1]))) throw new ApiError(502, "INVALID_AUDIO_INDEX", "音频分段超出文件范围。");
         if (HLS_INDEX_CACHE.size >= 32) HLS_INDEX_CACHE.delete(HLS_INDEX_CACHE.keys().next().value);
         HLS_INDEX_CACHE.set(key, { segments: parsed, expires: Date.now() + 60000 });

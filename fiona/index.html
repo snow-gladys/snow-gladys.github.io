@@ -6,7 +6,7 @@
     <link rel="icon" href="../imgs/icon_xinyi.png" type="image/png">
     <title>心宜 · Fiona</title>
     <link rel="preconnect" href="https://snow-gladys-api-zone-3msnp1a62hlu-1304656834.eo-edgefunctions.com" crossorigin>
-    <link rel="stylesheet" href="../index.css?v=20261018-lyrics-search">
+    <link rel="stylesheet" href="../index.css?v=20261018-listening-tools">
     <link rel="stylesheet" href="theme.css?v=20261018-perf">
 </head>
 <body>
@@ -110,6 +110,13 @@
                         </svg>
                     </button>
                 </div>
+                <nav class="library-tabs" aria-label="歌单分类">
+                    <button type="button" data-library-tab="songs" aria-pressed="true">歌曲</button>
+                    <button type="button" data-library-tab="queue" aria-pressed="false">待播</button>
+                    <button type="button" data-library-tab="recent" aria-pressed="false">最近</button>
+                    <button type="button" data-library-tab="excluded" aria-pressed="false">已排除</button>
+                </nav>
+                <div class="library-description"><p id="library-hint" hidden></p><button type="button" id="library-clear" hidden>清空待播</button></div>
                 <div class="playlist-body">
                     <div class="playlist-list" id="playlist-list"></div>
                     <div class="playlist-alpha-bar" id="playlist-alpha-bar" aria-label="字母索引"></div>
@@ -387,12 +394,25 @@
                             <div class="row-hint" id="storage-usage-display" style="width: 100%; white-space: pre-wrap; line-height: 1.6; margin-top: 4px;">计算中…</div>
                         </div>
 
+                        <div class="settings-row settings-row-block bulk-cache-section">
+                            <div class="row-label">缓存全部收藏</div>
+                            <p class="row-hint" id="bulk-cache-status" role="status" aria-live="polite"></p>
+                            <progress id="bulk-cache-progress" aria-label="收藏缓存进度" max="1" value="0" hidden></progress>
+                            <div class="bulk-cache-actions">
+                                <button type="button" id="bulk-cache-start">缓存全部收藏</button>
+                                <button type="button" id="bulk-cache-pause" hidden>暂停</button>
+                                <button type="button" id="bulk-cache-resume" hidden>继续缓存</button>
+                                <button type="button" id="bulk-cache-retry" hidden>重试失败项</button>
+                                <button type="button" id="bulk-cache-cancel" hidden>结束任务</button>
+                            </div>
+                            <details id="bulk-cache-failures" hidden><summary id="bulk-cache-failure-count">查看失败歌曲</summary><ul id="bulk-cache-failure-list"></ul></details>
+                        </div>
                         <div class="settings-row settings-row-block" style="border-top: 1px solid rgba(0,0,0,0.03);">
-                            <div class="row-label" style="font-size: 0.85rem; color: var(--text-sub);">本地缓存策略 (测试版本)</div>
+                            <div class="row-label" style="font-size: 0.85rem; color: var(--text-sub);">播放时自动缓存 (测试版本)</div>
                             <div class="segmented-control">
                                 <div class="seg-slider"></div>
                                 <button type="button" class="seg-btn btn-cache-setting" data-mode="on">边听边存</button>
-                                <button type="button" class="seg-btn btn-cache-setting" data-mode="off">不缓存</button>
+                                <button type="button" class="seg-btn btn-cache-setting" data-mode="off">不自动缓存</button>
                             </div>
                         </div>
                     </div>
@@ -632,6 +652,47 @@
         </div>
     </dialog>
 
+    <dialog class="playback-options-dialog song-actions-dialog" id="song-actions-dialog" aria-labelledby="song-actions-title">
+        <div class="playback-options-heading">
+            <h3 id="song-actions-title">歌曲操作</h3>
+            <button type="button" class="btn-close-small" id="song-actions-close" aria-label="关闭歌曲操作">×</button>
+        </div>
+        <div class="song-action-buttons">
+            <button type="button" data-song-action="next">下一首播放</button>
+            <button type="button" data-song-action="append">加入待播队列</button>
+            <button type="button" data-song-action="favorite">收藏歌曲</button>
+            <button type="button" data-song-action="exclude">不参与随机</button>
+            <button type="button" data-song-action="up" hidden>上移一首</button>
+            <button type="button" data-song-action="down" hidden>下移一首</button>
+            <button type="button" data-song-action="remove" hidden>移出待播队列</button>
+        </div>
+    </dialog>
+
+    <dialog class="playback-options-dialog" id="playback-options-dialog" aria-labelledby="playback-options-heading">
+        <div class="playback-options-heading">
+            <h3 id="playback-options-heading">播放方式</h3>
+            <button type="button" class="btn-close-small" id="playback-options-close" aria-label="关闭播放方式">×</button>
+        </div>
+        <fieldset>
+            <legend>听哪些歌</legend>
+            <div class="playback-option-buttons">
+                <button type="button" data-play-scope="all" aria-pressed="true">全部歌曲</button>
+                <button type="button" data-play-scope="favorites" aria-pressed="false">我的收藏</button>
+                <button type="button" data-play-scope="downloaded" aria-pressed="false">已下载</button>
+            </div>
+        </fieldset>
+        <fieldset>
+            <legend>按什么顺序听</legend>
+            <div class="playback-option-buttons">
+                <button type="button" data-play-order="list" aria-pressed="true">列表循环</button>
+                <button type="button" data-play-order="single" aria-pressed="false">单曲循环</button>
+                <button type="button" data-play-order="random" aria-pressed="false">随机播放</button>
+            </div>
+        </fieldset>
+        <p class="playback-options-status" id="playback-options-status" role="status">全部歌曲 · 列表循环</p>
+        <p class="playback-options-hint">选择立即生效，从下一首开始按所选范围播放。</p>
+    </dialog>
+
     <section class="playback-recovery" id="playback-recovery" hidden aria-label="播放恢复操作">
         <div class="playback-recovery-heading">
             <span class="playback-recovery-eyebrow">播放遇到了一点问题</span>
@@ -657,12 +718,16 @@
     <script src="../pinyin_dict_notone.js"></script>
     <script src="../pinyinUtil.js"></script>
     <script src="../lyrics-db.js?v=20261018-perf"></script>
-    <script src="../cache-db.js?v=20261018-perf"></script>
+    <script src="../cache-db.js?v=20261018-fast-play"></script>
     <script src="../changelog-data.js?v=202610181437"></script>
-    <script src="../bili-api.js?v=20261018-mobile-audio"></script>
+    <script src="../bili-api.js?v=20261018-listening-tools"></script>
     <script src="../favorites-import.js?v=20261018-favorites"></script>
     <script src="../lyrics-search.js?v=20261018-lyrics-search"></script>
-    <script src="../index.js?v=20261018-0010"></script>
+    <script src="../playback-buffer.js?v=20261018-fast-play"></script>
+    <script src="../playback-state.js?v=20261018-listening-tools"></script>
+    <script src="../listening-library.js?v=20261018-listening-tools"></script>
+    <script src="../favorites-cache.js?v=20261018-listening-tools"></script>
+    <script src="../index.js?v=20261018-listening-tools"></script>
 </body>
 </html>
 

@@ -113,8 +113,9 @@
                 var data = await request('/valid?' + videoQuery(id));
                 return data.valid === true ? 'valid' : data.valid === false ? 'invalid' : 'unknown';
             },
-            resolve: async function (id, mode, html) {
-                var data = await request((html ? '/resolvehtml?' : '/resolve?') + videoQuery(id) + '&mode=' + encodeURIComponent(mode || 'medium'));
+            resolve: async function (id, mode, html, options) {
+                var path = (html ? '/resolvehtml?' : '/resolve?') + videoQuery(id) + '&mode=' + encodeURIComponent(mode || 'medium');
+                var data = await (options && options.signal ? performRequest(path, options) : request(path));
                 if (typeof data.url !== 'string' || !/^https:\/\//i.test(data.url)) {
                     throw new Error('未获取到可用的音频地址，请稍后重试。');
                 }

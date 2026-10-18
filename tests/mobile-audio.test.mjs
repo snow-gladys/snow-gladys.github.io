@@ -19,8 +19,8 @@ function index(version = 0) {
     }
     return buffer;
 }
-function edge(fetch) {
-    const sandbox = vm.createContext({ URL, URLSearchParams, Request, Response, Headers, fetch, console, addEventListener() {} });
+function edge(fetch, responseClass = Response) {
+    const sandbox = vm.createContext({ URL, URLSearchParams, Request, Response: responseClass, Headers, fetch, console, addEventListener() {} });
     vm.runInContext(edgeSource, sandbox);
     return { sandbox, request: (path, method = 'GET') => sandbox.handleRequest(new Request('https://edge.example' + path, { method, headers: { Origin: 'https://snow-gladys.com' } })) };
 }
@@ -58,6 +58,27 @@ test('simultaneous manifest probes share a bounded index fetch; HEAD is bodyless
     assert.equal(await b.text(), '');
     assert.equal((await api.request(path())).status, 200);
     assert.equal(calls, 1);
+});
+
+for (const finalChunkHasDone of [false,true]) test('runtime ArrayBuffer chunks do not truncate the HLS index (final done=' + finalChunkHasDone + ')', async () => {
+    class RuntimeResponse extends Response {
+        get body() {
+            if (!super.body) return null;
+            const response = this;
+            return { getReader() {
+                let consumed = false;
+                return { async read() {
+                    if (consumed) return { done: true };
+                    consumed = true;
+                    return { value: await Response.prototype.arrayBuffer.call(response), done: finalChunkHasDone };
+                } };
+            } };
+        }
+    }
+    const api = edge(() => partial(index()), RuntimeResponse);
+    const response = await api.request(path());
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /#EXT-X-BYTERANGE:1000@882/);
 });
 
 test('manifest rejects unsafe hosts and unbounded metadata before fetching', async () => {
@@ -147,7 +168,8 @@ test('an initial preload completing after a track selection cannot start an unre
     let finish;
     const sandbox = vm.createContext({
         songList: [{ bvid: 'BV17uZQBHEDo' }], currentPlayingBvid: '', preloadGeneration: 0,
-        preloadCache: null, preloadInFlight: null, nextRandomBvid: null,
+        listeningLibrary: { isExcluded: () => false },
+        preloadCache: null, preloadInFlight: null, nextRandomBvid: null, playScope: 'all', resumeSession: null,
         globalPreloadAudio: { set src(_) { assert.fail('stale preload must not download'); } },
         getRandomIndex: () => 0, fetchResolveViaProxy: () => new Promise(resolve => { finish = resolve; }),
     });

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="imgs/icon_snow.png" type="image/png">
     <title>思诺 · Gladys</title>
-    <link rel="stylesheet" href="index.css?v=20261018-favorites">
+    <link rel="stylesheet" href="index.css?v=20261018-lyrics-search">
 </head>
 <body>
 
@@ -515,8 +515,28 @@
             <div class="settings-body">
                 <div class="custom-form-lyrics-label-row" style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
                     <label class="row-label" style="font-size: 0.9rem; font-weight: 600;">歌词内容 <span class="row-hint" style="font-size: 0.72rem; color: #86868B; font-weight: 400;">(LRC 格式)</span></label>
-                    <button type="button" class="btn-import-lrc" id="lyric-form-import-btn">导入文件</button>
+                    <div class="lyric-form-tools">
+                        <button type="button" class="btn-import-lrc" id="lyric-search-toggle" aria-expanded="false" aria-controls="lyric-search-panel">在线搜词</button>
+                        <button type="button" class="btn-import-lrc" id="lyric-form-import-btn">导入文件</button>
+                        <input type="file" id="lyric-form-file-input" accept=".lrc,.txt" hidden>
+                    </div>
                 </div>
+                <section class="lyric-search-panel" id="lyric-search-panel" hidden aria-label="在线搜索歌词">
+                    <form class="lyric-search-form" id="lyric-search-form">
+                        <input id="lyric-search-title" aria-label="搜索歌名" placeholder="歌名" maxlength="200" required>
+                        <input id="lyric-search-artist" aria-label="搜索歌手（选填）" placeholder="歌手（选填）" maxlength="100">
+                        <button type="submit">搜索</button>
+                    </form>
+                    <p class="lyric-search-status" id="lyric-search-status" role="status" aria-live="polite"></p>
+                    <div class="lyric-search-results" id="lyric-search-results" aria-label="歌词候选版本"></div>
+                    <div class="lyric-search-preview" id="lyric-search-preview" hidden>
+                        <h4 id="lyric-search-preview-name"></h4>
+                        <pre id="lyric-search-preview-text" tabindex="0" aria-label="候选歌词预览"></pre>
+                        <p id="lyric-search-note"></p>
+                        <button type="button" class="btn-import-lrc" id="lyric-search-apply">填入编辑框</button>
+                    </div>
+                    <a class="lyric-search-source" href="https://lrclib.net" target="_blank" rel="noopener noreferrer">歌词来源 LRCLIB ↗</a>
+                </section>
                 <textarea id="lyric-form-textarea" class="lyric-edit-area" 
                     placeholder="[00:00.00] 第一行歌词&#10;[00:05.00] 第二行歌词"></textarea>
                 
@@ -638,7 +658,8 @@
     <script src="changelog-data.js?v=202603071511"></script>
     <script src="bili-api.js?v=20261018-favorites"></script>
     <script src="favorites-import.js?v=20261018-favorites"></script>
-    <script src="index.js?v=20261018-favorites"></script>
+    <script src="lyrics-search.js?v=20261018-lyrics-search"></script>
+    <script src="index.js?v=20261018-lyrics-search"></script>
 </body>
 </html>
 

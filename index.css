@@ -3047,6 +3047,29 @@ input[type=number]::-webkit-outer-spin-button {
     }
 }
 
+/* 在线歌词搜索：沿用歌词编辑弹层 */
+.lyric-form-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+#lyric-form-title { max-width: calc(100% - 56px); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; line-height: 1.5; }
+#lyric-form-box .custom-form-lyrics-label-row { gap: 10px; flex-wrap: wrap; }
+.lyric-search-panel { margin-bottom: 16px; padding: 14px; border: 1px solid rgba(0,0,0,0.06); border-radius: 14px; background: rgba(0,0,0,0.015); }
+.lyric-search-panel[hidden], .lyric-search-panel [hidden] { display: none; }
+.lyric-search-form { display: flex; flex-wrap: wrap; gap: 8px; }
+.lyric-search-form input { width: 100%; min-width: 0; box-sizing: border-box; padding: 10px; border: 1px solid rgba(0,0,0,0.08); border-radius: 10px; background: #fff; color: var(--text-main); font: inherit; font-size: 13px; }
+#lyric-search-artist { flex: 1; width: 0; }
+.lyric-search-form button { border: 0; border-radius: 10px; padding: 10px 18px; background: var(--text-main); color: #fff; font: inherit; font-size: 12px; cursor: pointer; }
+.lyric-search-status, .lyric-search-preview p { font-size: 11px; line-height: 1.7; color: #888; margin: 12px 0; }
+.lyric-search-status.is-error { color: #b44848; }
+.lyric-search-results { max-height: 180px; overflow-y: auto; overscroll-behavior: contain; }
+.lyric-search-result { display: flex; flex-direction: column; gap: 5px; width: 100%; padding: 11px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--text-main); font: inherit; text-align: left; cursor: pointer; }
+.lyric-search-result[aria-pressed="true"] { border-color: rgba(0,0,0,0.12); background: #fff; }
+.lyric-search-result-title { font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.lyric-search-result-meta { font-size: 10px; color: #888; line-height: 1.6; overflow-wrap: anywhere; }
+.lyric-search-preview h4 { margin: 14px 0 8px; font-size: 12px; overflow-wrap: anywhere; }
+.lyric-search-preview pre { max-height: 160px; overflow: auto; overscroll-behavior: contain; margin: 0; padding: 12px; border-radius: 10px; background: #fff; font-size: 11px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
+.lyric-search-source { display: block; width: fit-content; margin-top: 12px; color: #999; font-size: 10px; text-decoration: none; }
+.lyric-search-panel :focus-visible { outline: 2px solid var(--text-main); outline-offset: 2px; }
+@media (max-width: 768px) { .lyric-search-form input { font-size: 16px; } }
+
 /* 公开收藏夹导入 */
 .favorites-import-dialog { width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); box-sizing: border-box; padding: 24px; border: 1px solid rgba(0,0,0,0.06); border-radius: 24px; background: #fafafc; color: var(--text-main); box-shadow: 0 24px 80px rgba(0,0,0,0.16); overflow-y: auto; font: inherit; }
 .favorites-import-dialog::backdrop { background: rgba(0,0,0,0.18); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }

@@ -3780,6 +3780,20 @@
         };
 
         // ── 歌词弹层（添加/编辑）──────────────────────────────────────
+        var lyricFormVersion = 0;
+        var lyricFormEdited = false;
+        var lyricSearch = window.SG_LYRIC_SEARCH.create({
+            getText: function () { return document.getElementById('lyric-form-textarea').value; },
+            onApply: function (lrc) {
+                var textarea = document.getElementById('lyric-form-textarea');
+                textarea.value = lrc;
+                textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            },
+            onApplied: function (timed) {
+                showToast(timed ? '已填入歌词，保存后可继续调轴。' : '已填入纯文本歌词，保存后请逐句调轴。', 4500);
+                document.getElementById('lyric-form-textarea').focus();
+            },
+        });
         /** 打开歌词编辑表单并预加载内容 */
         async function openLyricForm(bvid, songName) {
             if (!window.SG_LYRICS || !window.SG_LYRICS.supported) {
@@ -3800,30 +3814,38 @@
             }
             if (titleEl) titleEl.textContent = '歌词 · ' + (songName || '未知曲目');
             if (bvidSubEl) bvidSubEl.textContent = bvid || '';
+            var current = ++lyricFormVersion;
+            lyricFormEdited = false;
+            lyricSearch.reset(songName);
+            function canPrefill() { return current === lyricFormVersion && !lyricFormEdited; }
 
             // 开启弹窗与加载提示
             textarea.value = '';
             textarea.placeholder = '正在获取歌词文本...';
             backdrop.dataset.bvid = bvid || '';
             backdrop.classList.add('is-open');
-            setTimeout(function () { textarea.focus(); }, 100);
+            setTimeout(function () {
+                if (canPrefill() && document.getElementById('lyric-search-panel').hidden) textarea.focus();
+            }, 100);
 
             try {
                 // 1. 优先尝试从本地数据库获取用户修改过的歌词
                 let finalLrc = await window.SG_LYRICS.getUserLrc(bvid);
+                if (!canPrefill()) return;
 
                 // 2. 最干净的逻辑：如果用户没存过，直接顺藤摸瓜去服务器拉取原始 LRC 文件！
                 if (!finalLrc) {
                     try {
-                        // 请求歌词映射表 (加时间戳防缓存)
-                        const indexRes = await fetch('./lyrics/lyrics.json?_=' + Date.now());
+                        // 使用各站点配置的歌词目录，沿用浏览器缓存。
+                        var basePath = CONFIG.lyricsBasePath || './lyrics/';
+                        const indexRes = await fetch(basePath + 'lyrics.json');
                         if (indexRes.ok) {
                             const indexData = await indexRes.json();
                             const filename = indexData.map && indexData.map[bvid];
                             
                             // 如果在花名册里找到了，直接拉取该文件的纯文本
                             if (filename) {
-                                const lrcRes = await fetch('./lyrics/' + encodeURIComponent(filename));
+                                const lrcRes = await fetch(basePath + encodeURIComponent(filename));
                                 if (lrcRes.ok) {
                                     finalLrc = await lrcRes.text();
                                 }
@@ -3835,6 +3857,7 @@
                 }
 
                 // 3. 将最原汁原味的歌词填入输入框
+                if (!canPrefill()) return;
                 if (finalLrc) {
                     textarea.value = finalLrc;
                 } else {
@@ -3842,11 +3865,13 @@
                 }
             } catch (e) {
                 console.error("加载歌词失败:", e);
-                textarea.placeholder = '加载失败，请重试或直接粘贴。';
+                if (canPrefill()) textarea.placeholder = '加载失败，请重试或直接粘贴。';
             }
         }
 
         function closeLyricForm() {
+            lyricFormVersion++;
+            lyricSearch.close();
             var backdrop = document.getElementById('lyric-form-backdrop');
             if (backdrop) backdrop.classList.remove('is-open');
         }
@@ -3928,16 +3953,23 @@
             if (btnSubmit) btnSubmit.addEventListener('click', submitLyricForm);
             backdrop.addEventListener('click', function (e) { if (e.target === backdrop) closeLyricForm(); });
             if (box) box.addEventListener('click', function (e) { e.stopPropagation(); });
+            document.getElementById('lyric-form-textarea').addEventListener('input', function () { lyricFormEdited = true; });
             // 文件导入
             if (btnImport && fileInput) {
                 btnImport.addEventListener('click', function () { fileInput.click(); });
                 fileInput.addEventListener('change', function () {
                     var file = this.files && this.files[0];
                     if (!file) return;
+                    lyricFormEdited = true;
+                    var current = lyricFormVersion;
+                    var initialText = document.getElementById('lyric-form-textarea').value;
                     var reader = new FileReader();
                     reader.onload = function (e) {
                         var textarea = document.getElementById('lyric-form-textarea');
-                        if (textarea) textarea.value = e.target.result || '';
+                        if (textarea && current === lyricFormVersion && textarea.value === initialText) {
+                            textarea.value = e.target.result || '';
+                            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
                     };
                     reader.readAsText(file, 'UTF-8');
                     this.value = '';

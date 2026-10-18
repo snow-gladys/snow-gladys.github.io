@@ -14,6 +14,32 @@
         return 'bvid=' + encodeURIComponent(id);
     }
 
+    function favoriteId(value) {
+        var text = String(value || '').trim();
+        var id = /^(?:ml)?([1-9]\d{0,19})$/i.exec(text);
+        if (id) return id[1];
+        try {
+            var url = new URL(/^https?:\/\//i.test(text) ? text : 'https://' + text);
+            if (!['space.bilibili.com', 'www.bilibili.com', 'bilibili.com'].includes(url.hostname)) return '';
+            var path = /^\/(?:medialist\/detail|list)\/ml(\d+)(?:\/|$)/.exec(url.pathname);
+            var candidate = url.searchParams.get('fid') || url.searchParams.get('media_id') || (path && path[1]) || '';
+            return /^[1-9]\d{0,19}$/.test(candidate) ? candidate : '';
+        } catch (_) { return ''; }
+    }
+
+    function mergeCustomSongs(existing, incoming) {
+        var keys = new Set(existing.map(function (song) { return normalizeId(song.bvid); }).filter(Boolean));
+        var added = [];
+        incoming.forEach(function (song) {
+            var id = normalizeId(song.bvid);
+            var name = String(song.name || '').trim();
+            if (!id || !name || keys.has(id)) return;
+            keys.add(id);
+            added.push({ name: name, bvid: id });
+        });
+        return { songs: existing.concat(added), added: added.length };
+    }
+
     function createClient(base) {
         base = String(base || '').replace(/\/+$/, '');
         var pending = new Map();
@@ -23,17 +49,19 @@
             pending.set(path, result);
             return result;
         }
-        async function performRequest(path) {
+        async function performRequest(path, options) {
             var response;
             try {
-                response = await fetch(base + path);
-            } catch (_) {
+                response = await fetch(base + path, options);
+            } catch (error) {
+                if (error && error.name === 'AbortError') throw error;
                 throw new Error('暂时无法连接音频服务，请检查网络后重试。');
             }
             var data;
             try {
                 data = await response.json();
-            } catch (_) {
+            } catch (error) {
+                if (error && error.name === 'AbortError') throw error;
                 throw new Error('音频服务返回异常，请稍后重试。');
             }
             if (!response.ok || !data || data.error) {
@@ -45,6 +73,41 @@
             return data;
         }
         return {
+            loadFavorites: async function (input, options) {
+                options = options || {};
+                var id = favoriteId(input);
+                if (!id) throw new Error('请粘贴包含 fid 的 B 站收藏夹链接，或收藏夹编号。');
+                var items = [], seen = new Set(), scanned = 0, skipped = 0, duplicateCount = 0;
+                var title = '', owner = '', total = 0;
+                for (var page = 1; page <= 500; page++) {
+                    if (options.signal && options.signal.aborted) throw new DOMException('已取消读取', 'AbortError');
+                    var data = await performRequest('/favorites?media_id=' + id + '&pn=' + page, { signal: options.signal });
+                    if (!Array.isArray(data.items) || typeof data.hasMore !== 'boolean' || data.page !== page ||
+                        !Number.isSafeInteger(data.total) || data.total < 0 || !Number.isSafeInteger(data.scanned) || data.scanned < 0) {
+                        throw new Error('收藏夹数据不完整，请稍后重新读取。');
+                    }
+                    if (page === 1) { title = data.title || '公开收藏夹'; owner = data.owner || ''; total = data.total; }
+                    else if (data.total !== total) throw new Error('收藏夹内容在读取时发生了变化，请重新读取。');
+                    scanned += data.scanned;
+                    skipped += Number(data.skipped) || 0;
+                    var uniqueOnPage = 0;
+                    data.items.forEach(function (song) {
+                        var bvid = normalizeId(song.bvid);
+                        if (!bvid || typeof song.name !== 'string' || !song.name.trim()) { skipped++; return; }
+                        if (seen.has(bvid)) { duplicateCount++; return; }
+                        seen.add(bvid);
+                        uniqueOnPage++;
+                        items.push({ name: song.name, bvid: bvid, duration: song.duration || 0, author: song.author || '' });
+                    });
+                    if (options.onProgress) options.onProgress({ page: page, total: total, scanned: scanned, found: items.length });
+                    if (!data.hasMore) {
+                        if (scanned < total) throw new Error('收藏夹读取不完整，请稍后重新读取。');
+                        return { mediaId: id, title: title, owner: owner, total: total, items: items, skipped: skipped, duplicateCount: duplicateCount };
+                    }
+                    if (!data.scanned || (data.items.length && !uniqueOnPage)) throw new Error('收藏夹分页出现重复或缺失，请稍后重新读取。');
+                }
+                throw new Error('收藏夹超过一次可读取的范围，请拆分收藏夹后再导入。');
+            },
             validate: async function (id) {
                 if (!normalizeId(id)) return 'invalid';
                 var data = await request('/valid?' + videoQuery(id));
@@ -63,5 +126,5 @@
         };
     }
 
-    global.SG_BILI_API = { normalizeId: normalizeId, videoQuery: videoQuery, createClient: createClient };
+    global.SG_BILI_API = { normalizeId: normalizeId, videoQuery: videoQuery, favoriteId: favoriteId, mergeCustomSongs: mergeCustomSongs, createClient: createClient };
 })(window);

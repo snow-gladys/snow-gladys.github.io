@@ -3047,6 +3047,38 @@ input[type=number]::-webkit-outer-spin-button {
     }
 }
 
+/* 公开收藏夹导入 */
+.favorites-import-dialog { width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); box-sizing: border-box; padding: 24px; border: 1px solid rgba(0,0,0,0.06); border-radius: 24px; background: #fafafc; color: var(--text-main); box-shadow: 0 24px 80px rgba(0,0,0,0.16); overflow-y: auto; font: inherit; }
+.favorites-import-dialog::backdrop { background: rgba(0,0,0,0.18); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.favorites-import-dialog [hidden] { display: none; }
+.favorites-import-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 22px; }
+.favorites-import-header h3 { margin: 0; font-size: 20px; letter-spacing: -0.5px; }
+.favorites-import-header .btn-close-small { font-size: 22px; line-height: 1; }
+.favorites-read-form > label { display: block; margin-bottom: 9px; font-size: 12px; color: #777; }
+.favorites-source-row { display: flex; gap: 8px; }
+.favorites-source-row input { flex: 1; min-width: 0; padding: 12px; border: 1px solid rgba(0,0,0,0.08); border-radius: 12px; background: #fff; color: var(--text-main); font: inherit; font-size: 14px; }
+.favorites-source-row button, .favorites-import-submit { padding: 12px 16px; background: var(--text-main); color: #fff; border: 0; border-radius: 12px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.favorites-import-dialog button:disabled { opacity: 0.4; cursor: default; }
+.favorites-import-status { font-size: 12px; color: #888; line-height: 1.7; margin: 14px 0; }
+.favorites-import-status.is-error { color: #b44848; }
+.favorites-preview h4 { font-size: 16px; margin: 20px 0 6px; overflow-wrap: anywhere; }
+.favorites-preview-detail { font-size: 11px; line-height: 1.7; color: #888; margin: 0 0 15px; }
+.favorites-selection-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; font-size: 11px; color: #888; }
+.favorites-selection-bar label { display: inline-flex; align-items: center; gap: 5px; color: var(--text-main); }
+.favorites-import-dialog input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--text-main); flex-shrink: 0; }
+.favorites-preview-list { max-height: 36dvh; min-height: 0; overflow-y: auto; overscroll-behavior: contain; border: 1px solid rgba(0,0,0,0.055); border-radius: 14px; background: #fff; }
+.favorites-preview-row { display: flex; align-items: flex-start; gap: 10px; padding: 13px 12px; cursor: pointer; }
+.favorites-preview-row + .favorites-preview-row { border-top: 1px solid rgba(0,0,0,0.04); }
+.favorites-preview-row.is-existing { opacity: 0.45; cursor: default; }
+.favorites-row-copy { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.favorites-row-title { font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.favorites-row-meta { font-size: 10px; color: #999; line-height: 1.4; }
+.favorites-show-more { width: 100%; border: 0; background: none; padding: 12px 0 0; color: #888; font: inherit; font-size: 11px; cursor: pointer; }
+.favorites-import-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; }
+.favorites-import-footer > span { font-size: 10px; color: #999; }
+.favorites-import-dialog :focus-visible { outline: 2px solid var(--text-main); outline-offset: 2px; }
+@media (max-width: 480px) { .favorites-import-dialog { padding: 20px; } .favorites-source-row { flex-direction: column; } .favorites-source-row input { font-size: 16px; } .favorites-preview-list { max-height: 32dvh; } }
+
 /* --- 2. PC 端：左侧播放器的唱片防挤压 --- */
 @media (min-width: 768px) {
     .character-img.in-play-view,

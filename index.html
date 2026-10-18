@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="imgs/icon_snow.png" type="image/png">
     <title>思诺 · Gladys</title>
-    <link rel="stylesheet" href="index.css?v=20261018-player-ui">
+    <link rel="stylesheet" href="index.css?v=20261018-favorites">
 </head>
 <body>
 
@@ -581,6 +581,35 @@
         </div>
     </div>
 
+    <dialog class="favorites-import-dialog" id="favorites-import-dialog" aria-labelledby="favorites-import-heading">
+        <div class="favorites-import-header">
+            <h3 id="favorites-import-heading">从 B 站导入</h3>
+            <button type="button" class="btn-close-small" data-close-favorites aria-label="关闭收藏夹导入">×</button>
+        </div>
+        <form id="favorites-read-form" class="favorites-read-form">
+            <label for="favorites-source">公开收藏夹链接或编号</label>
+            <div class="favorites-source-row">
+                <input type="text" id="favorites-source" placeholder="粘贴包含 fid 的收藏夹链接" autocomplete="off" autocapitalize="off" spellcheck="false" required>
+                <button type="submit" id="favorites-read">读取收藏夹</button>
+            </div>
+        </form>
+        <p class="favorites-import-status" id="favorites-import-status" role="status" aria-live="polite"></p>
+        <div class="favorites-preview" id="favorites-preview" hidden>
+            <h4 id="favorites-preview-title"></h4>
+            <p class="favorites-preview-detail" id="favorites-preview-detail"></p>
+            <div class="favorites-selection-bar">
+                <label><input type="checkbox" id="favorites-select-all"> 全选待导入条目</label>
+                <span id="favorites-selection">已选择 0 项</span>
+            </div>
+            <div class="favorites-preview-list" id="favorites-preview-list" aria-label="收藏夹视频列表"></div>
+            <button type="button" class="favorites-show-more" id="favorites-show-more" hidden>显示更多</button>
+        </div>
+        <div class="favorites-import-footer">
+            <span>多分 P 视频按第 1 P 播放</span>
+            <button type="button" class="favorites-import-submit" id="favorites-import-submit" disabled>导入所选</button>
+        </div>
+    </dialog>
+
     <section class="playback-recovery" id="playback-recovery" hidden aria-label="播放恢复操作">
         <div class="playback-recovery-heading">
             <span class="playback-recovery-eyebrow">播放遇到了一点问题</span>
@@ -607,8 +636,9 @@
     <script src="lyrics-db.js?v=20261018-perf"></script>
     <script src="cache-db.js?v=20261018-perf"></script>
     <script src="changelog-data.js?v=202603071511"></script>
-    <script src="bili-api.js?v=20261018-perf"></script>
-    <script src="index.js?v=20261018-player-ui"></script>
+    <script src="bili-api.js?v=20261018-favorites"></script>
+    <script src="favorites-import.js?v=20261018-favorites"></script>
+    <script src="index.js?v=20261018-favorites"></script>
 </body>
 </html>
 

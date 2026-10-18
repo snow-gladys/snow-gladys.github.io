@@ -299,6 +299,27 @@
         let customList = [];
         let settings = getSettingsFromCookie();
         let cachedBvidsSet = new Set();
+        const favoritesImporter = window.SG_FAVORITES_IMPORT.create({
+            client: biliClient,
+            getExisting: function () { return customList; },
+            onImport: function (songs) {
+                const merged = window.SG_BILI_API.mergeCustomSongs(customList, songs);
+                if (!merged.added) throw new Error('所选内容已在自定义歌单中，无需重复导入。');
+                if (!saveCustomToStorage(merged.songs)) throw new Error('保存失败，请检查浏览器存储空间后重试。');
+                customList = merged.songs;
+                settings.showCustom = true;
+                saveSettingsToCookie(settings);
+                syncSettingsToggles();
+                buildSongList();
+                renderCustomSectionInSettings();
+                return merged.added;
+            },
+            onComplete: function (count) {
+                document.getElementById('settings-modal-backdrop').classList.remove('is-open');
+                openPlaylist();
+                showToast('已导入 ' + count + ' 项到自定义歌单。', 4500);
+            },
+        });
         let playlistRevision = 0;
         let playlistSortedItems = null;
         let playlistRenderKey = '';
@@ -978,6 +999,10 @@
                     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>' +
                     '<span>导入歌单</span></div>';
 
+            html += '<button type="button" class="btn-custom-action" id="btn-import-bilibili">' +
+                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="5" width="18" height="16" rx="4"/><path d="m7 2 3 3m7-3-3 3M8 11v4m8-4v4"/></svg>' +
+                    '<span>从 B 站导入</span></button>';
+
             // 4. 导出歌单
             html += '<div class="btn-custom-action" id="btn-export-custom">' +
                     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' +
@@ -994,6 +1019,8 @@
             if (btnManage) btnManage.addEventListener('click', openCustomManage);
             const btnExport = container.querySelector('#btn-export-custom');
             if (btnExport) btnExport.addEventListener('click', exportCustomSongsToFile);
+            const btnBilibili = container.querySelector('#btn-import-bilibili');
+            if (btnBilibili) btnBilibili.addEventListener('click', favoritesImporter.open);
 
             const fileInput = container.querySelector('#input-import-custom');
             const btnImport = container.querySelector('#btn-import-custom');
@@ -1124,7 +1151,7 @@
                 const row = document.createElement('div');
                 row.className = 'custom-manage-item';
                 row.innerHTML =
-                    '<span class="name" title="' + (x.item.name || '').replace(/"/g, '&quot;') + '"></span>' +
+                    '<span class="name"></span>' +
                     '<span class="bvid"></span>' +
                     '<button type="button" class="btn-edit">修改</button>' +
                     '<button type="button" class="btn-del">删除</button>' +
@@ -1132,6 +1159,7 @@
                     '<button type="button" class="btn-del-yes">删除</button>' +
                     '<button type="button" class="btn-del-no">取消</button></span>';
                 row.querySelector('.name').textContent = x.item.name || '—';
+                row.querySelector('.name').title = x.item.name || '';
                 row.querySelector('.bvid').textContent = x.item.bvid || '';
                 row.querySelector('.btn-edit').addEventListener('click', function (e) { e.stopPropagation(); closeCustomManage(); openCustomForm(x.idx); });
                 row.querySelector('.btn-del').addEventListener('click', function (e) {
@@ -1997,9 +2025,11 @@
                 var stateDesc = stateMap[bgmAudio.readyState] || '连接中';
                 detail = '已等待 ' + elapsed + ' 秒 · ' + stateDesc;
             }
-            loadingInfoEl.innerHTML =
-                '<div class="loading-title">歌曲《' + songName + '》加载中</div>' +
-                '<div class="loading-detail">' + detail + '</div>';
+            if (!loadingInfoEl.querySelector('.loading-title')) {
+                loadingInfoEl.innerHTML = '<div class="loading-title"></div><div class="loading-detail"></div>';
+            }
+            loadingInfoEl.querySelector('.loading-title').textContent = '歌曲《' + songName + '》加载中';
+            loadingInfoEl.querySelector('.loading-detail').textContent = detail;
         }
 
         function hideLoadingInfo() {

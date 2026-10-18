@@ -1,10 +1,11 @@
 /**
  * 腾讯云 EdgeOne 边缘函数：将本文件全部复制到现有函数中，替换后保存并部署。
- * 无依赖，无需 Cookie；保留 /fans、/resolve、/resolvehtml、/proxy、/valid。
+ * 无依赖，无需 Cookie；保留播放接口，新增 /favorites 读取公开收藏夹。
  *
  * GET /resolve?bvid=BV17uZQBHEDo&mode=medium
  * GET /resolve?bvid=BV17uZQBHEDo&p=1&mode=high
  * GET /valid?bvid=BV17uZQBHEDo
+ * GET /favorites?media_id=3736153875&pn=1 （每页 20 项）
  * /resolvehtml 与 /resolve 使用相同的独立音频解析逻辑。
  *
  * 仅 CID / 分 P 信息在单个运行实例内缓存 10 分钟；音频地址每次重新解析。
@@ -75,7 +76,11 @@ async function biliJson(path, params, stage) {
       throw new ApiError(503, "BILI_RISK_CONTROL", "B 站暂时限制了访问，请稍后重试。", details);
     }
     if (data.code === -404) {
+      if (stage === "favorites") throw new ApiError(404, "FAVORITE_NOT_FOUND", "收藏夹不存在或已被删除。", details);
       throw new ApiError(404, "VIDEO_NOT_FOUND", "视频不存在或已被删除。", details);
+    }
+    if (stage === "favorites" && [-403, -101, 11003].includes(data.code)) {
+      throw new ApiError(403, "FAVORITE_NOT_PUBLIC", "无法读取该收藏夹，请确认它已设为公开。", details);
     }
     throw new ApiError(502, "BILI_API_ERROR", "B 站暂时无法提供该内容。", details);
   }
@@ -194,6 +199,39 @@ async function handleRequest(request) {
   try {
     const url = new URL(request.url);
     if (url.pathname === "/proxy") return await proxyMedia(request, url.searchParams.get("url"), corsHeaders);
+    if (url.pathname === "/favorites") {
+      const mediaId = url.searchParams.get("media_id") || "";
+      const pn = url.searchParams.get("pn") || "1";
+      if (!/^[1-9]\d{0,19}$/.test(mediaId)) throw new ApiError(400, "INVALID_FAVORITE_ID", "请输入有效的收藏夹链接或编号。");
+      if (!/^[1-9]\d*$/.test(pn) || Number(pn) > 500) throw new ApiError(400, "INVALID_PAGE", "收藏夹页码无效。");
+      const result = await biliJson("/x/v3/fav/resource/list", new URLSearchParams({
+        media_id: mediaId, pn, ps: "20", platform: "web", order: "mtime", type: "0",
+      }), "favorites");
+      const data = result.data;
+      if (!data || !data.info || !Number.isSafeInteger(data.info.media_count) || data.info.media_count < 0 ||
+          (data.medias !== null && !Array.isArray(data.medias)) || typeof data.has_more !== "boolean") {
+        throw new ApiError(502, "UPSTREAM_INVALID_DATA", "收藏夹返回的数据不完整，请稍后重试。", { stage: "favorites" });
+      }
+      const records = data.medias || [];
+      const items = [];
+      let skipped = 0;
+      for (const item of records) {
+        const bvid = item && normalizeVideoId(item.bvid || item.bv_id);
+        const name = item && typeof item.title === "string" ? item.title.trim() : "";
+        if (!item || item.type !== 2 || !bvid || !name || Number(item.attr || 0) !== 0) { skipped++; continue; }
+        items.push({
+          name, bvid,
+          duration: Number.isFinite(item.duration) && item.duration >= 0 ? item.duration : 0,
+          author: item.upper && typeof item.upper.name === "string" ? item.upper.name : "",
+        });
+      }
+      return json({
+        mediaId, title: String(data.info.title || "公开收藏夹"),
+        owner: data.info.upper && String(data.info.upper.name || ""),
+        total: data.info.media_count, page: Number(pn), hasMore: data.has_more,
+        scanned: records.length, skipped, items,
+      });
+    }
     if (url.pathname === "/fans") {
       const vmid = url.searchParams.get("vmid") || "";
       if (!/^[1-9]\d*$/.test(vmid)) throw new ApiError(400, "INVALID_VMID", "请输入有效的用户 ID。");

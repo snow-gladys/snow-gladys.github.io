@@ -6,9 +6,10 @@
  * GET /resolve?bvid=BV17uZQBHEDo&p=1&mode=high
  * GET /valid?bvid=BV17uZQBHEDo
  * GET /favorites?media_id=3736153875&pn=1 （每页 20 项）
+ * /hls.m3u8 将 DASH 音频索引转换为原生 HLS 播放列表，不转码。
  * /resolvehtml 与 /resolve 使用相同的独立音频解析逻辑。
  *
- * 仅 CID / 分 P 信息在单个运行实例内缓存 10 分钟；音频地址每次重新解析。
+ * 单实例缓存 CID / 分 P 信息 10 分钟、分段索引 1 分钟；音频地址每次重新解析。
  * 接口或出口请求仍可能受到 B 站限制；失败时返回结构化错误，不自动重试。
  */
 const ALLOWED_ORIGINS = new Set([
@@ -25,6 +26,8 @@ const BILI_HEADERS = {
 const PAGE_CACHE = new Map();
 const PAGE_REQUESTS = new Map();
 const PAGE_CACHE_TTL = 10 * 60 * 1000;
+const HLS_INDEX_CACHE = new Map();
+const HLS_INDEX_REQUESTS = new Map();
 
 class ApiError extends Error {
   constructor(status, code, message, details = {}) {
@@ -171,9 +174,109 @@ async function proxyMedia(request, targetValue, corsHeaders) {
     const value = response.headers.get(name);
     if (value !== null) outgoing.set(name, value);
   }
+  if (response.status === 206 && /^bytes \d+-\d+\/\d+$/.test(outgoing.get("Content-Range") || "")) outgoing.set("Accept-Ranges", "bytes");
   return new Response(request.method === "HEAD" ? null : response.body, {
     status: response.status, headers: outgoing,
   });
+}
+
+function parseAudioIndex(buffer, indexStart) {
+  const view = new DataView(buffer);
+  let pos = 0;
+  function invalid() { throw new ApiError(502, "INVALID_AUDIO_INDEX", "该音频暂不支持分段播放，请使用普通播放。", { stage: "hls" }); }
+  function uint64(offset) {
+    const value = view.getUint32(offset) * 4294967296 + view.getUint32(offset + 4);
+    if (!Number.isSafeInteger(value)) invalid();
+    return value;
+  }
+  while (pos + 8 <= view.byteLength) {
+    const size = view.getUint32(pos);
+    if (size < 8 || pos + size > view.byteLength) invalid();
+    const type = String.fromCharCode(...new Uint8Array(buffer, pos + 4, 4));
+    if (type === "sidx") {
+      if (size < 32) invalid();
+      const version = view.getUint8(pos + 8), scale = view.getUint32(pos + 16);
+      if (![0, 1].includes(version) || !scale || (version === 1 && size < 40)) invalid();
+      const count = view.getUint16(pos + (version === 0 ? 30 : 38));
+      let ref = pos + (version === 0 ? 32 : 40);
+      if (!count || count > 20000 || ref + count * 12 > pos + size) invalid();
+      let offset = indexStart + pos + size + (version === 0 ? view.getUint32(pos + 24) : uint64(pos + 28));
+      const segments = [];
+      for (let i = 0; i < count; i++, ref += 12) {
+        const reference = view.getUint32(ref), length = reference & 0x7fffffff;
+        const duration = view.getUint32(ref + 4) / scale;
+        if (reference >>> 31 || !length || !duration || !Number.isSafeInteger(offset + length)) invalid();
+        segments.push({ offset, length, duration }); offset += length;
+      }
+      return segments;
+    }
+    pos += size;
+  }
+  invalid();
+}
+
+async function hlsPlaylist(request, url, corsHeaders) {
+  const target = mediaUrl(url.searchParams.get("url"));
+  function range(value) {
+    const match = /^(\d+)-(\d+)$/.exec(value || "");
+    if (!match || !Number.isSafeInteger(Number(match[2])) || Number(match[2]) < Number(match[1])) {
+      throw new ApiError(400, "INVALID_AUDIO_RANGE", "音频索引范围无效。");
+    }
+    return { start: Number(match[1]), end: Number(match[2]) };
+  }
+  const init = range(url.searchParams.get("init")), index = range(url.searchParams.get("index"));
+  const length = index.end - index.start + 1;
+  if (init.start !== 0 || init.end >= index.start || index.end > 1024 * 1024 || length > 256 * 1024) {
+    throw new ApiError(400, "INVALID_AUDIO_RANGE", "音频索引范围无效。");
+  }
+  const key = target + "|" + index.start + "-" + index.end;
+  const cached = HLS_INDEX_CACHE.get(key);
+  let segments = cached && cached.expires > Date.now() ? cached.segments : null;
+  if (!segments) {
+    let pending = HLS_INDEX_REQUESTS.get(key);
+    if (!pending) {
+      pending = (async () => {
+        const headers = new Headers(request.headers);
+        headers.set("Range", "bytes=" + index.start + "-" + index.end);
+        headers.delete("If-Range"); headers.delete("If-None-Match"); headers.delete("If-Modified-Since");
+        const response = await proxyMedia(new Request(request.url, { method: "GET", headers }), target.toString(), corsHeaders);
+        const expected = new RegExp("^bytes " + index.start + "-" + index.end + "/(\\d+)$").exec(response.headers.get("Content-Range") || "");
+        if (response.status !== 206 || !expected || Number(expected[1]) <= index.end) {
+          if (response.body) await response.body.cancel();
+          throw new ApiError(502, "INVALID_AUDIO_INDEX", "音频索引读取失败，请使用普通播放。", { stage: "hls" });
+        }
+        const reader = response.body.getReader(), chunks = [];
+        let read = 0;
+        for (;;) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          read += chunk.value.length;
+          if (read > length) { await reader.cancel(); throw new ApiError(502, "INVALID_AUDIO_INDEX", "音频索引长度异常。"); }
+          chunks.push(chunk.value);
+        }
+        if (read !== length) throw new ApiError(502, "INVALID_AUDIO_INDEX", "音频索引不完整。");
+        const bytes = new Uint8Array(read); let offset = 0;
+        for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+        const parsed = parseAudioIndex(bytes.buffer, index.start);
+        if (parsed.some(item => item.offset + item.length > Number(expected[1]))) throw new ApiError(502, "INVALID_AUDIO_INDEX", "音频分段超出文件范围。");
+        if (HLS_INDEX_CACHE.size >= 32) HLS_INDEX_CACHE.delete(HLS_INDEX_CACHE.keys().next().value);
+        HLS_INDEX_CACHE.set(key, { segments: parsed, expires: Date.now() + 60000 });
+        return parsed;
+      })().finally(() => HLS_INDEX_REQUESTS.delete(key));
+      HLS_INDEX_REQUESTS.set(key, pending);
+    }
+    segments = await pending;
+  }
+  const proxy = new URL("/proxy", url);
+  proxy.searchParams.set("url", target.toString());
+  const text = ["#EXTM3U", "#EXT-X-VERSION:7", "#EXT-X-PLAYLIST-TYPE:VOD",
+    "#EXT-X-TARGETDURATION:" + Math.ceil(Math.max(...segments.map(item => item.duration))), "#EXT-X-MEDIA-SEQUENCE:0",
+    '#EXT-X-MAP:URI="' + proxy + '",BYTERANGE="' + (init.end + 1) + '@0"',
+    ...segments.flatMap(item => ["#EXTINF:" + item.duration.toFixed(6) + ",", "#EXT-X-BYTERANGE:" + item.length + "@" + item.offset, proxy.toString()]),
+    "#EXT-X-ENDLIST", ""].join("\n");
+  return new Response(request.method === "HEAD" ? null : text, { headers: {
+    ...corsHeaders, "Content-Type": "application/vnd.apple.mpegurl", "Cache-Control": "no-store",
+  } });
 }
 
 async function handleRequest(request) {
@@ -199,6 +302,7 @@ async function handleRequest(request) {
   try {
     const url = new URL(request.url);
     if (url.pathname === "/proxy") return await proxyMedia(request, url.searchParams.get("url"), corsHeaders);
+    if (url.pathname === "/hls.m3u8") return await hlsPlaylist(request, url, corsHeaders);
     if (url.pathname === "/favorites") {
       const mediaId = url.searchParams.get("media_id") || "";
       const pn = url.searchParams.get("pn") || "1";
@@ -266,10 +370,14 @@ async function handleRequest(request) {
     const usable = Array.isArray(audios) ? audios.filter(item => item && (item.baseUrl || item.base_url)) : [];
     if (!usable.length) throw new ApiError(422, "NO_AUDIO", "该视频暂时没有可用的独立音频。", { stage: "playurl" });
     const audio = chooseAudio(mode, usable);
+    const segmentBase = audio.SegmentBase || audio.segment_base || {};
+    const initialization = segmentBase.Initialization || segmentBase.initialization;
+    const indexRange = segmentBase.indexRange || segmentBase.index_range;
     return json({
       url: audio.baseUrl || audio.base_url,
       id, cid: page.cid, page: page.page, mode,
       audioId: audio.id, mimeType: audio.mimeType || audio.mime_type || "audio/mp4",
+      ...(/^0-\d+$/.test(initialization || "") && /^\d+-\d+$/.test(indexRange || "") ? { hls: { initialization, indexRange } } : {}),
     });
   } catch (error) {
     if (error instanceof ApiError) {

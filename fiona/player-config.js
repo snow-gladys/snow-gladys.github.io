@@ -12,7 +12,7 @@ window.SG_PLAYER_CONFIG = {
     titleSuffix: '心宜',
     vmid: '3537115310721181',
     apiBase: 'https://snow-gladys-api-zone-3msnp1a62hlu-1304656834.eo-edgefunctions.com',
-    version: '0.0.9(测)',
+    version: '0.0.10(测)',
     exportFilename: 'custom_songs_xinyi.txt',
     lyricsBasePath: '../lyrics/'
 };

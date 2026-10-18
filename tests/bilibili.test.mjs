@@ -301,25 +301,28 @@ test('both pages load the shared API before the player and retain BV input', () 
     }
 });
 
-async function playback({ preload = false, expired = false, playError, resolveError, retryError, rapidSwitch = false } = {}) {
+async function playback({ preload = false, expired = false, playError, resolveError, retryError, rapidSwitch = false, hls = false, cache = false } = {}) {
     const start = playerSource.indexOf('async function playMusic(bvid)');
     const end = playerSource.indexOf('\n        function handlePlayError(', start);
     let plays = 0, resolves = 0, refreshes = 0, visuals = 0;
-    const errors = [];
+    const errors = [], downloads = [];
     let releaseOld;
     function audioObject() {
         return {
-            src: '', pause() {}, load() {}, remove() {}, removeEventListener() {},
+            src: '', pause() {}, load() {}, remove() {}, removeEventListener() {}, removeAttribute() {},
             async play() { plays++; if (playError && plays === 1) throw playError; },
         };
     }
     const sandbox = vm.createContext({
-        window: {}, settings: { cacheEnabled: 'off' }, Date, URL,
+        window: { SG_CACHE: { supported: true, getCachedBlob: async () => null, hasCached: async () => false, saveToCache() {} } },
+        settings: { cacheEnabled: cache ? 'on' : 'off' }, Date, URL, AbortController,
+        cachedBvidsSet: new Set(), updatePlayDownloadsButton() {},
+        fetch: async url => { downloads.push(url); return new Response('audio'); },
         playRequestVersion: 0, releaseCachedAudioUrl() {}, audioCacheDownloadController: null,
         clearPlaybackError() {},
         preloadCache: preload ? { bvid: BV, url: 'https://edge.example/old', createdAt: Date.now() - (expired ? 61000 : 0) } : null,
         bgmAudio: audioObject(), globalPreloadAudio: audioObject(), Audio: audioObject,
-        clearPreload() {}, bindAudioEvents() {}, stopInitialPreload() {},
+        clearPreload() {}, bindAudioEvents() {}, stopInitialPreload() {}, createPlayerAudio: audioObject,
         handleAudioEnded() {}, handleAudioPlay() {}, handleAudioPause() {}, handleAudioError() {},
         showLoadingInfo() {}, hideLoadingInfo() {}, updateProgressDisplay() {}, updatePlaySongName() {},
         updatePlayPauseIcon() {}, updateMediaSession() {}, currentPlayingBvid: '',
@@ -329,7 +332,7 @@ async function playback({ preload = false, expired = false, playError, resolveEr
             resolves++;
             if (rapidSwitch && id === BV) return new Promise(resolve => { releaseOld = () => resolve({ url: 'https://edge.example/old' }); });
             if (resolveError) throw resolveError;
-            return { url: 'https://edge.example/new' };
+            return { url: hls ? 'https://edge.example/hls.m3u8?url=media' : 'https://edge.example/new' };
         },
         async getLoadableRealUrl() {
             refreshes++;
@@ -343,7 +346,8 @@ async function playback({ preload = false, expired = false, playError, resolveEr
         ? `(async () => { const old = playMusic('${BV}'); await playMusic('BV1Sf421Q7Rt'); releaseOld(); await old; })();`
         : '\nplayMusic(' + JSON.stringify(BV) + ');';
     await vm.runInContext(playerSource.slice(start, end) + '\n' + action, sandbox);
-    return { plays, resolves, refreshes, visuals, errors, src: sandbox.bgmAudio.src, bvid: sandbox.currentPlayingBvid };
+    await new Promise(resolve => setImmediate(resolve));
+    return { plays, resolves, refreshes, visuals, errors, downloads, src: sandbox.bgmAudio.src, bvid: sandbox.currentPlayingBvid };
 }
 
 test('actual playback calls play only once for a freshly resolved song', async () => {
@@ -352,6 +356,20 @@ test('actual playback calls play only once for a freshly resolved song', async (
     assert.equal(result.resolves, 1);
     assert.equal(result.visuals, 1);
     assert.equal(result.errors.length, 0);
+});
+
+test('native HLS errors fall back once to ordinary audio without another resolve', async () => {
+    const result = await playback({ hls: true, playError: new Error('unsupported index') });
+    assert.equal(result.plays, 2); assert.equal(result.resolves, 1); assert.equal(result.refreshes, 0);
+    assert.equal(result.src, 'https://edge.example/proxy?url=media');
+    assert.equal(result.errors.length, 0);
+});
+
+test('HLS playback downloads the original audio for offline cache instead of the manifest', async () => {
+    const result = await playback({ hls: true, cache: true });
+    assert.equal(result.src, 'https://edge.example/hls.m3u8?url=media');
+    assert.deepEqual(result.downloads, ['https://edge.example/proxy?url=media']);
+    assert.equal(result.plays, 1);
 });
 
 test('actual playback refreshes an expired preload instead of using it', async () => {

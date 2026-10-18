@@ -90,7 +90,7 @@
             titleSuffix: SG_PLAYER_CONFIG.titleSuffix !== undefined ? SG_PLAYER_CONFIG.titleSuffix : '思诺',
             vmid: SG_PLAYER_CONFIG.vmid !== undefined ? SG_PLAYER_CONFIG.vmid : '3537115310721781',
             apiBase: SG_PLAYER_CONFIG.apiBase !== undefined ? SG_PLAYER_CONFIG.apiBase : 'https://snow-gladys-api-zone-3msnp1a62hlu-1304656834.eo-edgefunctions.com',
-            version: SG_PLAYER_CONFIG.version !== undefined ? SG_PLAYER_CONFIG.version : '0.0.9(测)',
+            version: SG_PLAYER_CONFIG.version !== undefined ? SG_PLAYER_CONFIG.version : '0.0.10(测)',
             exportFilename: SG_PLAYER_CONFIG.exportFilename !== undefined ? SG_PLAYER_CONFIG.exportFilename : 'custom_songs_sinuo.txt',
             lyricsBasePath: SG_PLAYER_CONFIG.lyricsBasePath
         };
@@ -1800,9 +1800,15 @@
         }
 
         // --- 2. 纯音乐播放逻辑 (核心) ---
-        let bgmAudio = new Audio();
-        bgmAudio.crossOrigin = "anonymous"; // 允许跨域
-        document.body.appendChild(bgmAudio);
+        function createPlayerAudio() {
+            const audio = new Audio();
+            audio.crossOrigin = 'anonymous';
+            audio.preload = 'auto';
+            audio.playsInline = true;
+            document.body.appendChild(audio);
+            return audio;
+        }
+        let bgmAudio = createPlayerAudio();
 
         // ── 播放页 / 歌词页频谱（基于 Web Audio，与 bgmAudio 联动） ─────────────
         const playVisualizerEl = document.getElementById('play-visualizer');
@@ -1977,9 +1983,7 @@
                 if (!document.hidden) updateProgressDisplay();
             }
         });
-        let globalPreloadAudio = new Audio(); // 全局预加载对象
-        globalPreloadAudio.crossOrigin = "anonymous";
-        document.body.appendChild(globalPreloadAudio); 
+        let globalPreloadAudio = createPlayerAudio();
         let activeCachedAudioUrl = null;
         let playRequestVersion = 0;
         let audioCacheDownloadController = null;
@@ -2102,6 +2106,7 @@
         let preloadCache = null;
         let preloadInFlight = null;
         let preloadScheduledForBvid = null;
+        let preloadGeneration = 0;
         /** 随机模式下「已确定的下一首」bvid，与预加载一致，保证能命中缓存 */
         let nextRandomBvid = null;
 
@@ -2144,7 +2149,11 @@
          */
         function fetchResolveViaProxy(bvid) {
             return biliClient.resolve(bvid, getCurrentAudioMode()).then(function (data) {
-                return { url: data.proxyUrl };
+                const ua = navigator.userAgent || '';
+                const appleWebKit = /AppleWebKit\//.test(ua) && !/(?:Chrome|Chromium|Edg|OPR|SamsungBrowser)\//.test(ua);
+                const appleMobile = /iP(?:hone|ad|od)/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+                const nativeHls = appleMobile && appleWebKit && typeof bgmAudio.canPlayType === 'function' && bgmAudio.canPlayType('application/vnd.apple.mpegurl');
+                return { url: nativeHls && data.hlsUrl ? data.hlsUrl : data.proxyUrl };
             });
         }
 
@@ -2321,6 +2330,7 @@
         }
 
         function clearPreload() {
+            preloadGeneration++;
             preloadCache = null;
             preloadInFlight = null;
             nextRandomBvid = null;
@@ -2333,9 +2343,10 @@
             var idx = getRandomIndex(songList.length, -1);
             var bvid = (songList[idx].bvid || '').trim();
             if (!bvid) return;
+            const generation = preloadGeneration;
             fetchResolveViaProxy(bvid).then(function (result) {
                 if (!result || !result.url) return;
-                if (currentPlayingBvid) return;
+                if (currentPlayingBvid || generation !== preloadGeneration) return;
                 preloadCache = { bvid: bvid, url: result.url, createdAt: Date.now() };
                 globalPreloadAudio.src = result.url;
                 globalPreloadAudio.load();
@@ -2345,7 +2356,7 @@
         /** 停止初始预加载（进入播放页且播放的不是预加载曲目时调用，避免后台继续加载） */
         function stopInitialPreload() {
             if (!globalPreloadAudio) return;
-            globalPreloadAudio.src = '';
+            globalPreloadAudio.removeAttribute('src');
             globalPreloadAudio.load();
         }
 
@@ -2496,7 +2507,7 @@
             } catch (e) { /* 部分环境不支持或 setActionHandler 不可用 */ }
         }
 
-        // 播放函数（预加载缓存 + getLoadableRealUrl 探测 403 重试，失败则弹窗并自动下一首）
+        // 原生 HLS / 普通音频播放，复用预加载并保留失败恢复。
         async function playMusic(bvid) {
             if (!bvid) return;
             clearPlaybackError();
@@ -2507,6 +2518,10 @@
             }
 
             preloadScheduledForBvid = null;
+            if (!preloadCache || preloadCache.bvid !== bvid || Date.now() - preloadCache.createdAt >= 60000) {
+                clearPreload();
+                stopInitialPreload();
+            }
 
             const useCache = !!(settings && settings.cacheEnabled === 'on' && window.SG_CACHE && window.SG_CACHE.supported);
 
@@ -2598,9 +2613,8 @@
                 bindAudioEvents(bgmAudio);
 
                 bgmAudio.volume = 0.5;
-                bgmAudio.crossOrigin = "anonymous";
 
-                globalPreloadAudio = new Audio();
+                globalPreloadAudio = createPlayerAudio();
 
                 // 销毁旧对象前先移除其事件监听，否则清空 src 时可能触发 ended，导致多切一首
                 oldAudio.removeEventListener('timeupdate', updateProgressDisplay);
@@ -2609,7 +2623,7 @@
                 oldAudio.removeEventListener('play', handleAudioPlay);
                 oldAudio.removeEventListener('pause', handleAudioPause);
                 oldAudio.removeEventListener('error', handleAudioError);
-                oldAudio.src = "";
+                oldAudio.removeAttribute('src');
                 oldAudio.load();
                 oldAudio.remove();
                 oldAudio = null;
@@ -2627,18 +2641,21 @@
             try {
                 await bgmAudio.play();
                 if (requestVersion !== playRequestVersion) return;
+                clearPlaybackError();
                 hideLoadingInfo();
             } catch (err) {
                 if (requestVersion !== playRequestVersion) return;
                 console.error("播放失败:", err);
-                // 预加载的链接失效了，尝试重新获取一次 Proxy 链接
-                if (realUrl === initialUrl && err.name !== 'AbortError' && err.name !== 'NotAllowedError') {
+                // 分段播放不兼容时回退普通音频；过期的预加载地址刷新一次。
+                const directUrl = realUrl.replace('/hls.m3u8?', '/proxy?');
+                if ((directUrl !== realUrl || realUrl === initialUrl) && err.name !== 'AbortError' && err.name !== 'NotAllowedError') {
                     try {
-                        realUrl = await getLoadableRealUrl(bvid, null);
+                        realUrl = directUrl !== realUrl ? directUrl : await getLoadableRealUrl(bvid, null);
                         if (requestVersion !== playRequestVersion) return;
                         bgmAudio.src = realUrl;
                         await bgmAudio.play();
                         if (requestVersion !== playRequestVersion) return;
+                        clearPlaybackError();
                         hideLoadingInfo();
                     } catch (retryError) {
                         if (requestVersion !== playRequestVersion) return;
@@ -2667,7 +2684,8 @@
                         if (cached || requestVersion !== playRequestVersion) return null;
                         const controller = new AbortController();
                         audioCacheDownloadController = controller;
-                        return fetch(realUrl, { signal: controller.signal }).then(function (r) {
+                        // 下载保存原音频，不能把 HLS 播放列表当成音频缓存。
+                        return fetch(realUrl.replace('/hls.m3u8?', '/proxy?'), { signal: controller.signal }).then(function (r) {
                             if (!r.ok) return null;
                             return r.blob();
                         }).then(function (blob2) {

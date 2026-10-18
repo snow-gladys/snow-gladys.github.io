@@ -118,9 +118,13 @@
                 if (typeof data.url !== 'string' || !/^https:\/\//i.test(data.url)) {
                     throw new Error('未获取到可用的音频地址，请稍后重试。');
                 }
+                var hls = data.hls;
+                var hlsUrl = hls && /^0-\d+$/.test(hls.initialization || '') && /^\d+-\d+$/.test(hls.indexRange || '')
+                    ? base + '/hls.m3u8?url=' + encodeURIComponent(data.url) + '&init=' + encodeURIComponent(hls.initialization) + '&index=' + encodeURIComponent(hls.indexRange) : null;
                 return {
                     url: data.url,
                     proxyUrl: base + '/proxy?url=' + encodeURIComponent(data.url),
+                    hlsUrl: hlsUrl,
                 };
             },
         };

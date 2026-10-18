@@ -1,0 +1,252 @@
+/**
+ * 腾讯云 EdgeOne 边缘函数：将本文件全部复制到现有函数中，替换后保存并部署。
+ * 无依赖，无需 Cookie；保留 /fans、/resolve、/resolvehtml、/proxy、/valid。
+ *
+ * GET /resolve?bvid=BV17uZQBHEDo&mode=medium
+ * GET /resolve?bvid=BV17uZQBHEDo&p=1&mode=high
+ * GET /valid?bvid=BV17uZQBHEDo
+ * /resolvehtml 与 /resolve 使用相同的独立音频解析逻辑。
+ *
+ * 仅 CID / 分 P 信息在单个运行实例内缓存 10 分钟；音频地址每次重新解析。
+ * 接口或出口请求仍可能受到 B 站限制；失败时返回结构化错误，不自动重试。
+ */
+const ALLOWED_ORIGINS = new Set([
+  "https://snow-gladys.com",
+  "https://www.snow-gladys.com",
+  "https://snow-gladys.github.io",
+  "http://127.0.0.1:5500",
+  "http://localhost:5500",
+]);
+const BILI_HEADERS = {
+  Referer: "https://www.bilibili.com/",
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+};
+const PAGE_CACHE = new Map();
+const PAGE_REQUESTS = new Map();
+const PAGE_CACHE_TTL = 10 * 60 * 1000;
+
+class ApiError extends Error {
+  constructor(status, code, message, details = {}) {
+    super(message);
+    this.status = status;
+    this.code = code;
+    this.details = details;
+  }
+}
+
+function normalizeVideoId(value) {
+  const text = String(value || "").trim();
+  if (/^BV[a-zA-Z0-9]{10}$/i.test(text)) return "BV" + text.slice(2);
+  return null;
+}
+
+function videoParams(id) {
+  return new URLSearchParams({ bvid: id });
+}
+
+async function biliJson(path, params, stage) {
+  let response;
+  try {
+    response = await fetch("https://api.bilibili.com" + path + "?" + params, {
+      headers: BILI_HEADERS,
+    });
+  } catch (_) {
+    throw new ApiError(502, "UPSTREAM_NETWORK_ERROR", "暂时无法连接 B 站，请稍后重试。", { stage });
+  }
+  const details = { stage, upstreamStatus: response.status };
+  if ([403, 412, 429].includes(response.status)) {
+    throw new ApiError(503, "BILI_RISK_CONTROL", "B 站暂时拒绝了访问请求，请稍后重试。", details);
+  }
+  if (!response.ok) {
+    throw new ApiError(502, "UPSTREAM_HTTP_ERROR", "B 站接口暂时不可用，请稍后重试。", details);
+  }
+  let data;
+  try {
+    data = await response.json();
+  } catch (_) {
+    throw new ApiError(502, "UPSTREAM_INVALID_JSON", "B 站返回了异常页面，请稍后重试。", details);
+  }
+  if (!data || typeof data.code !== "number") {
+    throw new ApiError(502, "UPSTREAM_INVALID_DATA", "B 站返回的数据格式异常。", details);
+  }
+  if (data.code !== 0) {
+    details.upstreamCode = data.code;
+    if ([-412, -352, -401, -509, -799].includes(data.code)) {
+      throw new ApiError(503, "BILI_RISK_CONTROL", "B 站暂时限制了访问，请稍后重试。", details);
+    }
+    if (data.code === -404) {
+      throw new ApiError(404, "VIDEO_NOT_FOUND", "视频不存在或已被删除。", details);
+    }
+    throw new ApiError(502, "BILI_API_ERROR", "B 站暂时无法提供该内容。", details);
+  }
+  return data;
+}
+
+async function getPages(id) {
+  const cached = PAGE_CACHE.get(id);
+  if (cached && cached.expires > Date.now()) return cached.pages;
+  PAGE_CACHE.delete(id);
+  if (PAGE_REQUESTS.has(id)) return PAGE_REQUESTS.get(id);
+  const pending = (async () => {
+    const result = await biliJson("/x/player/pagelist", videoParams(id), "pagelist");
+    const pages = result.data;
+    if (!Array.isArray(pages) || !pages.length || !pages.every(p => p && p.cid && p.page)) {
+      throw new ApiError(502, "UPSTREAM_INVALID_DATA", "B 站未返回可用的分 P 信息。", { stage: "pagelist" });
+    }
+    if (PAGE_CACHE.size >= 256) PAGE_CACHE.delete(PAGE_CACHE.keys().next().value);
+    PAGE_CACHE.set(id, { pages, expires: Date.now() + PAGE_CACHE_TTL });
+    return pages;
+  })();
+  PAGE_REQUESTS.set(id, pending);
+  try {
+    return await pending;
+  } finally {
+    PAGE_REQUESTS.delete(id);
+  }
+}
+
+function chooseAudio(mode, list) {
+  const preferences = {
+    low: [30216, 30232, 30280],
+    medium: [30232, 30280, 30216],
+    high: [30280, 30232, 30216],
+  };
+  for (const id of preferences[mode]) {
+    const audio = list.find(item => Number(item.id) === id);
+    if (audio) return audio;
+  }
+  const sorted = list.slice().sort((a, b) => (Number(a.bandwidth) || 0) - (Number(b.bandwidth) || 0));
+  return mode === "low" ? sorted[0] : sorted[sorted.length - 1];
+}
+
+function mediaUrl(value) {
+  let target;
+  try { target = new URL(value); } catch (_) { /* handled below */ }
+  const host = target && target.hostname;
+  const allowed = host && (
+    host === "bilivideo.com" || host.endsWith(".bilivideo.com") ||
+    host === "bilivideo.cn" || host.endsWith(".bilivideo.cn") ||
+    /^upos-[a-z0-9-]+\.akamaized\.net$/.test(host)
+  );
+  if (!allowed || target.protocol !== "https:" || target.username || target.password || (target.port && target.port !== "443")) {
+    throw new ApiError(400, "INVALID_MEDIA_URL", "音频地址必须是受支持的 B 站 HTTPS 媒体地址。");
+  }
+  return target;
+}
+
+async function proxyMedia(request, targetValue, corsHeaders) {
+  if (!targetValue) throw new ApiError(400, "MISSING_URL", "缺少音频地址。");
+  let target = mediaUrl(targetValue);
+  const headers = new Headers(BILI_HEADERS);
+  for (const name of ["Range", "If-Range", "If-None-Match", "If-Modified-Since"]) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  let response;
+  for (let redirects = 0; redirects <= 3; redirects++) {
+    try {
+      response = await fetch(target.toString(), { method: request.method, headers, redirect: "manual" });
+    } catch (_) {
+      throw new ApiError(502, "MEDIA_NETWORK_ERROR", "暂时无法读取音频，请稍后重试。", { stage: "proxy" });
+    }
+    if (![301, 302, 303, 307, 308].includes(response.status)) break;
+    const location = response.headers.get("Location");
+    if (!location || redirects === 3) {
+      throw new ApiError(502, "MEDIA_REDIRECT_ERROR", "音频地址跳转异常。", { stage: "proxy" });
+    }
+    target = mediaUrl(new URL(location, target).toString());
+  }
+  if (!response.ok && ![304, 416].includes(response.status)) {
+    throw new ApiError(502, "MEDIA_UPSTREAM_ERROR", "音频地址已失效或暂时无法访问，请重新播放。", {
+      stage: "proxy", upstreamStatus: response.status,
+    });
+  }
+  const outgoing = new Headers(corsHeaders);
+  for (const name of ["Content-Type", "Content-Length", "Content-Range", "Accept-Ranges", "ETag", "Last-Modified", "Cache-Control"]) {
+    const value = response.headers.get(name);
+    if (value !== null) outgoing.set(name, value);
+  }
+  return new Response(request.method === "HEAD" ? null : response.body, {
+    status: response.status, headers: outgoing,
+  });
+}
+
+async function handleRequest(request) {
+  const origin = request.headers.get("Origin");
+  const allowed = ALLOWED_ORIGINS.has(origin);
+  const corsHeaders = {
+    Vary: "Origin",
+    "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Range, If-Range, If-None-Match, If-Modified-Since",
+    "Access-Control-Expose-Headers": "Content-Length, Content-Range, Accept-Ranges, ETag",
+    "Access-Control-Max-Age": "86400",
+  };
+  if (allowed) corsHeaders["Access-Control-Allow-Origin"] = origin;
+  function json(data, status = 200) {
+    return new Response(request.method === "HEAD" ? null : JSON.stringify(data), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
+    });
+  }
+  if (origin && !allowed) return json({ code: "FORBIDDEN_ORIGIN", error: "当前网站未被允许访问。" }, 403);
+  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
+  if (!["GET", "HEAD"].includes(request.method)) return json({ code: "METHOD_NOT_ALLOWED", error: "仅支持 GET、HEAD 和 OPTIONS 请求。" }, 405);
+  try {
+    const url = new URL(request.url);
+    if (url.pathname === "/proxy") return await proxyMedia(request, url.searchParams.get("url"), corsHeaders);
+    if (url.pathname === "/fans") {
+      const vmid = url.searchParams.get("vmid") || "";
+      if (!/^[1-9]\d*$/.test(vmid)) throw new ApiError(400, "INVALID_VMID", "请输入有效的用户 ID。");
+      return json(await biliJson("/x/relation/stat", new URLSearchParams({ vmid }), "fans"));
+    }
+    if (!["/resolve", "/resolvehtml", "/valid"].includes(url.pathname)) {
+      return json({ code: "NOT_FOUND", error: "接口不存在。" }, 404);
+    }
+    const id = normalizeVideoId(url.searchParams.get("bvid"));
+    if (!id) {
+      if (url.pathname === "/valid") return json({ valid: false });
+      throw new ApiError(400, "INVALID_VIDEO_ID", "请输入有效的 BV 号。");
+    }
+    const pageText = url.searchParams.get("p") || "1";
+    if (!/^[1-9]\d*$/.test(pageText) || !Number.isSafeInteger(Number(pageText))) {
+      throw new ApiError(400, "INVALID_PAGE", "分 P 序号必须是正整数。");
+    }
+    const pages = await getPages(id);
+    const page = pages.find(item => Number(item.page) === Number(pageText));
+    if (!page) {
+      if (url.pathname === "/valid") return json({ valid: false, id });
+      throw new ApiError(404, "PAGE_NOT_FOUND", "视频不存在该分 P。");
+    }
+    if (url.pathname === "/valid") return json({ valid: true, id, cid: page.cid, page: page.page });
+    const mode = url.searchParams.get("mode") || "medium";
+    if (!["low", "medium", "high"].includes(mode)) throw new ApiError(400, "INVALID_MODE", "音质只能是 low、medium 或 high。");
+    const params = videoParams(id);
+    params.set("cid", String(page.cid));
+    params.set("fnval", "16");
+    const play = await biliJson("/x/player/playurl", params, "playurl");
+    const audios = play.data && play.data.dash && play.data.dash.audio;
+    const usable = Array.isArray(audios) ? audios.filter(item => item && (item.baseUrl || item.base_url)) : [];
+    if (!usable.length) throw new ApiError(422, "NO_AUDIO", "该视频暂时没有可用的独立音频。", { stage: "playurl" });
+    const audio = chooseAudio(mode, usable);
+    return json({
+      url: audio.baseUrl || audio.base_url,
+      id, cid: page.cid, page: page.page, mode,
+      audioId: audio.id, mimeType: audio.mimeType || audio.mime_type || "audio/mp4",
+    });
+  } catch (error) {
+    if (error instanceof ApiError) {
+      const path = new URL(request.url).pathname;
+      if (path === "/valid" && error.code === "VIDEO_NOT_FOUND") return json({ valid: false });
+      return json({
+        ...(path === "/valid" ? { valid: null } : {}),
+        code: error.code, error: error.message, ...error.details,
+      }, error.status);
+    }
+    console.error("Bilibili edge function error:", error);
+    return json({ code: "INTERNAL_ERROR", error: "音频服务出现异常，请稍后重试。" }, 500);
+  }
+}
+
+addEventListener("fetch", event => {
+  event.respondWith(handleRequest(event.request));
+});

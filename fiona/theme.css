@@ -6,6 +6,6 @@
     --neon-blue-rgb: 244, 114, 168;
     --neon-blue-soft: rgba(var(--neon-blue-rgb), 0.08);
     --theme-pink: #f472a8;
-    --img-character: url('../imgs/xinyi_char.png');
-    --img-vinyl: url('../imgs/vinyl.png');
+    --img-character: url('../imgs/xinyi_char.webp');
+    --img-vinyl: url('../imgs/vinyl.webp');
 }

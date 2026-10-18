@@ -25,9 +25,12 @@
     var STORE_NAME = 'user_lyrics'; // key: bvid 原始大小写，value: lrc 字符串
 
     var _db = null; // 缓存已打开的数据库连接
+    var _opening = null;
 
     function openDB() {
-        return new Promise(function (resolve, reject) {
+        if (_db) return Promise.resolve(_db);
+        if (_opening) return _opening;
+        _opening = new Promise(function (resolve, reject) {
             if (!IDB_SUPPORTED) { reject(new Error('IndexedDB not supported')); return; }
             if (_db) { resolve(_db); return; }
             var req = indexedDB.open(DB_NAME, DB_VERSION);
@@ -37,9 +40,14 @@
                     db.createObjectStore(STORE_NAME, { keyPath: 'bvid' });
                 }
             };
-            req.onsuccess = function (e) { _db = e.target.result; resolve(_db); };
+            req.onsuccess = function (e) {
+                _db = e.target.result;
+                _db.onversionchange = function () { _db.close(); _db = null; _opening = null; };
+                resolve(_db);
+            };
             req.onerror = function (e) { reject(e.target.error); };
-        });
+        }).catch(function (error) { _opening = null; throw error; });
+        return _opening;
     }
 
     /** 从 IndexedDB 读取用户歌词，返回 lrc 字符串或 null */
@@ -145,22 +153,47 @@
     // basePath：lyrics/ 目录的路径前缀，可由各播放器通过 setBasePath() 配置
     var _basePath = './lyrics/';
     var _lyricsIndex = null; // 缓存 lyrics.json 内容
+    var _indexRequest = null;
+    var _builtinRequests = new Map();
 
     /** 设置 lyrics 目录路径前缀（末尾须带 /） */
     function setBasePath(path) {
         _basePath = path;
         _lyricsIndex = null; // 路径变了，清除缓存
+        _indexRequest = null;
+        _builtinRequests.clear();
     }
 
     function loadLyricsIndex() {
         if (_lyricsIndex) return Promise.resolve(_lyricsIndex);
-        return fetch(_basePath + 'lyrics.json?_=' + Date.now())
-            .then(function (r) { return r.ok ? r.json() : null; })
+        if (_indexRequest) return _indexRequest;
+        var basePath = _basePath;
+        var pending = fetch(basePath + 'lyrics.json')
+            .then(function (r) { if (!r.ok) throw new Error('Lyrics index unavailable'); return r.json(); })
             .then(function (data) {
-                _lyricsIndex = (data && data.map) ? data.map : {};
-                return _lyricsIndex;
+                var index = (data && data.map) ? data.map : {};
+                if (_basePath === basePath) _lyricsIndex = index;
+                return index;
             })
-            .catch(function () { _lyricsIndex = {}; return {}; });
+            .finally(function () { if (_indexRequest === pending) _indexRequest = null; });
+        _indexRequest = pending;
+        return pending;
+    }
+
+    function loadBuiltinLyrics(bvid) {
+        var path = _basePath;
+        var key = path + ':' + bvid;
+        if (_builtinRequests.has(key)) return _builtinRequests.get(key);
+        var pending = loadLyricsIndex().then(function (idx) {
+            var filename = idx[bvid];
+            if (!filename) return null;
+            return fetch(path + encodeURIComponent(filename))
+                .then(function (r) { if (!r.ok) throw new Error('Lyrics unavailable'); return r.text(); })
+                .then(function (text) { return text ? parseLrc(text) : null; });
+        }).catch(function () { _builtinRequests.delete(key); return null; });
+        if (_builtinRequests.size >= 32) _builtinRequests.delete(_builtinRequests.keys().next().value);
+        _builtinRequests.set(key, pending);
+        return pending;
     }
 
     /**
@@ -169,21 +202,15 @@
      * @param {string} bvid
      * @returns {Promise<Array<{time, text}> | null>}  null 表示无歌词
      */
-    function loadLyrics(bvid) {
+    function loadLyrics(bvid, knownUserLrc) {
         if (!bvid) return Promise.resolve(null);
 
         // 1. 先查用户 IndexedDB（原始 bvid）
-        return getUserLrc(bvid).then(function (userLrc) {
+        var userRequest = arguments.length > 1 ? Promise.resolve(knownUserLrc) : getUserLrc(bvid);
+        return userRequest.then(function (userLrc) {
             if (userLrc) return parseLrc(userLrc);
             // 2. 查内置索引（直接用原始 bvid 匹配）
-            return loadLyricsIndex().then(function (idx) {
-                var filename = idx[bvid];
-                if (!filename) return null;
-                return fetch(_basePath + encodeURIComponent(filename))
-                    .then(function (r) { return r.ok ? r.text() : null; })
-                    .then(function (text) { return text ? parseLrc(text) : null; })
-                    .catch(function () { return null; });
-            });
+            return loadBuiltinLyrics(bvid);
         });
     }
 

@@ -10,8 +10,8 @@
     --border-light: 1px solid rgba(0, 0, 0, 0.06);
     --progress-track: rgba(0, 0, 0, 0.08);
     /* 多站点共用：思诺/心宜等通过 theme 覆盖图片 */
-    --img-character: url('./imgs/snow_char.png');
-    --img-vinyl: url('./imgs/vinyl.png');
+    --img-character: url('./imgs/snow_char.webp');
+    --img-vinyl: url('./imgs/vinyl.webp');
         }
         
         body,
@@ -73,6 +73,11 @@
     100% {
         transform: scaleY(1);
     }
+}
+
+/* 页面不可见时暂停装饰动画；不影响音频或锁屏控制。 */
+body.is-background #scene * {
+    animation-play-state: paused !important;
 }
 
 /* 播放页 / 歌词页底部频谱（与首页风格统一，但与音频实时联动） */

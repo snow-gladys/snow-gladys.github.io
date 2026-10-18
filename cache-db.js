@@ -23,9 +23,12 @@
     var STORE_NAME = 'audio_cache'; // keyPath: bvid, value: { bvid, blob }
 
     var _db = null;
+    var _opening = null;
 
     function openDB() {
-        return new Promise(function (resolve, reject) {
+        if (_db) return Promise.resolve(_db);
+        if (_opening) return _opening;
+        _opening = new Promise(function (resolve, reject) {
             if (!IDB_SUPPORTED) {
                 reject(new Error('IndexedDB not supported'));
                 return;
@@ -43,12 +46,14 @@
             };
             req.onsuccess = function (e) {
                 _db = e.target.result;
+                _db.onversionchange = function () { _db.close(); _db = null; _opening = null; };
                 resolve(_db);
             };
             req.onerror = function (e) {
                 reject(e.target.error);
             };
-        });
+        }).catch(function (error) { _opening = null; throw error; });
+        return _opening;
     }
 
     /** 从缓存读取音频 Blob，不存在返回 null */
@@ -91,11 +96,16 @@
             .catch(function () {});
     }
 
-    /** 判断某 bvid 是否已在缓存中 */
+    /** 只查询键，不把音频 Blob 从数据库取回。 */
     function hasCached(bvid) {
-        return getCachedBlob(bvid).then(function (blob) {
-            return !!blob;
-        });
+        if (!bvid) return Promise.resolve(false);
+        return openDB().then(function (db) {
+            return new Promise(function (resolve) {
+                var req = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).count(bvid);
+                req.onsuccess = function () { resolve(req.result > 0); };
+                req.onerror = function () { resolve(false); };
+            });
+        }).catch(function () { return false; });
     }
 
     /** 返回已缓存的所有 bvid 数组，用于歌单展示缓存标记 */
@@ -104,12 +114,9 @@
             .then(function (db) {
                 return new Promise(function (resolve) {
                     var tx = db.transaction(STORE_NAME, 'readonly');
-                    var req = tx.objectStore(STORE_NAME).getAll();
+                    var req = tx.objectStore(STORE_NAME).getAllKeys();
                     req.onsuccess = function () {
-                        var rows = req.result || [];
-                        resolve(rows.map(function (r) {
-                            return r.bvid || '';
-                        }).filter(Boolean));
+                        resolve((req.result || []).filter(Boolean));
                     };
                     req.onerror = function () {
                         resolve([]);

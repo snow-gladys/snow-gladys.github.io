@@ -11,10 +11,10 @@
     <meta name="apple-mobile-web-app-title" content="思诺">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <title>思诺 · Gladys</title>
-    <script src="wardrobe.js?v=20261019-library"></script>
+    <script src="wardrobe.js?v=20261019-details"></script>
     <link rel="preconnect" href="https://snow-gladys-api-zone-3msnp1a62hlu-1304656834.eo-edgefunctions.com" crossorigin>
-    <link rel="stylesheet" href="index.css?v=20261019-spectrum">
-    <link rel="stylesheet" href="personal.css?v=20261019-library">
+    <link rel="stylesheet" href="index.css?v=20261019-details">
+    <link rel="stylesheet" href="personal.css?v=20261019-details">
 </head>
 <body>
 
@@ -27,7 +27,6 @@
             <div class="home-top-bar">
                 <button type="button" class="nav-link-modern wardrobe-trigger" id="btn-wardrobe" aria-label="装扮" title="装扮">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 3-5 3-2 5 4 2 2-3v11h10V10l2 3 4-2-2-5-5-3c0 2-2 3-4 3S8 5 8 3Z"/></svg>
-                    <span>装扮</span>
                 </button>
 
                 <div class="home-top-right">
@@ -510,11 +509,11 @@
                 </button>
             </div>
             <div class="custom-form-body">
-                <label>歌名</label>
-                <input type="text" id="custom-form-name" placeholder="请输入歌名" autocomplete="off">
-
-                <label>BVID</label>
-                <input type="text" id="custom-form-bvid" placeholder="BVxxxxxxxxxx" autocomplete="off">
+                <label for="custom-form-bvid">BV 号或分享链接</label>
+                <input type="text" id="custom-form-bvid" placeholder="粘贴 BV 号或 B 站视频分享链接" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="custom-form-info-status">
+                <div class="custom-info-row"><p id="custom-form-info-status" class="personal-status" role="status" aria-live="polite">粘贴后自动读取视频标题，也可以手动填写歌名。</p><button type="button" class="btn-import-lrc" id="custom-form-info-retry" hidden>重试</button></div>
+                <label for="custom-form-name">歌名</label>
+                <input type="text" id="custom-form-name" placeholder="自动填入，也可以自行修改" autocomplete="off" maxlength="300">
 
                 <div class="custom-form-lyrics-label-row">
                     <label class="custom-form-label-optional">
@@ -771,7 +770,8 @@
     <dialog class="personal-dialog" id="collection-add-dialog" aria-labelledby="collection-add-heading">
         <div class="personal-heading"><h3 id="collection-add-heading">添加歌曲</h3><button type="button" class="btn-close-small" data-close-personal aria-label="关闭添加歌曲">×</button></div>
         <input type="search" id="collection-add-search" class="personal-search" placeholder="搜索歌名或 BV 号" aria-label="搜索可添加的歌曲">
-        <p class="personal-description">从歌曲库选择，也可以先在设置中添加 BV 号歌曲。</p>
+        <p class="personal-description">从歌曲库选择，或直接粘贴视频分享链接。</p>
+        <button type="button" class="personal-load-more" id="collection-add-bvid">粘贴 BV 号 / 链接添加</button>
         <div class="collection-add-list" id="collection-add-list"></div>
         <button type="button" class="personal-load-more" id="collection-add-more" hidden>显示更多</button>
         <p class="personal-status" id="collection-add-status" role="status" aria-live="polite"></p>
@@ -785,8 +785,8 @@
     <script src="pinyinUtil.js"></script>
     <script src="lyrics-db.js?v=20261018-perf"></script>
     <script src="cache-db.js?v=20261018-fast-play"></script>
-    <script src="changelog-data.js?v=20261019-spectrum"></script>
-    <script src="bili-api.js?v=20261018-listening-tools"></script>
+    <script src="changelog-data.js?v=20261019-details"></script>
+    <script src="bili-api.js?v=20261019-details"></script>
     <script src="favorites-import.js?v=20261019-library"></script>
     <script src="lyrics-search.js?v=20261018-lyrics-search"></script>
     <script src="playback-buffer.js?v=20261018-fast-play"></script>
@@ -795,8 +795,9 @@
     <script src="favorites-cache.js?v=20261018-listening-tools"></script>
     <script src="personal-library.js?v=20261019-library"></script>
     <script src="mobile-visualizer.js?v=20261019-spectrum"></script>
-    <script src="index.js?v=20261019-spectrum"></script>
-    <script src="library-ui.js?v=20261019-library"></script>
+    <script src="song-entry.js?v=20261019-details"></script>
+    <script src="index.js?v=20261019-details"></script>
+    <script src="library-ui.js?v=20261019-details"></script>
 </body>
 </html>
 

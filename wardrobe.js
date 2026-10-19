@@ -11,6 +11,7 @@
     ];
     let selected = 'gladys', dbPromise = null;
     const avatars = new Map();
+    const artworkCache = new Map();
     function profile(id) { return profiles.find(item => item.id === id) || profiles[0]; }
     function cropRect(width, height, zoom, x, y) {
         const side = Math.min(width, height) / Math.max(1, Math.min(3, Number(zoom) || 1));
@@ -64,6 +65,32 @@
         apply(); renderCards();
     }
     function image(id) { return avatars.get(id) || profile(id).image; }
+    function artwork() {
+        const cached = artworkCache.get(selected);
+        return cached && cached.source === image(selected) && cached.result ? cached.result : [];
+    }
+    function refreshArtwork(item) {
+        const source = image(item.id), previous = artworkCache.get(item.id);
+        if (previous && previous.source === source) return;
+        const entry = { source, result: null }; artworkCache.set(item.id, entry);
+        const portrait = new Image();
+        portrait.onload = () => {
+            if (artworkCache.get(item.id) !== entry) return;
+            try {
+                const canvas = document.createElement('canvas'); canvas.width = canvas.height = 512;
+                const ctx = canvas.getContext('2d');
+                const position = avatars.has(item.id) ? [0.5, 0.5] : item.position.split(' ').map(value => parseFloat(value) / 100);
+                const rect = cropRect(portrait.naturalWidth, portrait.naturalHeight, 1, position[0], position[1]);
+                ctx.fillStyle = '#fafafc'; ctx.fillRect(0, 0, 512, 512);
+                ctx.drawImage(portrait, rect.x, rect.y, rect.side, rect.side, 0, 0, 512, 512);
+                // 独立于临时头像 Blob 的方形 JPEG，不会在换图后因 URL 被回收而失效。
+                entry.result = [{ src: canvas.toDataURL('image/jpeg', 0.9), sizes: '512x512', type: 'image/jpeg' }];
+                if (selected === item.id) root.dispatchEvent(new CustomEvent('sg:artwork'));
+            } catch (_) { artworkCache.delete(item.id); }
+        };
+        portrait.onerror = () => { if (artworkCache.get(item.id) === entry) artworkCache.delete(item.id); };
+        portrait.src = source;
+    }
     function apply() {
         if (!root.document) return;
         const item = profile(selected), css = document.documentElement.style;
@@ -77,6 +104,7 @@
         const name = document.querySelector('.clean-title');
         if (name) name.textContent = item.name;
         root.dispatchEvent(new CustomEvent('sg:appearance', { detail: { ...item } }));
+        refreshArtwork(item);
     }
     function select(id) {
         if (!profiles.some(item => item.id === id)) return false;
@@ -217,7 +245,7 @@
         });
         loadAvatars().catch(() => { /* 默认装扮仍然可用，保存时再显示存储错误。 */ });
     }
-    root.SG_WARDROBE = { profiles, profile, get selected() { return selected; }, image, select, cropRect, MAX_BYTES, MAX_INPUT_BYTES };
+    root.SG_WARDROBE = { profiles, profile, get selected() { return selected; }, image, artwork, select, cropRect, MAX_BYTES, MAX_INPUT_BYTES };
     if (!root.document) return;
     try {
         const url = new URL(location.href), saved = localStorage.getItem('sg_wardrobe_selected');

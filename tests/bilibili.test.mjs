@@ -270,21 +270,24 @@ test('browser handles network errors, malformed responses and empty audio URLs',
 });
 
 test('actual custom-song form preserves the existing BV storage schema', async () => {
-    const start = playerSource.indexOf('function submitCustomForm()');
+    const start = playerSource.indexOf('async function submitCustomForm()');
     const end = playerSource.indexOf('\n        loadSongs();', start);
     const fields = {
         'custom-form-name': { value: '测试歌曲', dataset: {} },
         'custom-form-bvid': { value: ' ' + BV + ' ' },
         'custom-form-lyrics': { value: '' },
+        'custom-form-submit': {}, 'custom-form-info-status': {},
     };
     let saved;
     const list = [];
     const sandbox = vm.createContext({
         document: { getElementById: id => fields[id] },
         window: { SG_BILI_API: browser() }, customList: list,
+        customFormSaving: false, customFormTargetPlaylist: '',
+        customSongEntry: { session: 1, current: () => true, read: async () => ({ name: '测试歌曲', bvid: BV, verified: true }) },
         isValidBvidFormat: id => !!browser().normalizeId(id),
         validateBvidExists: async () => 'valid',
-        saveCustomToStorage: rows => { saved = JSON.parse(JSON.stringify(rows)); },
+        saveCustomToStorage: rows => { saved = JSON.parse(JSON.stringify(rows)); return true; }, showToast() {},
         buildSongList() {}, renderPlaylist() {}, renderCustomSectionInSettings() {}, closeCustomForm() {},
         alert(message) { assert.fail(message); }, confirm() { assert.fail('unexpected confirmation'); },
     });
@@ -297,7 +300,7 @@ test('the unified page loads the shared API before the player and retains BV inp
     for (const path of ['../index.html']) {
         const html = readFileSync(new URL(path, import.meta.url), 'utf8');
         assert.ok(html.indexOf('bili-api.js?') < html.indexOf('index.js?'));
-        assert.match(html, /placeholder="BVxxxxxxxxxx"/);
+        assert.match(html, /id="custom-form-bvid"[^>]*placeholder="[^\"]*BV[^\"]*分享链接/);
     }
 });
 

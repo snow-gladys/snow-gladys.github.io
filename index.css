@@ -1730,10 +1730,15 @@ body.is-background #scene * {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
+    padding: 0;
+    line-height: 1;
     cursor: pointer;
     color: var(--text-sub);
     transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
+
+.btn-close-small svg { width: 14px; height: 14px; flex-shrink: 0; }
 
 .btn-close-small:hover {
     background: rgba(0, 0, 0, 0.08);
@@ -2891,11 +2896,17 @@ input[type=number]::-webkit-outer-spin-button {
     .view-play.is-lyrics-open .play-control-panel {
         margin-top: 0;
         position: absolute;
-        bottom: 8%; 
-        left: 0; 
-        transform: none; /* 取消 PC 端的居中 Transform */
-        width: 100%;
-        padding: 0 6vw;
+        bottom: 10%;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 85%;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    .play-control-panel {
+        left: 50%;
+        transform: translateX(-50%);
         box-sizing: border-box;
     }
 

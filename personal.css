@@ -1,6 +1,11 @@
 /* 歌单与装扮沿用现有的留白、圆角和黑白按钮。 */
 .wardrobe-trigger { cursor: pointer; font: inherit; font-size: 12px; padding: 10px 14px; }
 .wardrobe-trigger svg { width: 20px; height: 20px; }
+.custom-info-row { display: flex; align-items: center; gap: 8px; min-height: 32px; }
+.custom-info-row .personal-status { flex: 1; margin: 4px 0 10px; }
+.custom-info-row [hidden] { display: none; }
+#custom-form-bvid, #custom-form-name { font-size: 16px; }
+.custom-form-box { max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; }
 .playlist-panel { box-sizing: border-box; }
 .character-img-modern, .character-photo, .home-now-playing-cover { background-position: var(--portrait-position, 50% 50%); }
 .personal-dialog { width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); box-sizing: border-box; overflow: auto; overscroll-behavior: contain; padding: 24px; border: 1px solid rgba(0,0,0,.06); border-radius: 24px; background: #fafafc; color: var(--text-main); font: inherit; box-shadow: 0 24px 80px rgba(0,0,0,.16); }

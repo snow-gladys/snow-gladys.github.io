@@ -14,6 +14,17 @@
         return 'bvid=' + encodeURIComponent(id);
     }
 
+    function videoInput(value) {
+        var text = String(value || '').trim();
+        var match = /(?:^|[^a-zA-Z0-9])(BV[a-zA-Z0-9]{10})(?![a-zA-Z0-9])/i.exec(text);
+        if (match) return { bvid: normalizeId(match[1]), shortUrl: '' };
+        var short = /(?:https?:\/\/)?b23\.tv\/[a-zA-Z0-9]+(?=$|[^a-zA-Z0-9/])/i.exec(text);
+        if (short && (short.index === 0 || /[\s【（(]/.test(text[short.index - 1]))) {
+            return { bvid: '', shortUrl: 'https://' + short[0].replace(/^https?:\/\//i, '').split('?')[0] };
+        }
+        return { bvid: '', shortUrl: '' };
+    }
+
     function favoriteId(value) {
         var text = String(value || '').trim();
         var id = /^(?:ml)?([1-9]\d{0,19})$/i.exec(text);
@@ -43,6 +54,7 @@
     function createClient(base) {
         base = String(base || '').replace(/\/+$/, '');
         var pending = new Map();
+        var infoCache = new Map();
         function request(path) {
             if (pending.has(path)) return pending.get(path);
             var result = performRequest(path).finally(function () { pending.delete(path); });
@@ -73,6 +85,21 @@
             return data;
         }
         return {
+            videoInfo: async function (input, options) {
+                var parsed = videoInput(input), key = parsed.bvid || parsed.shortUrl;
+                if (!key) throw new Error('请输入 BV 号，或粘贴 B 站视频分享链接。');
+                var cached = infoCache.get(key);
+                if (cached && cached.expires > Date.now()) return cached.song;
+                var path = '/info?' + (parsed.bvid ? videoQuery(parsed.bvid) : 'url=' + encodeURIComponent(parsed.shortUrl));
+                var data = await (options && options.signal ? performRequest(path, options) : request(path));
+                var id = normalizeId(data.bvid), name = typeof data.name === 'string' ? data.name.trim() : '';
+                if (!id || !name) throw new Error('未获取到视频标题，请手动填写歌名。');
+                var song = { bvid: id, name: name.slice(0, 300) };
+                if (infoCache.size >= 128) infoCache.delete(infoCache.keys().next().value);
+                var entry = { song: song, expires: Date.now() + 10 * 60 * 1000 };
+                infoCache.set(key, entry); infoCache.set(id, entry);
+                return song;
+            },
             loadFavorites: async function (input, options) {
                 options = options || {};
                 var id = favoriteId(input);
@@ -131,5 +158,5 @@
         };
     }
 
-    global.SG_BILI_API = { normalizeId: normalizeId, videoQuery: videoQuery, favoriteId: favoriteId, mergeCustomSongs: mergeCustomSongs, createClient: createClient };
+    global.SG_BILI_API = { normalizeId: normalizeId, videoInput: videoInput, videoQuery: videoQuery, favoriteId: favoriteId, mergeCustomSongs: mergeCustomSongs, createClient: createClient };
 })(window);

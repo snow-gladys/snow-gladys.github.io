@@ -1469,7 +1469,16 @@
             listEl.appendChild(frag);
         }
 
-        function openCustomForm(editIndex) {
+        const customSongEntry = window.SG_SONG_ENTRY.create({
+            input: document.getElementById('custom-form-bvid'), name: document.getElementById('custom-form-name'),
+            status: document.getElementById('custom-form-info-status'), retry: document.getElementById('custom-form-info-retry'),
+            client: biliClient, find: id => songList.find(song => song.bvid.toUpperCase() === id.toUpperCase()),
+        });
+        let customFormTargetPlaylist = '', customFormVersion = 0, customFormSaving = false;
+
+        function openCustomForm(editIndex, targetPlaylist) {
+            customFormTargetPlaylist = targetPlaylist || ''; customFormVersion++;
+            const formVersion = customFormVersion;
             const backdrop = document.getElementById('custom-form-backdrop');
             const title = document.getElementById('custom-form-title');
             const nameIn = document.getElementById('custom-form-name');
@@ -1485,25 +1494,33 @@
                     lyricsIn.value = '';
                     lyricsIn.placeholder = '加载中…';
                     window.SG_LYRICS.getUserLrc(customList[editIndex].bvid || '').then(function (lrc) {
-                        lyricsIn.value = lrc || '';
+                        if (formVersion !== customFormVersion || !backdrop.classList.contains('is-open')) return;
+                        if (!lyricsIn.value) lyricsIn.value = lrc || '';
                         lyricsIn.placeholder = '[00:00.00] 第一行歌词\n[00:05.00] 第二行歌词\n留空则不修改已有歌词';
-                    });
+                    }).catch(() => { if (formVersion === customFormVersion) lyricsIn.placeholder = '已有歌词暂时无法读取，可留空保留原歌词。'; });
                 } else if (lyricsIn) {
                     lyricsIn.value = '';
                 }
             } else {
-                title.textContent = '添加自定义歌曲';
+                title.textContent = targetPlaylist ? '添加到歌单' : '添加自定义歌曲';
                 nameIn.value = '';
                 bvidIn.value = '';
                 if (lyricsIn) lyricsIn.value = '';
                 delete nameIn.dataset.editIndex;
             }
+            customSongEntry.begin();
+            document.getElementById('custom-form-submit').disabled = false;
             backdrop.classList.add('is-open');
-            setTimeout(() => nameIn.focus(), 100);
+            setTimeout(() => { if (formVersion === customFormVersion && backdrop.classList.contains('is-open')) (editIndex == null ? bvidIn : nameIn).focus(); }, 100);
         }
 
         function closeCustomForm() {
+            customSongEntry.close(); customFormVersion++;
             document.getElementById('custom-form-backdrop').classList.remove('is-open');
+            const target = customFormTargetPlaylist; customFormTargetPlaylist = '';
+            if (target && personalLibrary.get(target) && typeof renderCollectionAdd === 'function') {
+                renderCollectionAdd(); document.getElementById('collection-add-dialog').showModal();
+            }
         }
 
         function isValidBvidFormat(bvid) {
@@ -1517,39 +1534,47 @@
             } catch (e) { return 'unknown'; }
         }
 
-        function submitCustomForm() {
-            const nameIn = document.getElementById('custom-form-name');
-            const bvidIn = document.getElementById('custom-form-bvid');
-            const lyricsIn = document.getElementById('custom-form-lyrics');
-            const name = (nameIn.value || '').trim();
-            const bvid = window.SG_BILI_API.normalizeId(bvidIn.value);
-            const lrcText = lyricsIn ? (lyricsIn.value || '').trim() : '';
-            if (!name) { alert('请输入歌名'); return; }
-            if (!isValidBvidFormat(bvid)) { alert('请输入有效的 BV 号。'); return; }
-            (async function () {
-                var result = await validateBvidExists(bvid);
-                if (result === 'invalid') { alert('视频不存在、已删除或编号无效，请检查 BV 号。'); return; }
+        async function submitCustomForm() {
+            if (customFormSaving) return;
+            const button = document.getElementById('custom-form-submit'), session = customSongEntry.session;
+            const nameIn = document.getElementById('custom-form-name'), lyricsIn = document.getElementById('custom-form-lyrics');
+            const editIndex = nameIn.dataset.editIndex != null ? parseInt(nameIn.dataset.editIndex, 10) : -1;
+            const targetPlaylist = customFormTargetPlaylist, lrcText = lyricsIn ? lyricsIn.value.trim() : '';
+            customFormSaving = true; button.disabled = true; button.textContent = '正在添加…';
+            try {
+                const song = await customSongEntry.read();
+                if (!song || !customSongEntry.current(session)) return;
+                const { name, bvid } = song;
+                const result = song.verified ? 'valid' : await validateBvidExists(bvid);
+                if (!customSongEntry.current(session)) return;
+                if (result === 'invalid') throw new Error('视频不存在、已删除或编号无效，请检查 BV 号。');
                 if (result === 'unknown' && !confirm('暂时无法验证该视频（可能因网络或 B 站服务异常），是否仍要添加？')) return;
-                const editIndex = nameIn.dataset.editIndex != null ? parseInt(nameIn.dataset.editIndex, 10) : -1;
-                if (editIndex >= 0 && editIndex < customList.length) {
-                    customList[editIndex] = { name, bvid };
+                const duplicate = customList.findIndex((item, i) => i !== editIndex && String(item.bvid || '').toUpperCase() === bvid.toUpperCase());
+                const next = customList.slice();
+                if (editIndex >= 0 && editIndex < next.length) {
+                    if (duplicate >= 0) throw new Error('这首歌已经在自定义歌曲中。');
+                    next[editIndex] = { name, bvid };
+                } else if (duplicate < 0) next.push({ name, bvid });
+                if (targetPlaylist) {
+                    if (!personalLibrary.get(targetPlaylist)) throw new Error('这个歌单已被删除，请重新选择。');
+                    personalLibrary.add(targetPlaylist, [{ name, bvid }]);
                 } else {
-                    customList.push({ name, bvid });
+                    if (!saveCustomToStorage(next)) throw new Error('保存失败，请检查设备空间后重试。');
+                    customList = next;
                 }
-                saveCustomToStorage(customList);
-                buildSongList();
-                renderPlaylist();
-                renderCustomSectionInSettings();
-                // 保存歌词（有填写则保存，未填写则不操作，编辑时也不清空已存歌词）
+                buildSongList(); renderPlaylist(); renderCustomSectionInSettings();
                 if (lrcText && window.SG_LYRICS && window.SG_LYRICS.supported) {
-                    await window.SG_LYRICS.saveUserLrc(bvid, lrcText).catch(function () {});
-                    // 如果当前正在播放此曲，刷新歌词
-                    if (currentPlayingBvid && currentPlayingBvid === bvid) {
-                        lyricsReloadForCurrentSong();
-                    }
+                    try { await window.SG_LYRICS.saveUserLrc(bvid, lrcText); }
+                    catch (_) { showToast('歌曲已添加，但歌词未能保存，请稍后重新导入。', 5000); }
+                    if (currentPlayingBvid === bvid) lyricsReloadForCurrentSong();
                 }
-                closeCustomForm();
-            })();
+                if (customSongEntry.current(session)) closeCustomForm();
+                showToast(targetPlaylist ? '已加入歌单。' : duplicate >= 0 && editIndex < 0 ? '这首歌已经在自定义歌曲中。' : '歌曲已保存。');
+            } catch (error) {
+                if (customSongEntry.current(session)) document.getElementById('custom-form-info-status').textContent = error.message || '添加失败，请重试。';
+            } finally {
+                customFormSaving = false; button.disabled = false; button.textContent = '确定';
+            }
         }
 
         loadSongs();
@@ -1949,6 +1974,9 @@
             if (customFormCancelFooter) customFormCancelFooter.addEventListener('click', closeCustomForm);
             document.getElementById('custom-form-backdrop').addEventListener('click', function (e) { if (e.target.id === 'custom-form-backdrop') closeCustomForm(); });
             document.getElementById('custom-form-submit').addEventListener('click', submitCustomForm);
+            for (const id of ['custom-form-bvid', 'custom-form-name']) document.getElementById(id).addEventListener('keydown', event => {
+                if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); submitCustomForm(); }
+            });
             document.getElementById('custom-form-box').addEventListener('click', function (e) { e.stopPropagation(); });
 
             // 歌词字段：导入文件
@@ -2807,7 +2835,8 @@
                     navigator.mediaSession.metadata = new MediaMetadata({
                         title: (useLockscreenLyric && hasLyrics) ? (currentTxt || name) : name,
                         artist: (useLockscreenLyric && hasLyrics) ? (name + ' · 思诺音乐') : '思诺音乐',
-                        album: ''
+                        album: '',
+                        artwork: window.SG_WARDROBE.artwork()
                     });
                 }
                 navigator.mediaSession.setActionHandler('play', function () {

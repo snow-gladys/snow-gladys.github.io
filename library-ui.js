@@ -196,7 +196,7 @@ function renderCollectionAdd() {
         if (checkbox.disabled) { const hint = document.createElement('small'); hint.textContent = '已加入'; row.append(hint); }
         fragment.append(row);
     }
-    if (!source.length) { const empty = document.createElement('p'); empty.className = 'personal-description'; empty.textContent = '没有找到歌曲，可以先从设置中添加 BV 号歌曲，或从 B 站导入歌单。'; fragment.append(empty); }
+    if (!source.length) { const empty = document.createElement('p'); empty.className = 'personal-description'; empty.textContent = '没有找到歌曲，可以用上方的 BV 号 / 链接添加，或从 B 站导入歌单。'; fragment.append(empty); }
     document.getElementById('collection-add-list').replaceChildren(fragment);
     document.getElementById('collection-add-more').hidden = source.length <= personalAddLimit;
     syncCollectionAddCount();
@@ -230,6 +230,9 @@ function importFavoritePlaylist(songs, source) {
     document.getElementById('collection-create').addEventListener('click', () => openCollectionEditor());
     document.getElementById('collection-back').addEventListener('click', () => { browsedPlaylistId = ''; openPlaylist(undefined, 'collections'); });
     document.getElementById('collection-play').addEventListener('click', () => startCollectionPlayback(browsedPlaylistId));
+    document.getElementById('collection-add-bvid').addEventListener('click', () => {
+        document.getElementById('collection-add-dialog').close(); openCustomForm(null, addingPersonalPlaylist);
+    });
     document.getElementById('collection-add').addEventListener('click', () => openCollectionAdd(browsedPlaylistId));
     document.getElementById('collection-manage').addEventListener('click', () => {
         const list = getCollection(browsedPlaylistId);
@@ -294,5 +297,6 @@ function importFavoritePlaylist(songs, source) {
         if (switched) { fanCountElement.textContent = '…'; fetchFanCount(); }
         if (window.__SG_ANDROID_PING) window.__SG_ANDROID_PING();
     });
+    window.addEventListener('sg:artwork', () => updateMediaSession());
     validatePlaybackPlaylist(); syncCollectionToolbar(); playlistRenderKey = ''; renderPlaylist();
 })();

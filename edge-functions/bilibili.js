@@ -5,6 +5,7 @@
  * GET /resolve?bvid=BV17uZQBHEDo&mode=medium
  * GET /resolve?bvid=BV17uZQBHEDo&p=1&mode=high
  * GET /valid?bvid=BV17uZQBHEDo
+ * GET /info?bvid=BV17uZQBHEDo 或 /info?url=https%3A%2F%2Fb23.tv%2Fxxxx
  * GET /favorites?media_id=3736153875&pn=1 （每页 20 项）
  * /hls.m3u8 将 DASH 音频索引转换为原生 HLS 播放列表，不转码。
  * /resolvehtml 与 /resolve 使用相同的独立音频解析逻辑。
@@ -28,6 +29,8 @@ const PAGE_REQUESTS = new Map();
 const PAGE_CACHE_TTL = 10 * 60 * 1000;
 const HLS_INDEX_CACHE = new Map();
 const HLS_INDEX_REQUESTS = new Map();
+const VIDEO_INFO_CACHE = new Map();
+const VIDEO_INFO_REQUESTS = new Map();
 
 class ApiError extends Error {
   constructor(status, code, message, details = {}) {
@@ -46,6 +49,48 @@ function normalizeVideoId(value) {
 
 function videoParams(id) {
   return new URLSearchParams({ bvid: id });
+}
+
+async function shortVideoId(input) {
+  let url;
+  try { url = new URL(input); } catch (_) {}
+  if (!url || url.protocol !== 'https:' || url.hostname !== 'b23.tv' || url.port || url.username || url.password ||
+      !/^\/[a-zA-Z0-9]{1,32}\/?$/.test(url.pathname)) {
+    throw new ApiError(400, 'INVALID_SHARE_URL', '请粘贴有效的 B 站视频分享链接。');
+  }
+  for (let i = 0; i < 4; i++) {
+    let response;
+    try { response = await fetch(url.href, { headers: BILI_HEADERS, redirect: 'manual' }); }
+    catch (_) { throw new ApiError(502, 'SHARE_NETWORK_ERROR', '分享链接暂时无法打开，请重试或直接填写 BV 号。'); }
+    const location = response.headers.get('Location');
+    if (response.body) await response.body.cancel().catch(() => {});
+    if (![301, 302, 303, 307, 308].includes(response.status) || !location) break;
+    try { url = new URL(location, url); } catch (_) { break; }
+    if (url.protocol !== 'https:' || url.username || url.password || url.port ||
+        !(url.hostname === 'b23.tv' || url.hostname === 'bilibili.com' || url.hostname.endsWith('.bilibili.com'))) break;
+    const match = /^\/video\/(BV[a-zA-Z0-9]{10})(?:\/|$)/i.exec(url.pathname);
+    if (match && url.hostname !== 'b23.tv') return normalizeVideoId(match[1]);
+    if (url.hostname !== 'b23.tv') break;
+  }
+  throw new ApiError(422, 'SHARE_VIDEO_NOT_FOUND', '分享链接中未找到视频，请复制视频页链接或 BV 号。');
+}
+
+async function getVideoInfo(id) {
+  const cached = VIDEO_INFO_CACHE.get(id);
+  if (cached && cached.expires > Date.now()) return cached.song;
+  if (VIDEO_INFO_REQUESTS.has(id)) return VIDEO_INFO_REQUESTS.get(id);
+  const pending = (async () => {
+    const result = await biliJson('/x/web-interface/view', videoParams(id), 'info');
+    const data = result.data, bvid = data && normalizeVideoId(data.bvid);
+    const name = data && typeof data.title === 'string' ? data.title.trim() : '';
+    if (!bvid || !name) throw new ApiError(502, 'UPSTREAM_INVALID_DATA', '未获取到视频标题，请稍后重试。', { stage: 'info' });
+    const song = { bvid, name: name.slice(0, 300) };
+    if (VIDEO_INFO_CACHE.size >= 256) VIDEO_INFO_CACHE.delete(VIDEO_INFO_CACHE.keys().next().value);
+    VIDEO_INFO_CACHE.set(id, { song, expires: Date.now() + PAGE_CACHE_TTL });
+    return song;
+  })();
+  VIDEO_INFO_REQUESTS.set(id, pending);
+  try { return await pending; } finally { VIDEO_INFO_REQUESTS.delete(id); }
 }
 
 async function biliJson(path, params, stage) {
@@ -298,6 +343,11 @@ async function handleRequest(request) {
   if (!["GET", "HEAD"].includes(request.method)) return json({ code: "METHOD_NOT_ALLOWED", error: "仅支持 GET、HEAD 和 OPTIONS 请求。" }, 405);
   try {
     const url = new URL(request.url);
+    if (url.pathname === '/info') {
+      const id = url.searchParams.has('bvid') ? normalizeVideoId(url.searchParams.get('bvid')) : await shortVideoId(url.searchParams.get('url'));
+      if (!id) throw new ApiError(400, 'INVALID_VIDEO_ID', '请输入有效的 BV 号。');
+      return json(await getVideoInfo(id));
+    }
     if (url.pathname === "/proxy") return await proxyMedia(request, url.searchParams.get("url"), corsHeaders);
     if (url.pathname === "/hls.m3u8") return await hlsPlaylist(request, url, corsHeaders);
     if (url.pathname === "/favorites") {

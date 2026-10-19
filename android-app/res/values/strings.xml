@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">思诺 · Gladys</string>
+    <color name="app_background">#F8F9FC</color>
+    <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowBackground">@color/app_background</item>
+        <item name="android:colorAccent">#222222</item>
+    </style>
+</resources>

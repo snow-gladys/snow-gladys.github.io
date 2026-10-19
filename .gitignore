@@ -1,2 +1,4 @@
 .DS_Store
 /tools/live-recorder
+/.android-local/
+/android-app/build/

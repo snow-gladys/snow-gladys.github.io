@@ -24,6 +24,7 @@
                 data.active = stored.active === true || !!data.anchor;
             }
         } catch (_) {}
+        const excludedIds = new Set(data.excluded.map(item => item.bvid));
         function changed() {
             revision++;
             try { options.storage.setItem(options.key, JSON.stringify(data)); }
@@ -67,12 +68,13 @@
                 changed();
             },
             clearRecent() { data.recent = []; changed(); },
-            isExcluded(id) { return data.excluded.some(item => item.bvid === id); },
+            isExcluded(id) { return excludedIds.has(id); },
             exclude(value, excluded) {
                 const clean = song(value);
                 if (!clean) return;
                 data.excluded = data.excluded.filter(item => item.bvid !== clean.bvid);
                 if (excluded) data.excluded.push(clean);
+                if (excluded) excludedIds.add(clean.bvid); else excludedIds.delete(clean.bvid);
                 changed();
             },
         };

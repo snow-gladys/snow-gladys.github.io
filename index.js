@@ -370,6 +370,7 @@
                 }
             }
             syncHomePlayer();
+            if (progressUI) progressUI.refresh();
         }
 
         function syncHomePlayer() {
@@ -398,6 +399,7 @@
                 homePlayerProgressEl.style.transform = 'scaleX(' + progress + ')';
                 return;
             }
+            if (progressUI) { progressUI.refresh(); return; }
             const duration = bgmAudio.duration;
             const progress = (!loadingBvid || loadingBvid === currentPlayingBvid) && isFinite(duration) && duration > 0
                 ? Math.max(0, Math.min(1, bgmAudio.currentTime / duration)) : 0;
@@ -1967,7 +1969,7 @@
             var manageCloseBtn = document.getElementById('custom-manage-close');
             if (manageCloseBtn) manageCloseBtn.addEventListener('click', closeCustomManage);
             var manageSearchEl = document.getElementById('custom-manage-search');
-            if (manageSearchEl) manageSearchEl.addEventListener('input', function () { renderCustomManageList(this.value); });
+            if (manageSearchEl) manageSearchEl.addEventListener('input', window.SG_PLAYBACK_UI.frameTask(() => renderCustomManageList(manageSearchEl.value)));
 
             document.getElementById('custom-form-cancel').addEventListener('click', closeCustomForm);
             var customFormCancelFooter = document.getElementById('custom-form-cancel-footer');
@@ -2058,7 +2060,8 @@
         if (btnOpenCatalog) {
             btnOpenCatalog.addEventListener('click', () => openPlaylist(getCurrentIndex()));
         }
-        if (playlistSearchEl) playlistSearchEl.addEventListener('input', renderPlaylist);
+        const queuePlaylistSearch = window.SG_PLAYBACK_UI.frameTask(() => renderPlaylist());
+        if (playlistSearchEl) playlistSearchEl.addEventListener('input', queuePlaylistSearch);
         if (playlistFilterBtn) {
             playlistFilterBtn.addEventListener('click', () => {
                 playlistFilterFavorites = !playlistFilterFavorites;
@@ -2174,6 +2177,7 @@
 
         function startAudioVisualizer() {
             if (bgmAudio.paused || (document.hidden && !pipWindow)) return;
+            if (document.body.classList.contains('has-overlay') && !pipWindow) return;
             if (!viewPlay.classList.contains('is-active') && !pipWindow) return;
             if (!playVisualizerEl) return;
             ensureAudioAnalyser();
@@ -2191,6 +2195,7 @@
             function renderFrame(timestamp) {
                 visualizerRafId = null;
                 if (bgmAudio.paused || (document.hidden && !pipWindow) ||
+                    (document.body.classList.contains('has-overlay') && !pipWindow) ||
                     (!viewPlay.classList.contains('is-active') && !pipWindow)) return;
                 // 【黑科技修复2】：当开启小窗时，强行征用小窗的 requestAnimationFrame！
                 // 这样即使用户把主网页切到后台甚至最小化，小窗的频谱依然能保持 60 帧流畅跳动！
@@ -2199,7 +2204,7 @@
                 visualizerRafId = rafWindow.requestAnimationFrame(renderFrame);
                 
                 const now = typeof timestamp === 'number' ? timestamp : performance.now();
-                const interval = compactVisualizer ? 1000 / 24 : 1000 / 60;
+                const interval = document.body.classList.contains('is-scrubbing') ? 1000 / 12 : compactVisualizer ? 1000 / 24 : 1000 / 60;
                 if (now - lastVisualizerFrame < interval - 1) return;
                 lastVisualizerFrame = Number.isFinite(lastVisualizerFrame)
                     ? now - Math.max(0, (now - lastVisualizerFrame) % interval) : now;
@@ -2312,6 +2317,7 @@
 
         // --- 加载信息框 ---
         var loadingInfoEl = document.getElementById('loading-info');
+        var loadingTitleEl = null, loadingDetailEl = null;
         var loadingInfoTimer = null;      // setInterval 句柄，每秒刷新显示
         var loadingStartTime = null;      // 开始加载的时间戳
         var loadingBvid = null;           // 当前正在加载的 bvid
@@ -2328,13 +2334,13 @@
                 loadingInfoTimer = setInterval(function () {
                     if (!loadingBvid) { hideLoadingInfo(); return; }
                     updateLoadingInfoContent(getSongNameByBvid(loadingBvid), 'buffering');
-                }, 100);
+                }, 250);
             }
             syncHomePlayer();
         }
 
         function updateLoadingInfoContent(songName, phase) {
-            if (!loadingInfoEl) return;
+            if (!loadingInfoEl || document.hidden) return;
             var elapsed = loadingStartTime ? ((Date.now() - loadingStartTime) / 1000).toFixed(1) : '0.0';
             var detail;
             if (phase === 'resolve') {
@@ -2346,11 +2352,14 @@
                 var stateDesc = stateMap[bgmAudio.readyState] || '连接中';
                 detail = '已等待 ' + elapsed + ' 秒 · ' + stateDesc;
             }
-            if (!loadingInfoEl.querySelector('.loading-title')) {
-                loadingInfoEl.innerHTML = '<div class="loading-title"></div><div class="loading-detail"></div>';
+            if (!loadingTitleEl) {
+                if (!loadingInfoEl.querySelector('.loading-title')) loadingInfoEl.innerHTML = '<div class="loading-title"></div><div class="loading-detail"></div>';
+                loadingTitleEl = loadingInfoEl.querySelector('.loading-title');
+                loadingDetailEl = loadingInfoEl.querySelector('.loading-detail');
             }
-            loadingInfoEl.querySelector('.loading-title').textContent = '歌曲《' + songName + '》加载中';
-            loadingInfoEl.querySelector('.loading-detail').textContent = detail;
+            const title = '歌曲《' + songName + '》加载中';
+            if (loadingTitleEl.textContent !== title) loadingTitleEl.textContent = title;
+            if (loadingDetailEl.textContent !== detail) loadingDetailEl.textContent = detail;
         }
 
         function hideLoadingInfo() {
@@ -2362,10 +2371,14 @@
         }
 
         // 封装事件监听绑定逻辑，因为每次"偷梁换柱"后都需要重新绑定
+        function handleAudioProgress(event) {
+            if (event.currentTarget === bgmAudio) updateProgressDisplay();
+        }
         function bindAudioEvents(audioObj) {
             // 移除旧的监听器（虽然新对象没有监听器，但这是一个好习惯）
-            audioObj.removeEventListener('timeupdate', updateProgressDisplay);
-            audioObj.removeEventListener('loadedmetadata', updateProgressDisplay);
+            audioObj.removeEventListener('timeupdate', handleAudioProgress);
+            audioObj.removeEventListener('loadedmetadata', handleAudioProgress);
+            audioObj.removeEventListener('seeked', handleAudioProgress);
             audioObj.removeEventListener('ended', handleAudioEnded);
             audioObj.removeEventListener('play', handleAudioPlay);
             audioObj.removeEventListener('pause', handleAudioPause);
@@ -2373,8 +2386,9 @@
             audioObj.removeEventListener('waiting', onVisualizerWaiting);
             audioObj.removeEventListener('playing', onVisualizerPlaying);
 
-            audioObj.addEventListener('timeupdate', updateProgressDisplay);
-            audioObj.addEventListener('loadedmetadata', updateProgressDisplay);
+            audioObj.addEventListener('timeupdate', handleAudioProgress);
+            audioObj.addEventListener('loadedmetadata', handleAudioProgress);
+            audioObj.addEventListener('seeked', handleAudioProgress);
             audioObj.addEventListener('ended', handleAudioEnded);
             audioObj.addEventListener('play', handleAudioPlay);
             audioObj.addEventListener('pause', handleAudioPause);
@@ -2513,6 +2527,7 @@
         const timeTotalEl = document.getElementById('time-total');
         const progressBarEl = document.getElementById('progress-bar');
         const progressBarContainerEl = progressBarEl ? progressBarEl.closest('.progress-bar-container') : null;
+        var progressUI = null;
 
         function formatTime(sec) {
             if (sec === undefined || sec === null || !isFinite(sec) || isNaN(sec)) return '0:00';
@@ -2543,26 +2558,7 @@
             if (document.hidden) return;
             syncHomePlayerProgress();
 
-            // UI 更新逻辑（进度条视觉由 .progress-bar-container 的 --progress 控制，需同步更新容器）
-            if (!isDraggingProgress) {
-                if (timeCurrentEl) timeCurrentEl.textContent = formatTime(t);
-                if (isFinite(d) && d > 0) {
-                    if (timeTotalEl) timeTotalEl.textContent = formatTime(d);
-                    const p = (t / d) * 100;
-                    if (progressBarEl) {
-                        progressBarEl.value = p;
-                        progressBarEl.style.setProperty('--progress', p + '%');
-                    }
-                    if (progressBarContainerEl) progressBarContainerEl.style.setProperty('--progress', p + '%');
-                } else {
-                    if (timeTotalEl) timeTotalEl.textContent = '0:00';
-                    if (progressBarEl) {
-                        progressBarEl.value = 0;
-                        progressBarEl.style.setProperty('--progress', '0%');
-                    }
-                    if (progressBarContainerEl) progressBarContainerEl.style.setProperty('--progress', '0%');
-                }
-            }
+            if (progressUI) progressUI.refresh();
         }
 
         const MODE_TITLES = { list: '列表循环', single: '单曲循环', random: '随机播放' };
@@ -2858,6 +2854,7 @@
                 if (!confirm('正在调轴，是否不保存并切换歌曲？')) return;
                 cancelAdjustMode();
             }
+            if (progressUI) progressUI.cancel();
             primeMobileAudioAnalyser();
             mobileVisualizerWaiting = true;
             savePlaybackSession(true);
@@ -2983,8 +2980,9 @@
                 globalPreloadAudio = createPlayerAudio();
 
                 // 销毁旧对象前先移除其事件监听，否则清空 src 时可能触发 ended，导致多切一首
-                oldAudio.removeEventListener('timeupdate', updateProgressDisplay);
-                oldAudio.removeEventListener('loadedmetadata', updateProgressDisplay);
+                oldAudio.removeEventListener('timeupdate', handleAudioProgress);
+                oldAudio.removeEventListener('loadedmetadata', handleAudioProgress);
+                oldAudio.removeEventListener('seeked', handleAudioProgress);
                 oldAudio.removeEventListener('ended', handleAudioEnded);
                 oldAudio.removeEventListener('play', handleAudioPlay);
                 oldAudio.removeEventListener('pause', handleAudioPause);
@@ -3100,56 +3098,41 @@
 
         // 视觉效果联动：暂停时保持当前角度，播放时从该角度继续转
         function startVisuals(bvid) {
-            const deg = getRecordRotationDeg(characterImg);
-            characterImg.style.setProperty('--start-deg', deg + 'deg');
-            characterImg.style.removeProperty('transform');
-            characterImg.classList.add('is-playing');
+            if (!characterImg.classList.contains('is-playing') && viewPlay.classList.contains('is-active')) {
+                const deg = getRecordRotationDeg(characterImg);
+                characterImg.style.setProperty('--start-deg', deg + 'deg');
+                characterImg.style.removeProperty('transform');
+                characterImg.classList.add('is-playing');
+            }
             startAudioVisualizer();
+            if (progressUI) progressUI.refresh();
         }
 
         function stopVisuals() {
-            const deg = getRecordRotationDeg(characterImg);
-            characterImg.classList.remove('is-playing');
-            characterImg.style.setProperty('transform', 'rotate(' + deg + 'deg)');
+            if (characterImg.classList.contains('is-playing')) {
+                const deg = getRecordRotationDeg(characterImg);
+                characterImg.classList.remove('is-playing');
+                characterImg.style.setProperty('transform', 'rotate(' + deg + 'deg)');
+            }
             stopAudioVisualizer();
+            if (progressUI) progressUI.refresh();
             if (pipWindow && !bgmAudio.paused) startAudioVisualizer();
         }
 
         // 播放条与时间（timeupdate/loadedmetadata/ended 已由 bindAudioEvents 统一绑定，此处不再重复）
 
-        // 拖动进度条跳转（完美修复移动端松手卡死问题）
+        // 播放进度与手势预览共用一帧；松手才发起一次真正的 seek。
         let isDraggingProgress = false;
-        if (progressBarEl) {
-            // 1. 手指按下时，锁定 UI 更新
-            progressBarEl.addEventListener('touchstart', function() { isDraggingProgress = true; }, { passive: true });
-            progressBarEl.addEventListener('mousedown', function() { isDraggingProgress = true; });
-
-            // 2. 拖拽时只更新画面，绝不干扰音频解码器
-            progressBarEl.addEventListener('input', function () {
-                isDraggingProgress = true;
-                const d = bgmAudio.duration;
-                if (isFinite(d) && d > 0) {
-                    const p = parseFloat(this.value);
-                    this.style.setProperty('--progress', p + '%');
-                    if (progressBarContainerEl) progressBarContainerEl.style.setProperty('--progress', p + '%');
-                    if (timeCurrentEl) timeCurrentEl.textContent = formatTime((p / 100) * d);
-                }
-            });
-            
-            // 3. 核心：无论用户以什么姿势松手，都确保释放锁定并执行跳转
-            function finishDrag() {
-                if (!isDraggingProgress) return;
-                isDraggingProgress = false;
-                const d = bgmAudio.duration;
-                if (isFinite(d) && d > 0) {
-                    bgmAudio.currentTime = (parseFloat(progressBarEl.value) / 100) * d;
-                }
-            }
-
-            progressBarEl.addEventListener('change', finishDrag);
-            progressBarEl.addEventListener('touchend', finishDrag);
-            progressBarEl.addEventListener('mouseup', finishDrag);
-        }
+        if (progressBarEl) progressUI = window.SG_PLAYBACK_UI.createProgress({
+            input: progressBarEl, container: progressBarContainerEl, current: timeCurrentEl, total: timeTotalEl,
+            homeProgress: homePlayerProgressEl, audio: () => bgmAudio, track: () => currentPlayingBvid,
+            mainVisible: () => viewPlay.classList.contains('is-active') && !document.body.classList.contains('has-overlay'),
+            homeVisible: () => !!currentPlayingBvid && !homePlayerEl.hidden && viewHome.style.display !== 'none' && !document.body.classList.contains('has-overlay'),
+            format: formatTime,
+            onDragging: active => { isDraggingProgress = active; document.body.classList.toggle('is-scrubbing', active); },
+            onTime: time => { if (adjustMode) updateAdjustHighlight(time); else updateLyricHighlight(time); },
+            onCommit: () => { currentLyricIndex = -1; updateProgressDisplay(); savePlaybackSession(true); },
+        });
 
         // 所有播放入口共用错误处理，避免恢复播放时出现未处理的异常。
         async function togglePlayback() {
@@ -3564,12 +3547,16 @@
         var userScrollingTimer = null;
         (function initLyricsScrollWatch() {
             if (!lyricsScrollEl) return;
+            let lastManualScroll = 0;
+            function releaseManualScroll() {
+                const remaining = 2000 - (Date.now() - lastManualScroll);
+                if (remaining > 0) { userScrollingTimer = setTimeout(releaseManualScroll, remaining); return; }
+                userScrollingTimer = null; userScrollingLyrics = false;
+                scrollToActiveLyric(true);
+            }
             function onUserScroll() {
-                userScrollingLyrics = true;
-                clearTimeout(userScrollingTimer);
-                userScrollingTimer = setTimeout(function () {
-                    userScrollingLyrics = false;
-                }, 2000);
+                userScrollingLyrics = true; lastManualScroll = Date.now();
+                if (!userScrollingTimer) userScrollingTimer = setTimeout(releaseManualScroll, 2000);
             }
             lyricsScrollEl.addEventListener('wheel', onUserScroll, { passive: true });
             lyricsScrollEl.addEventListener('touchmove', onUserScroll, { passive: true });
@@ -3626,9 +3613,19 @@
         }
 
         /** 渲染歌词滚动区域 */
+        var renderedLyrics = undefined, renderedFallback = undefined;
         function renderLyricsScroll() {
+            if (!lyricsViewOpen) return;
             if (adjustMode) { renderAdjustScroll(); return; }
             if (!lyricsScrollEl) return;
+            if (renderedLyrics === currentLyrics && renderedFallback === availableFallbackLrc && lyricsScrollEl.dataset.renderMode === 'normal') {
+                if (activeLyricElement) activeLyricElement.classList.remove('active');
+                activeLyricElement = lyricLineElements[currentLyricIndex] || null;
+                if (activeLyricElement) activeLyricElement.classList.add('active');
+                scrollToActiveLyric(false); return;
+            }
+            renderedLyrics = currentLyrics; renderedFallback = availableFallbackLrc;
+            lyricsScrollEl.dataset.renderMode = 'normal';
             lyricsScrollEl.innerHTML = '';
             lyricLineElements = [];
             activeLyricElement = null;
@@ -3744,13 +3741,14 @@
             return low - 1;
         }
 
-        function updateLyricHighlight() {
+        function updateLyricHighlight(previewTime) {
             if (!currentLyrics || !currentLyrics.length) return;
-            var t = bgmAudio.currentTime;
+            if (document.hidden && !pipWindow && (settings && settings.lockscreenLyric) !== 'on') return;
+            var t = typeof previewTime === 'number' ? previewTime : progressUI && progressUI.dragging ? progressUI.time : bgmAudio.currentTime;
             var newIdx = findLyricIndex(currentLyrics, t);
             // 更新单行提示
             var txt = (newIdx >= 0 && currentLyrics[newIdx].text) ? currentLyrics[newIdx].text : '';
-            if (playCurrentLyricEl && playCurrentLyricEl.textContent !== txt) {
+            if (!document.hidden && playCurrentLyricEl && playCurrentLyricEl.textContent !== txt) {
                 playCurrentLyricEl.textContent = txt;
             }
             if (newIdx === currentLyricIndex) return;
@@ -3763,7 +3761,7 @@
             }
 
             // 装扮与歌曲独立，媒体信息不将当前装扮误标为演唱者。
-            if ((settings && settings.lockscreenLyric) === 'on' &&
+            if (!isDraggingProgress && (settings && settings.lockscreenLyric) === 'on' &&
                 typeof navigator !== 'undefined' && navigator.mediaSession && navigator.mediaSession.metadata) {
                 try {
                     var meta = navigator.mediaSession.metadata;
@@ -3778,7 +3776,7 @@
                 } catch (e) {}
             }
 
-            if (!lyricsViewOpen) return;
+            if (!lyricsViewOpen || document.hidden) return;
 
             // 更新高亮（用 dataset.idx 匹配，避免空行跳过导致的 DOM 索引偏移）
             if (activeLyricElement) activeLyricElement.classList.remove('active');
@@ -3789,8 +3787,12 @@
         }
 
         /** 将当前高亮行滚动到视图中央（略偏上，让视觉中心更舒服） */
+        var lyricScrollTask = window.SG_PLAYBACK_UI.frameTask(positionActiveLyric);
         function scrollToActiveLyric(smooth) {
-            if (!lyricsScrollEl || currentLyricIndex < 0) return;
+            if (lyricsViewOpen && !document.hidden) lyricScrollTask(smooth);
+        }
+        function positionActiveLyric(smooth) {
+            if (!lyricsViewOpen || document.hidden || !lyricsScrollEl || currentLyricIndex < 0) return;
             // 用户正在手动滚动时不自动跟随
             if (smooth && userScrollingLyrics) return;
             var active = lyricLineElements[currentLyricIndex];
@@ -3807,7 +3809,7 @@
                 targetTop = active.offsetTop - containerH * centerRatio + active.clientHeight / 2;
             }
             lyricsFirstScrollDone = true;
-            lyricsScrollEl.scrollTo({ top: targetTop, behavior: smooth ? 'smooth' : 'auto' });
+            lyricsScrollEl.scrollTo({ top: targetTop, behavior: smooth && !isDraggingProgress ? 'smooth' : 'auto' });
         }
 
         /** 为当前歌曲加载并刷新歌词 (Async 优化版) */
@@ -3944,6 +3946,7 @@
 
         /** 渲染调轴模式下的歌词列表（带悬浮操作栏） */
         function renderAdjustScroll() {
+            if (lyricsScrollEl) lyricsScrollEl.dataset.renderMode = 'adjust';
             if (!lyricsScrollEl || !adjustLyrics) return;
             lyricsScrollEl.innerHTML = '';
             adjustRows = [];
@@ -4042,9 +4045,9 @@
         }
 
         /** 更新调轴模式下的高亮行（跟随播放进度） */
-        function updateAdjustHighlight() {
-            if (!adjustMode || !adjustLyrics || !lyricsScrollEl) return;
-            var t = bgmAudio.currentTime;
+        function updateAdjustHighlight(previewTime) {
+            if (!adjustMode || !adjustLyrics || !lyricsScrollEl || document.hidden) return;
+            var t = typeof previewTime === 'number' ? previewTime : progressUI && progressUI.dragging ? progressUI.time : bgmAudio.currentTime;
             var newIdx = findLyricIndex(adjustLyrics, t);
             if (newIdx === adjustHighlightIndex) return;
             adjustHighlightIndex = newIdx;
@@ -4514,4 +4517,21 @@
             document.getElementById('bulk-cache-retry').addEventListener('click', function () { if (bulkCache) { prepareBulkCache(); bulkCache.retry(); } });
             document.getElementById('bulk-cache-cancel').addEventListener('click', function () { if (bulkCache) bulkCache.cancel(); });
             syncLibraryTabs(); renderBulkCache();
+        })();
+
+        // 弹层遮住播放器时暂停背景绘制，避免磨砂层每帧重采样底下的大图和动画。
+        (function observeVisualActivity() {
+            const layers = [...document.querySelectorAll('dialog, [id$="-backdrop"], #view-playlist')];
+            let previous = false;
+            function sync() {
+                const covered = layers.some(layer => layer.open === true || layer.classList.contains('is-open'));
+                if (covered === previous) return;
+                previous = covered; document.body.classList.toggle('has-overlay', covered);
+                stopAudioVisualizer();
+                if (!covered && !bgmAudio.paused) startAudioVisualizer();
+                if (progressUI) progressUI.refresh();
+            }
+            const observer = new MutationObserver(sync);
+            for (const layer of layers) observer.observe(layer, { attributes: true, attributeFilter: ['open', 'class'] });
+            sync();
         })();

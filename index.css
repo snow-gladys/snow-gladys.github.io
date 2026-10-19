@@ -81,6 +81,12 @@ body.is-background #scene * {
     animation-play-state: paused !important;
 }
 
+body.has-overlay .character-img,
+body.has-overlay .audio-visualizer .bar,
+body.is-scrubbing .character-img {
+    animation-play-state: paused !important;
+}
+
 /* 播放页 / 歌词页底部频谱（与首页风格统一，但与音频实时联动） */
 .audio-visualizer-play {
     position: absolute;
@@ -727,6 +733,7 @@ body.is-background #scene * {
 .library-description p { flex: 1; margin: 0; font-size: 11px; line-height: 1.6; color: var(--text-sub); }
 .library-description button { flex-shrink: 0; min-height: 36px; border: 0; padding: 0; color: var(--text-sub); background: none; font-size: 11px; cursor: pointer; }
 .playlist-entry { display: flex; align-items: stretch; min-width: 0; }
+.playlist-entry { content-visibility: auto; contain-intrinsic-size: auto 48px; }
 .playlist-entry .playlist-item { flex: 1; width: auto; min-width: 0; padding-right: 8px; }
 .playlist-item-copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .playlist-item-meta { font-size: 10px; font-weight: 400; line-height: 1.4; color: var(--text-sub); white-space: normal; }
@@ -1067,6 +1074,7 @@ body.is-background #scene * {
 .play-record-area .character-img.in-play-view.is-playing {
     animation: spin-record 10s linear infinite;
     filter: drop-shadow(0 0 20px rgba(0, 0, 0, 0.12));
+    will-change: transform;
 }
 
 @keyframes spin-record {
@@ -1193,7 +1201,7 @@ body.is-background #scene * {
     line-height: 1.4;
     margin: 16px 0;
     color: #D2D2D7;
-    transition: all 0.5s ease;
+    transition: color 0.5s ease, transform 0.5s ease;
     text-align: left;
     cursor: pointer;
     background: transparent;
@@ -1249,22 +1257,24 @@ body.is-background #scene * {
     left: 0;
     height: 100%;
     background: var(--text-main);
-    width: var(--progress, 0%);
+    width: 100%;
     border-radius: 2px;
-    transition: width 0.1s linear;
+    transform-origin: left center;
+    transform: scaleX(0);
+    will-change: transform;
 }
 
 .progress-thumb {
     position: absolute;
     top: 50%;
-    left: var(--progress, 0%);
-    transform: translate(-50%, -50%) scale(0);
+    left: 0;
+    transform: translate3d(var(--thumb-x, 0px), -50%, 0) translateX(-50%) scale(var(--thumb-scale, 0));
     width: 12px;
     height: 12px;
     border-radius: 50%;
     background: var(--text-main);
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    will-change: transform;
 }
 
 .progress-bar-container:hover .progress-fill {
@@ -1272,15 +1282,22 @@ body.is-background #scene * {
 }
 
 .progress-bar-container:hover .progress-thumb {
-    transform: translate(-50%, -50%) scale(1);
+    --thumb-scale: 1;
     background: var(--neon-blue);
 }
 
 .progress-bar {
     position: absolute;
-    inset: 0;
+    inset: -10px 0;
     opacity: 0;
+    margin: 0;
+    width: 100%;
+    height: calc(100% + 20px);
+    touch-action: pan-y;
 }
+
+.progress-bar-container.is-scrubbing .progress-thumb,
+.progress-bar-container:focus-within .progress-thumb { --thumb-scale: 1; background: var(--neon-blue); }
 
 .controls-wrapper {
     display: flex;
@@ -2897,16 +2914,22 @@ input[type=number]::-webkit-outer-spin-button {
         margin-top: 0;
         position: absolute;
         bottom: 10%;
-        left: 50%;
-        transform: translateX(-50%);
+        left: 0;
+        right: 0;
+        margin-left: auto;
+        margin-right: auto;
+        transform: none;
         width: 85%;
         padding: 0;
         box-sizing: border-box;
     }
 
     .play-control-panel {
-        left: 50%;
-        transform: translateX(-50%);
+        left: 0;
+        right: 0;
+        margin-left: auto;
+        margin-right: auto;
+        transform: none;
         box-sizing: border-box;
     }
 

@@ -131,7 +131,7 @@ test('imported video titles remain literal text in playback loading messages', (
     const sandbox = vm.createContext({ loadingInfoEl: {
         querySelector: selector => selector === '.loading-title' ? title : detail,
         set innerHTML(_) { assert.fail('existing loading nodes should be reused'); },
-    }, loadingStartTime: null, bgmAudio: { readyState: 0 } });
+    }, loadingTitleEl: null, loadingDetailEl: null, document: { hidden: false }, loadingStartTime: null, bgmAudio: { readyState: 0 } });
     vm.runInContext(source.slice(start, end), sandbox);
     const name = '<img src=x onerror=alert(1)> & 歌曲';
     sandbox.updateLoadingInfoContent(name, 'resolve');

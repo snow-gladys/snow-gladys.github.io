@@ -47,7 +47,7 @@ function engine({ ios = false, reduced = false, compact = true } = {}) {
     const media = { paused: false, readyState: 4, seeking: false, ended: false };
     let nextFrame = 0;
     const motion = { matches: reduced, addEventListener(_, fn) { this.change = fn; } };
-    const document = { hidden: false, body: { classList: { toggle() {} } }, getElementById: () => ({}), addEventListener() {} };
+    const document = { hidden: false, body: { classList: { toggle() {}, contains: () => false } }, getElementById: () => ({}), addEventListener() {} };
     const analyser = { frequencyBinCount: 256, getByteFrequencyData(data) { calls.samples++; data.fill(100); } };
     const window = { innerWidth: compact ? 390 : 1200, matchMedia: q => q.includes('reduced') ? motion : { matches: compact },
         SG_MOBILE_VISUALIZER: { isIOS: () => ios, create: () => ({ resize() {}, draw() { calls.draws++; }, reset() { calls.resets++; } }) },

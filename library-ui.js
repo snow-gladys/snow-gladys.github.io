@@ -3,10 +3,21 @@ let lastImportedPlaylist = '', editedPersonalPlaylist = '', pickerPersonalSong =
 let addingPersonalPlaylist = '', selectedPersonalSongs = new Set(), personalAddLimit = 60;
 let collectionIndexRevision = -1, collectionSongIndex = new Map(), collectionSongsCache = new Map();
 
+// 歌单内容只在数据版本变化时复制一次，避免每次打开菜单都解析整份歌库。
+let personalCollectionRevision = -1, personalCollectionIndex = new Map();
+function getPersonalCollections() {
+    if (personalCollectionRevision !== personalLibrary.revision) {
+        personalCollectionIndex = new Map(personalLibrary.list().map(list => [list.id, list]));
+        personalCollectionRevision = personalLibrary.revision;
+    }
+    return Array.from(personalCollectionIndex.values());
+}
+function getPersonalCollection(id) { getPersonalCollections(); return personalCollectionIndex.get(id) || null; }
+
 function getCollection(id) {
     if (id === 'smart-favorites') return { id, name: '我喜欢', songs: getFavoritesList(), smart: true };
     if (id === 'smart-downloaded') return { id, name: '本地缓存', songs: getDownloadedList(), smart: true };
-    return catalogPlaylists.find(list => list.id === id) || personalLibrary.get(id);
+    return catalogPlaylists.find(list => list.id === id) || getPersonalCollection(id);
 }
 function getCollectionSongs(id) {
     if (collectionIndexRevision !== playlistRevision) {
@@ -62,7 +73,7 @@ function syncCollectionToolbar() {
     playlistSearchEl.placeholder = overview ? '搜索歌单' : '搜索歌名或 BV 号';
     playlistSearchEl.setAttribute('aria-label', playlistSearchEl.placeholder);
     if (!detail) return;
-    const list = getCollection(browsedPlaylistId), custom = personalLibrary.get(browsedPlaylistId);
+    const list = getCollection(browsedPlaylistId), custom = getPersonalCollection(browsedPlaylistId);
     document.getElementById('collection-name').textContent = list ? list.name : '';
     document.getElementById('collection-add').hidden = !custom;
     const manage = document.getElementById('collection-manage');
@@ -90,11 +101,11 @@ function renderPersonalCollections(query) {
         }
     }
     group('你的音乐', [getCollection('smart-favorites'), getCollection('smart-downloaded')]);
-    group('我的歌单', personalLibrary.list());
+    group('我的歌单', getPersonalCollections());
     group('预置歌单', catalogPlaylists);
     if (!grid.childElementCount) {
         const empty = document.createElement('p'); empty.className = 'library-empty'; empty.textContent = '没有找到这个歌单。'; grid.append(empty);
-    } else if (!query && !personalLibrary.list().length) {
+    } else if (!query && !getPersonalCollections().length) {
         const hint = document.createElement('p'); hint.className = 'personal-description'; hint.style.gridColumn = '1 / -1'; hint.textContent = '点上方“新建歌单”，把喜欢的歌曲整理在一起。'; grid.append(hint);
     }
     playlistListEl.replaceChildren(grid);
@@ -120,7 +131,7 @@ function startCollectionPlayback(id) {
     playMusic(list[0].bvid); closePlaylist(); showView('play');
 }
 function configureCollectionSongActions(bvid) {
-    const list = personalLibrary.get(actionPlaylistId), index = list ? list.songs.findIndex(song => song.bvid === bvid) : -1;
+    const list = getPersonalCollection(actionPlaylistId), index = list ? list.songs.findIndex(song => song.bvid === bvid) : -1;
     for (const action of ['playlist-up', 'playlist-down', 'playlist-remove']) {
         const button = document.querySelector('[data-song-action="' + action + '"]');
         button.hidden = index < 0;
@@ -137,7 +148,7 @@ function handleCollectionSongAction(action, song) {
 }
 function openCollectionEditor(id, copySongs, defaultName) {
     editedPersonalPlaylist = id || '';
-    const list = personalLibrary.get(id);
+    const list = getPersonalCollection(id);
     const dialog = document.getElementById('collection-editor-dialog');
     dialog._copySongs = copySongs || [];
     document.getElementById('collection-editor-heading').textContent = list ? '管理歌单' : copySongs ? '复制歌单' : '新建歌单';
@@ -149,7 +160,7 @@ function openCollectionEditor(id, copySongs, defaultName) {
     dialog.showModal(); document.getElementById('collection-editor-name').focus();
 }
 function exportPersonalCollection(id) {
-    const list = personalLibrary.get(id);
+    const list = getPersonalCollection(id);
     if (!list) return;
     const blob = new Blob([personalLibrary.export(id)], { type: 'application/json;charset=utf-8' }), url = URL.createObjectURL(blob);
     const anchor = document.createElement('a'); anchor.href = url;
@@ -163,7 +174,7 @@ function openCollectionPicker(song) {
     document.getElementById('collection-picker-name').value = '';
     document.getElementById('collection-picker-status').textContent = '';
     list.replaceChildren();
-    for (const collection of personalLibrary.list()) {
+    for (const collection of getPersonalCollections()) {
         const button = document.createElement('button'); button.type = 'button'; button.dataset.addToCollection = collection.id;
         const name = document.createElement('span'); name.textContent = collection.name;
         const count = document.createElement('small');
@@ -175,14 +186,14 @@ function openCollectionPicker(song) {
     dialog.showModal();
 }
 function openCollectionAdd(id) {
-    if (!personalLibrary.get(id)) return;
+    if (!getPersonalCollection(id)) return;
     addingPersonalPlaylist = id; selectedPersonalSongs.clear(); personalAddLimit = 60;
     document.getElementById('collection-add-search').value = '';
     document.getElementById('collection-add-status').textContent = '';
     renderCollectionAdd(); document.getElementById('collection-add-dialog').showModal();
 }
 function renderCollectionAdd() {
-    const target = personalLibrary.get(addingPersonalPlaylist);
+    const target = getPersonalCollection(addingPersonalPlaylist);
     if (!target) return;
     const query = document.getElementById('collection-add-search').value.trim().toLowerCase();
     const existing = new Set(target.songs.map(song => song.bvid.toUpperCase()));
@@ -208,12 +219,12 @@ function syncCollectionAddCount() {
 function populateImportTargets() {
     const select = document.getElementById('favorites-target'); select.replaceChildren();
     const option = document.createElement('option'); option.value = ''; option.textContent = '新建歌单（沿用收藏夹名称）'; select.append(option);
-    for (const list of personalLibrary.list()) {
+    for (const list of getPersonalCollections()) {
         const option = document.createElement('option'); option.value = list.id; option.textContent = list.name; select.append(option);
     }
-    select.value = playlistTab === 'songs' && viewPlaylist.classList.contains('is-open') && personalLibrary.get(browsedPlaylistId) ? browsedPlaylistId : '';
+    select.value = playlistTab === 'songs' && viewPlaylist.classList.contains('is-open') && getPersonalCollection(browsedPlaylistId) ? browsedPlaylistId : '';
 }
-function getImportTargetSongs() { const list = personalLibrary.get(document.getElementById('favorites-target').value); return list ? list.songs : []; }
+function getImportTargetSongs() { const list = getPersonalCollection(document.getElementById('favorites-target').value); return list ? list.songs : []; }
 function importFavoritePlaylist(songs, source) {
     const id = document.getElementById('favorites-target').value;
     let count;
@@ -236,7 +247,7 @@ function importFavoritePlaylist(songs, source) {
     document.getElementById('collection-add').addEventListener('click', () => openCollectionAdd(browsedPlaylistId));
     document.getElementById('collection-manage').addEventListener('click', () => {
         const list = getCollection(browsedPlaylistId);
-        if (personalLibrary.get(browsedPlaylistId)) openCollectionEditor(browsedPlaylistId);
+        if (getPersonalCollection(browsedPlaylistId)) openCollectionEditor(browsedPlaylistId);
         else if (list) openCollectionEditor('', getCollectionSongs(browsedPlaylistId), list.name + ' · 我的版本');
     });
     document.getElementById('settings-open-collections').addEventListener('click', () => { document.getElementById('settings-modal-backdrop').classList.remove('is-open'); openPlaylist(undefined, 'collections'); });
@@ -276,7 +287,7 @@ function importFavoritePlaylist(songs, source) {
         try { personalLibrary.create(document.getElementById('collection-picker-name').value, [pickerPersonalSong]); document.getElementById('collection-picker-dialog').close(); showToast('歌单已创建，歌曲已加入。'); }
         catch (error) { document.getElementById('collection-picker-status').textContent = error.message; }
     });
-    document.getElementById('collection-add-search').addEventListener('input', () => { personalAddLimit = 60; renderCollectionAdd(); });
+    document.getElementById('collection-add-search').addEventListener('input', window.SG_PLAYBACK_UI.frameTask(() => { personalAddLimit = 60; renderCollectionAdd(); }));
     document.getElementById('collection-add-more').addEventListener('click', () => { personalAddLimit += 60; renderCollectionAdd(); });
     document.getElementById('collection-add-list').addEventListener('change', event => {
         if (!event.target.matches('input[type="checkbox"]') || event.target.disabled) return;

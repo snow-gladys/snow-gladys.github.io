@@ -6,8 +6,8 @@
   "start_url": "/?source=homescreen",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f8f9fc",
-  "theme_color": "#f8f9fc",
+  "background_color": "#fafafc",
+  "theme_color": "#fafafc",
   "icons": [
     {
       "src": "imgs/app/snow-192.png",

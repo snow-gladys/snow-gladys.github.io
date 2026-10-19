@@ -6,19 +6,20 @@
     <link rel="icon" href="imgs/icon_snow.png" type="image/png">
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="apple-touch-icon" sizes="180x180" href="imgs/app/snow-180.png">
-    <meta name="theme-color" content="#f8f9fc">
+    <meta name="theme-color" content="#fafafc">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="思诺">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <title>思诺 · Gladys</title>
     <script src="wardrobe.js?v=20261019-details"></script>
     <link rel="preconnect" href="https://snow-gladys-api-zone-3msnp1a62hlu-1304656834.eo-edgefunctions.com" crossorigin>
-    <link rel="stylesheet" href="index.css?v=20261019-live-fix">
+    <link rel="stylesheet" href="index.css?v=20261019-status-bar">
     <link rel="stylesheet" href="personal.css?v=20261019-details">
 </head>
 <body>
 
     <div id="scene">
+        <div class="status-bar-surface" aria-hidden="true"></div>
         <div class="view-home" id="view-home">
             <!-- 频谱背景 -->
             <div class="audio-visualizer" id="visualizer"></div>
@@ -802,7 +803,7 @@
     <script src="pinyinUtil.js"></script>
     <script src="lyrics-db.js?v=20261018-perf"></script>
     <script src="cache-db.js?v=20261018-fast-play"></script>
-    <script src="changelog-data.js?v=20261019-live-fix"></script>
+    <script src="changelog-data.js?v=20261019-status-bar"></script>
     <script src="bili-api.js?v=20261019-details"></script>
     <script src="favorites-import.js?v=20261019-library"></script>
     <script src="lyrics-search.js?v=20261018-lyrics-search"></script>

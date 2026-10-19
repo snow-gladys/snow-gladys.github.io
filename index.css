@@ -3219,6 +3219,23 @@ input[type=number]::-webkit-outer-spin-button {
     }
 }
 
+/* iOS 从固定元素采样状态栏底色。真实、非全屏的实色层能覆盖关闭 dialog 后缓存的遮罩色。
+   WebKit 会忽略厚度不超过 10px 的边缘，因此保留 16px；颜色与页面相同，不占布局、不挡点击。 */
+.status-bar-surface { display: none; }
+@media (display-mode: standalone) {
+    .status-bar-surface {
+        display: block;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 16px;
+        z-index: 200;
+        pointer-events: none;
+        background-color: var(--bg-color);
+    }
+}
+
 /* 主屏幕版没有浏览器工具栏，首页单独收紧顶部留白。系统状态栏仍由 iOS 保留。 */
 @media (display-mode: standalone) and (max-width: 768px) and (orientation: portrait) {
     .home-top-bar { top: 20px; }

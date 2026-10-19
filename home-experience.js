@@ -1,12 +1,22 @@
-/* 首页开屏：只绘制 780ms，文字采样最多 900 点，结束即释放画布。 */
+/* 首页开屏约 2 秒：聚合、短暂停留、淡入文字；恢复主屏幕应用时也可播放。 */
 (function () {
     'use strict';
     const title = document.querySelector('.clean-title'), subtitle = document.querySelector('.clean-subtitle');
-    if (title && window.SG_WARDROBE) title.textContent = SG_WARDROBE.profile(SG_WARDROBE.selected).name;
-    if (!title || !subtitle || document.hidden || !matchMedia('(pointer: coarse), (max-width: 768px)').matches ||
-        matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    requestAnimationFrame(() => {
-        if (document.hidden || document.querySelector('dialog[open]')) return;
+    if (!title || !subtitle) return;
+    const motion = matchMedia('(prefers-reduced-motion: reduce)');
+    let active = null, queued = null, hasPlayed = false, interrupted = false, hiddenAt = document.hidden ? Date.now() : 0;
+    function schedule() {
+        if (active || queued !== null || document.hidden || motion.matches ||
+            !matchMedia('(pointer: coarse), (max-width: 768px)').matches) return;
+        queued = requestAnimationFrame(() => {
+            queued = null;
+            const home = document.querySelector('#view-home');
+            if (document.hidden || motion.matches || document.querySelector('dialog[open]') || home && home.style.display === 'none') return;
+            if (window.SG_WARDROBE) title.textContent = SG_WARDROBE.profile(SG_WARDROBE.selected).name;
+            play();
+        });
+    }
+    function play() {
         const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d');
         if (!ctx) return;
         canvas.className = 'home-intro'; canvas.setAttribute('aria-hidden', 'true');
@@ -33,37 +43,60 @@
         const stride = Math.max(1, Math.ceil(targets.length / 900));
         const points = targets.filter((_, i) => i % stride === 0).map(point => ({ ...point,
             sx: point.x + (Math.random() - .5) * 180, sy: point.y + (Math.random() - .5) * 100 }));
-        let frame = null, started = null, finished = false, lastProgress = 0, fastStart = null, fastFrom = 0;
+        let frame = null, started = null, finished = false, lastProgress = 0, fastStart = null, fastFrom = 0, timeout;
         function skip() { if (fastStart === null) { fastStart = performance.now(); fastFrom = lastProgress; } }
         function stop() {
             if (finished) return; finished = true;
-            cancelAnimationFrame(frame); canvas.remove(); document.body.classList.remove('has-home-intro');
+            cancelAnimationFrame(frame); clearTimeout(timeout); canvas.remove(); document.body.classList.remove('has-home-intro');
             window.removeEventListener('pointerdown', skip, true);
-            for (const type of ['visibilitychange', 'resize']) window.removeEventListener(type, stop, true);
+            window.removeEventListener('resize', resize);
             window.removeEventListener('sg:appearance', appearance);
             canvas.width = canvas.height = sample.width = sample.height = 0;
+            active = null;
         }
+        // iOS 冷启动和浏览器工具栏会改变高度，不把这些变化当成用户退出开屏。
+        function resize() { if (Math.abs(innerWidth - width) > 32) stop(); }
         const nameAtStart = title.textContent;
-        function appearance() { if (title.textContent !== nameAtStart) stop(); }
+        function appearance() { if (title.textContent !== nameAtStart) skip(); }
         window.addEventListener('sg:appearance', appearance);
         window.addEventListener('pointerdown', skip, true);
-        for (const type of ['visibilitychange', 'resize']) window.addEventListener(type, stop, true);
+        window.addEventListener('resize', resize);
+        title.style.setProperty('--intro-reveal', 0); subtitle.style.setProperty('--intro-reveal', 0);
         document.body.appendChild(canvas); document.body.classList.add('has-home-intro');
-        const timeout = setTimeout(stop, 1000);
+        active = stop;
+        timeout = setTimeout(stop, 2300);
         function draw(now) {
-            if (finished) { clearTimeout(timeout); return; }
+            if (finished) return;
             if (started === null) started = now;
-            const progress = fastStart === null ? Math.min(1, (now - started) / 780) : Math.min(1, fastFrom + (1 - fastFrom) * (now - fastStart) / 150);
+            const progress = fastStart === null ? Math.min(1, (now - started) / 2000) : Math.min(1, fastFrom + (1 - fastFrom) * (now - fastStart) / 150);
             lastProgress = progress;
-            const ease = 1 - Math.pow(1 - Math.min(1, progress / .78), 3);
-            if (progress >= 1) { clearTimeout(timeout); stop(); return; }
+            const gather = Math.min(1, progress / .72), ease = gather * gather * (3 - 2 * gather);
+            if (progress >= 1) { stop(); return; }
+            hasPlayed = true;
             ctx.clearRect(0, 0, width, height);
-            ctx.fillStyle = '#111'; ctx.globalAlpha = Math.min(1, progress * 8) * (progress > .78 ? (1 - progress) / .22 : 1);
-            for (const point of points) ctx.fillRect(point.sx + (point.x - point.sx) * ease, point.sy + (point.y - point.sy) * ease, 1.8, 1.8);
-            title.style.setProperty('--intro-reveal', Math.max(0, (progress - .68) / .25));
-            subtitle.style.setProperty('--intro-reveal', Math.max(0, (progress - .68) / .25));
+            ctx.fillStyle = '#111'; ctx.globalAlpha = Math.min(1, progress * 12) * (progress > .84 ? (1 - progress) / .16 : 1);
+            for (const point of points) ctx.fillRect(point.sx + (point.x - point.sx) * ease, point.sy + (point.y - point.sy) * ease, 2, 2);
+            const reveal = Math.min(1, Math.max(0, (progress - .84) / .16));
+            title.style.setProperty('--intro-reveal', reveal); subtitle.style.setProperty('--intro-reveal', reveal);
             frame = requestAnimationFrame(draw);
         }
         frame = requestAnimationFrame(draw);
-    });
+    }
+    function hide() {
+        hiddenAt = Date.now(); interrupted = interrupted || !!active || queued !== null;
+        if (queued !== null) { cancelAnimationFrame(queued); queued = null; }
+        if (active) active();
+    }
+    function visible() {
+        if (document.hidden) { hide(); return; }
+        const reopen = !hasPlayed || interrupted || hiddenAt > 0 && Date.now() - hiddenAt >= 1500;
+        hiddenAt = 0; interrupted = false;
+        if (reopen) schedule();
+    }
+    document.addEventListener('visibilitychange', visible);
+    window.addEventListener('pagehide', hide);
+    window.addEventListener('pageshow', event => { if (event.persisted || !hasPlayed) schedule(); });
+    if (motion.addEventListener) motion.addEventListener('change', () => { if (motion.matches && active) active(); });
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', schedule, { once: true });
+    else schedule();
 })();

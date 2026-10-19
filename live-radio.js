@@ -64,6 +64,14 @@
             }
             return data;
         }
+        async function checkPlaylist(url, signal) {
+            const response = await fetch(url, { signal });
+            const text = await response.text();
+            if (!response.ok || !text.startsWith('#EXTM3U')) {
+                let data; try { data = JSON.parse(text); } catch (_) {}
+                throw new Error(data && data.error || '直播音频线路暂时无法连接，请重试或前往 B 站收听。');
+            }
+        }
         async function refresh(force) {
             if (pendingStatus) return pendingStatus;
             if (!force && Date.now() - checked < 60000) return;
@@ -113,6 +121,8 @@
                 if (ticket !== version) return;
                 const url = new URL(result.url);
                 if (url.origin !== new URL(host.base).origin || url.pathname !== '/live/playlist.m3u8') throw new Error('直播音频地址异常，请重试。');
+                await checkPlaylist(url.href, controller.signal);
+                if (ticket !== version) return;
                 const next = new Audio(); next.playsInline = true; next.crossOrigin = 'anonymous'; next.preload = 'none';
                 const native = !!next.canPlayType('application/vnd.apple.mpegurl');
                 const Hls = native ? null : await loadHls();

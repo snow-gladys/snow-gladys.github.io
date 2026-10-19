@@ -110,6 +110,18 @@ body.is-background #scene * {
     will-change: transform;
 }
 
+.mobile-spectrum {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    contain: strict;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .audio-visualizer .bar { animation: none; transform: scaleY(0.35); }
+}
+
 /* 歌词页：频谱区域更高，跃动感更强 */
 .view-play.is-active.is-lyrics-open .audio-visualizer-play {
     height: 14vh;

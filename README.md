@@ -13,3 +13,5 @@
 `personal-library.js` 负责歌单存储与旧数据迁移，`library-ui.js` 对接歌单界面和播放范围，`wardrobe.js` 负责装扮与头像。默认成员图来源见 [图像说明](imgs/wardrobe/SOURCES.md)，安卓构建见 [安装包说明](android-app/README.md)。
 
 验证：`node --test tests/*.test.mjs`。
+
+手机播放页频谱由 `mobile-visualizer.js` 绘制：最多 48 根柱子、24 帧、1.5 倍像素密度，安卓使用 512 点 FFT。iOS 保留原生音频链路，使用随播放启停的装饰动画，不代表真实频谱，避免 HLS 在 Web Audio 中缺少样本或影响声音。动画不会额外请求或解码歌曲；暂停、离开播放页、后台和“减少动态效果”均停止绘制。电脑频谱与小窗保留原来的样式。

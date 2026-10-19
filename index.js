@@ -2057,6 +2057,13 @@
         let audioAnalyser = null;
         let audioSourceNode = null;
         let audioSourceEl = null;
+        const iosVisualizer = window.SG_MOBILE_VISUALIZER.isIOS(navigator);
+        const compactVisualizer = iosVisualizer || window.innerWidth <= 768 || window.matchMedia('(pointer: coarse)').matches;
+        const reducedVisualizerMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+        let mobileVisualizer = null;
+        let analyserUnavailable = false;
+        let lastVisualizerFrame = -Infinity;
+        const audioSourceNodes = new WeakMap();
         let visualizerBars = [];
         let envelopeArray = [];
         // PiP 频谱容器与柱子（与主播放页共用同一个 Analyser 数据）
@@ -2067,28 +2074,36 @@
         let visualizerRafWindow = null;
 
         function ensureAudioAnalyser() {
-            if (window.innerWidth <= 768) return;
-
             if (!playVisualizerEl) return;
+            if (compactVisualizer && !mobileVisualizer) mobileVisualizer = window.SG_MOBILE_VISUALIZER.create(playVisualizerEl);
+            if (mobileVisualizer) mobileVisualizer.resize();
+            // iOS 原生 HLS 可能不给 Web Audio 提供样本，保留原始音频链路。
+            if (iosVisualizer || reducedVisualizerMotion.matches || analyserUnavailable) return;
             if (!window.AudioContext && !window.webkitAudioContext) return;
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (!audioAnalyser) {
-                audioAnalyser = audioCtx.createAnalyser();
-                audioAnalyser.fftSize = 2048;
-                audioAnalyser.smoothingTimeConstant = 0.85;
-                audioAnalyser.connect(audioCtx.destination);
-            }
-            // 如果 bgmAudio 被替换（例如预加载切换），重新创建 source
-            if (audioSourceEl !== bgmAudio) {
-                if (audioSourceNode) {
-                    try { audioSourceNode.disconnect(); } catch (e) {}
+            try {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (!audioAnalyser) {
+                    audioAnalyser = audioCtx.createAnalyser();
+                    audioAnalyser.fftSize = compactVisualizer ? 512 : 2048;
+                    audioAnalyser.smoothingTimeConstant = 0.8;
                 }
-                audioSourceNode = audioCtx.createMediaElementSource(bgmAudio);
-                audioSourceNode.connect(audioAnalyser);
-                audioSourceEl = bgmAudio;
+                if (audioSourceEl !== bgmAudio) {
+                    if (audioSourceNode) audioSourceNode.disconnect();
+                    audioSourceNode = audioSourceNodes.get(bgmAudio);
+                    if (!audioSourceNode) {
+                        audioSourceNode = audioCtx.createMediaElementSource(bgmAudio);
+                        audioSourceNodes.set(bgmAudio, audioSourceNode);
+                    }
+                    // 声音直接连到输出，分析器作为旁支，不成为绘制逻辑的依赖。
+                    audioSourceNode.connect(audioCtx.destination);
+                    audioSourceNode.connect(audioAnalyser);
+                    audioSourceEl = bgmAudio;
+                }
+            } catch (error) {
+                analyserUnavailable = true;
+                console.warn('频谱不可用，保留轻量背景效果', error);
             }
+            if (compactVisualizer) return;
             // --- 动态计算逻辑 ---
             const containerWidth = playVisualizerEl.offsetWidth;
             if (containerWidth === 0) return; // 【修复1】：防止在隐藏状态下宽度为0，导致柱形被清空
@@ -2130,22 +2145,22 @@
         });
 
         function startAudioVisualizer() {
-            if (window.innerWidth <= 768) return;
             if (bgmAudio.paused || (document.hidden && !pipWindow)) return;
             if (!viewPlay.classList.contains('is-active') && !pipWindow) return;
             if (!playVisualizerEl) return;
             ensureAudioAnalyser();
-            if (!audioCtx || !audioAnalyser) return;
-            if (audioCtx.state === 'suspended') {
+            if (reducedVisualizerMotion.matches) { if (mobileVisualizer) mobileVisualizer.reset(); return; }
+            if ((!audioCtx || !audioAnalyser) && !mobileVisualizer) return;
+            if (audioCtx && (audioCtx.state === 'suspended' || audioCtx.state === 'interrupted')) {
                 audioCtx.resume().catch(function () { });
             }
-            const bufferLength = audioAnalyser.frequencyBinCount;
+            const bufferLength = audioAnalyser ? audioAnalyser.frequencyBinCount : 0;
             // 提出来，防止重复创建
             if (!window.audioDataArray || window.audioDataArray.length !== bufferLength) {
                 window.audioDataArray = new Uint8Array(bufferLength);
             }
 
-            function renderFrame() {
+            function renderFrame(timestamp) {
                 visualizerRafId = null;
                 if (bgmAudio.paused || (document.hidden && !pipWindow) ||
                     (!viewPlay.classList.contains('is-active') && !pipWindow)) return;
@@ -2155,8 +2170,18 @@
                 visualizerRafWindow = rafWindow;
                 visualizerRafId = rafWindow.requestAnimationFrame(renderFrame);
                 
-                audioAnalyser.getByteFrequencyData(window.audioDataArray);
-                const usefulBins = Math.floor(audioAnalyser.frequencyBinCount * 0.35); 
+                const now = typeof timestamp === 'number' ? timestamp : performance.now();
+                const interval = compactVisualizer ? 1000 / 24 : 1000 / 60;
+                if (now - lastVisualizerFrame < interval - 1) return;
+                lastVisualizerFrame = Number.isFinite(lastVisualizerFrame)
+                    ? now - Math.max(0, (now - lastVisualizerFrame) % interval) : now;
+                if (audioAnalyser) audioAnalyser.getByteFrequencyData(window.audioDataArray);
+                const usefulBins = audioAnalyser ? Math.floor(audioAnalyser.frequencyBinCount * 0.35) : 0;
+                if (mobileVisualizer && !document.hidden && viewPlay.classList.contains('is-active')) {
+                    mobileVisualizer.draw(audioAnalyser && audioCtx.state === 'running' ? window.audioDataArray : null,
+                        now, bgmAudio.readyState >= 3 && !bgmAudio.seeking && !bgmAudio.ended && !mobileVisualizerWaiting,
+                        viewPlay.classList.contains('is-lyrics-open'));
+                }
                 
                 // === 独立渲染主界面频谱 ===
                 if (!document.hidden && visualizerBars.length > 0 && viewPlay.classList.contains('is-active')) {
@@ -2180,7 +2205,7 @@
                 }
 
                 // === 独立渲染小窗 (PiP) 频谱 ===
-                if (pipVisualizerBars && pipVisualizerBars.length > 0) {
+                if (audioAnalyser && pipVisualizerBars && pipVisualizerBars.length > 0) {
                     const stepPip = usefulBins / pipVisualizerBars.length;
                     for (let i = 0; i < pipVisualizerBars.length; i++) {
                         const startIdx = Math.floor(i * stepPip);
@@ -2210,11 +2235,32 @@
         }
 
         function stopAudioVisualizer() {
+            lastVisualizerFrame = -Infinity;
+            if (mobileVisualizer && bgmAudio.paused) mobileVisualizer.reset();
             if (visualizerRafId) {
                 (visualizerRafWindow || window).cancelAnimationFrame(visualizerRafId);
                 visualizerRafId = null;
                 visualizerRafWindow = null;
             }
+        }
+        // 首次点播放时提前解锁安卓 AudioContext，避免异步获取地址后失去用户手势。
+        function primeMobileAudioAnalyser() {
+            if (!compactVisualizer || iosVisualizer || reducedVisualizerMotion.matches) return;
+            ensureAudioAnalyser();
+            if (audioCtx && audioCtx.state !== 'running') audioCtx.resume().catch(function () {});
+        }
+        reducedVisualizerMotion.addEventListener('change', function () {
+            stopAudioVisualizer();
+            if (!bgmAudio.paused) startAudioVisualizer();
+        });
+        let mobileVisualizerWaiting = false;
+        function onVisualizerWaiting(event) {
+            if (event.currentTarget === bgmAudio) mobileVisualizerWaiting = true;
+        }
+        function onVisualizerPlaying(event) {
+            if (event.currentTarget !== bgmAudio) return;
+            mobileVisualizerWaiting = false;
+            startAudioVisualizer();
         }
         document.addEventListener('visibilitychange', function () {
             if (document.hidden) savePlaybackSession(true);
@@ -2296,6 +2342,8 @@
             audioObj.removeEventListener('play', handleAudioPlay);
             audioObj.removeEventListener('pause', handleAudioPause);
             audioObj.removeEventListener('error', handleAudioError);
+            audioObj.removeEventListener('waiting', onVisualizerWaiting);
+            audioObj.removeEventListener('playing', onVisualizerPlaying);
 
             audioObj.addEventListener('timeupdate', updateProgressDisplay);
             audioObj.addEventListener('loadedmetadata', updateProgressDisplay);
@@ -2303,6 +2351,8 @@
             audioObj.addEventListener('play', handleAudioPlay);
             audioObj.addEventListener('pause', handleAudioPause);
             audioObj.addEventListener('error', handleAudioError);
+            audioObj.addEventListener('waiting', onVisualizerWaiting);
+            audioObj.addEventListener('playing', onVisualizerPlaying);
         }
 
         // 单独抽离 ended 处理函数，方便绑定
@@ -2779,6 +2829,8 @@
                 if (!confirm('正在调轴，是否不保存并切换歌曲？')) return;
                 cancelAdjustMode();
             }
+            primeMobileAudioAnalyser();
+            mobileVisualizerWaiting = true;
             savePlaybackSession(true);
             clearPlaybackError();
             const requestVersion = ++playRequestVersion;
@@ -2908,6 +2960,8 @@
                 oldAudio.removeEventListener('play', handleAudioPlay);
                 oldAudio.removeEventListener('pause', handleAudioPause);
                 oldAudio.removeEventListener('error', handleAudioError);
+                oldAudio.removeEventListener('waiting', onVisualizerWaiting);
+                oldAudio.removeEventListener('playing', onVisualizerPlaying);
                 oldAudio.removeAttribute('src');
                 oldAudio.load();
                 oldAudio.remove();
@@ -3070,6 +3124,7 @@
 
         // 所有播放入口共用错误处理，避免恢复播放时出现未处理的异常。
         async function togglePlayback() {
+            if (bgmAudio.paused) primeMobileAudioAnalyser();
             if (!currentPlayingBvid && resumeSession) return resumeLastPlayback();
             if (!bgmAudio.paused) {
                 bgmAudio.pause();

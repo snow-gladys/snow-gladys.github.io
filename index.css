@@ -3171,3 +3171,17 @@ input[type=number]::-webkit-outer-spin-button {
         margin-bottom: 60px !important; /* 强制给下方的《红色高跟鞋》留出安全呼吸距离 */
     }
 }
+
+/* 主屏幕版没有浏览器工具栏，首页单独收紧顶部留白。系统状态栏仍由 iOS 保留。 */
+@media (display-mode: standalone) and (max-width: 768px) and (orientation: portrait) {
+    .home-top-bar { top: 20px; }
+}
+
+/* 较高的主屏幕视口中，将人物、标题和主按钮一起上移；短屏沿用原有紧凑布局。 */
+@media (display-mode: standalone) and (max-width: 768px) and (orientation: portrait) and (min-height: 741px) {
+    .hero-section { top: clamp(-56px, -6dvh, -40px); }
+    .home-actions { bottom: 16%; }
+    .view-home.has-now-playing .home-actions {
+        bottom: max(16%, calc(96px + env(safe-area-inset-bottom)));
+    }
+}

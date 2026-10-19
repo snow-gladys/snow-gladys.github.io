@@ -167,7 +167,7 @@ test('iPhone Chrome uses native HLS while desktop Chrome retains its fast direct
 test('an initial preload completing after a track selection cannot start an unrelated download', async () => {
     let finish;
     const sandbox = vm.createContext({
-        songList: [{ bvid: 'BV17uZQBHEDo' }], currentPlayingBvid: '', preloadGeneration: 0,
+        liveRadio: null, navigator: {}, songList: [{ bvid: 'BV17uZQBHEDo' }], currentPlayingBvid: '', preloadGeneration: 0,
         listeningLibrary: { isExcluded: () => false },
         preloadCache: null, preloadInFlight: null, nextRandomBvid: null, playScope: 'all', resumeSession: null,
         globalPreloadAudio: { set src(_) { assert.fail('stale preload must not download'); } },
@@ -179,4 +179,23 @@ test('an initial preload completing after a track selection cannot start an unre
     sandbox.runInitialPreload(); sandbox.clearPreload(); finish({ url: 'https://edge.example/unrelated' });
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(sandbox.preloadCache, null);
+});
+
+test('startup prepares the previous song first, or reuses the prepared random song, without playing', async () => {
+    for (const resume of [null, { bvid: 'BV1Sf421Q7Rt' }]) {
+        const requested = [], media = { load() {}, play() { assert.fail('startup must stay silent'); } };
+        const sandbox = vm.createContext({ liveRadio: null, navigator: {}, currentPlayingBvid: '', playScope: 'all',
+            songList: [{ bvid: 'BV17uZQBHEDo' }, { bvid: 'BV1Sf421Q7Rt' }], resumeSession: resume,
+            listeningLibrary: { isExcluded: () => false }, randomQueue: { peekNext: () => 'BV1Sf421Q7Rt' },
+            preloadGeneration: 0, globalPreloadAudio: media, getRandomIndex: () => 0,
+            fetchResolveViaProxy: async id => { requested.push(id); return { url: 'https://audio.example/ready' }; },
+        });
+        vm.runInContext(playerSource.slice(playerSource.indexOf('function clearPreload()'), playerSource.indexOf('function tryPreloadNext()')), sandbox);
+        sandbox.runInitialPreload(); await new Promise(resolve => setImmediate(resolve));
+        assert.deepEqual(requested, [resume ? resume.bvid : 'BV17uZQBHEDo']);
+        assert.equal(media.src, 'https://audio.example/ready');
+        if (!resume) assert.equal(sandbox.getHomeRandomBvid(), 'BV17uZQBHEDo');
+        sandbox.navigator.connection = { saveData: true }; sandbox.runInitialPreload();
+        assert.equal(requested.length, 1);
+    }
 });

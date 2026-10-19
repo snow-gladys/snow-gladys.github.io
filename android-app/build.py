@@ -72,7 +72,7 @@ def build():
             raise
     key.chmod(0o600)
     password.chmod(0o600)
-    apk = output / 'gladys-player-0.2.0.apk'
+    apk = output / 'gladys-player-0.2.1.apk'
     run(tools / 'apksigner', 'sign', '--ks', key, '--ks-key-alias', 'gladys', '--ks-pass', f'file:{password}',
         '--out', apk, work / 'aligned.apk')
     run(tools / 'apksigner', 'verify', '--verbose', apk)

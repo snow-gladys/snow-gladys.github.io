@@ -31,6 +31,210 @@ const HLS_INDEX_CACHE = new Map();
 const HLS_INDEX_REQUESTS = new Map();
 const VIDEO_INFO_CACHE = new Map();
 const VIDEO_INFO_REQUESTS = new Map();
+const LIVE_MEMBERS = {
+  gladys: { uid: '3537115310721781', room: '30858592' },
+  fiona: { uid: '3537115310721181', room: '30849777' },
+  diana: { uid: '672328094', room: '22637261' },
+  eileen: { uid: '672342685', room: '22625027' },
+  bella: { uid: '672353429', room: '22632424' },
+};
+let liveStatusCache = null, liveStatusRequest = null;
+const LIVE_SEGMENTS = new Map(), LIVE_SEGMENT_REQUESTS = new Map();
+
+async function liveJson(path, params) {
+  let response, result;
+  try {
+    response = await fetch('https://api.live.bilibili.com' + path + '?' + params,
+      { headers: { ...BILI_HEADERS, Referer: 'https://live.bilibili.com/' } });
+    result = await response.json();
+  } catch (_) { throw new ApiError(502, 'LIVE_NETWORK_ERROR', '暂时无法查询直播，请稍后重试。'); }
+  if (!response.ok || !result || result.code !== 0) throw new ApiError(503, 'LIVE_API_ERROR', 'B 站直播服务暂时不可用，请稍后重试。');
+  return result.data;
+}
+
+async function liveStatus() {
+  if (liveStatusCache && liveStatusCache.expires > Date.now()) return liveStatusCache.value;
+  if (liveStatusRequest) return liveStatusRequest;
+  liveStatusRequest = (async () => {
+    const params = new URLSearchParams();
+    Object.values(LIVE_MEMBERS).forEach(item => params.append('uids[]', item.uid));
+    const data = await liveJson('/room/v1/Room/get_status_info_by_uids', params);
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new ApiError(502, 'LIVE_INVALID_DATA', '直播状态暂时无法确认，请重试。');
+    const members = Object.entries(LIVE_MEMBERS).map(([id, item]) => {
+      const info = data[item.uid];
+      return { id, room: item.room, live: !!(info && Number(info.live_status) === 1),
+        known: !!(info && [0, 1, 2].includes(Number(info.live_status))),
+        title: info && typeof info.title === 'string' ? info.title.slice(0, 200) : '' };
+    });
+    const value = { members, checkedAt: Date.now() };
+    liveStatusCache = { value, expires: Date.now() + 30000 };
+    return value;
+  })();
+  try { return await liveStatusRequest; } finally { liveStatusRequest = null; }
+}
+
+// 只允许 B 站直播 CDN 的 TS/HLS 资源，每次跳转也重新校验。
+function liveMediaUrl(value, extension) {
+  const url = mediaUrl(value);
+  if (!url.hostname.endsWith('.bilivideo.com') || !url.pathname.startsWith('/live-bvc/') ||
+      !url.pathname.endsWith(extension)) throw new ApiError(400, 'INVALID_LIVE_URL', '直播音频地址无效。');
+  return url;
+}
+
+async function fetchLiveMedia(value, extension, maxBytes) {
+  let url = liveMediaUrl(value, extension), response;
+  for (let i = 0; i < 4; i++) {
+    try { response = await fetch(url.href, { headers: { ...BILI_HEADERS, Referer: 'https://live.bilibili.com/' }, redirect: 'manual' }); }
+    catch (_) { throw new ApiError(502, 'LIVE_MEDIA_ERROR', '直播音频暂时无法连接，请重试。'); }
+    if (![301, 302, 303, 307, 308].includes(response.status)) break;
+    if (response.body) await response.body.cancel().catch(() => {});
+    url = liveMediaUrl(new URL(response.headers.get('Location') || '', url).href, extension);
+  }
+  if (!response.ok || !response.body) throw new ApiError(502, 'LIVE_MEDIA_ERROR', '直播音频已失效或直播已结束，请重试。');
+  const reader = response.body.getReader(), chunks = []; let size = 0;
+  try {
+    while (true) {
+      const { done, value: chunk } = await reader.read(); if (done) break;
+      size += chunk.length;
+      if (size > maxBytes) throw new ApiError(502, 'LIVE_MEDIA_TOO_LARGE', '直播音频数据异常，请重试。');
+      chunks.push(chunk);
+    }
+  } catch (error) { await reader.cancel().catch(() => {}); throw error; }
+  const bytes = new Uint8Array(size); let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+  return { bytes, url };
+}
+
+async function liveStream(member, origin) {
+  const item = LIVE_MEMBERS[member];
+  if (!item) throw new ApiError(400, 'INVALID_LIVE_MEMBER', '请选择一位成员。');
+  const data = await liveJson('/xlive/web-room/v2/index/getRoomPlayInfo', new URLSearchParams({
+    room_id: item.room, protocol: '1', format: '1', codec: '0', qn: '80', platform: 'web', ptype: '8', only_audio: '1',
+  }));
+  if (!data || Number(data.live_status) !== 1) throw new ApiError(409, 'LIVE_OFFLINE', '这位成员还没有开播，稍后再来听吧。');
+  const streams = data.playurl_info && data.playurl_info.playurl && data.playurl_info.playurl.stream;
+  for (const stream of Array.isArray(streams) ? streams : []) {
+    if (stream.protocol_name !== 'http_hls') continue;
+    for (const format of stream.format || []) {
+      if (format.format_name !== 'ts') continue;
+      for (const codec of format.codec || []) {
+        if (codec.is_pushing === false || codec.drm) continue;
+        for (const info of codec.url_info || []) {
+          try {
+            const media = liveMediaUrl((info.host + codec.base_url + (info.extra || '')).replace(/^http:/, 'https:'), '.m3u8');
+            const playlist = new URL('/live/playlist.m3u8', origin); playlist.searchParams.set('url', media.href);
+            return { member, room: item.room, url: playlist.href };
+          } catch (_) { /* 忽略不支持的 CDN，绝不代理任意 IP。 */ }
+        }
+      }
+    }
+  }
+  throw new ApiError(422, 'LIVE_NO_AUDIO', '这个直播间暂时没有可用音频，可以前往 B 站收听。');
+}
+
+function packedAudioTimestamp(pts) {
+  // RFC 8216 §3.4：每段 Packed AAC 带 ID3 PRIV 的 33 位 MPEG 时间戳。
+  const owner = 'com.apple.streaming.transportStreamTimestamp';
+  const payloadSize = owner.length + 1 + 8, frameSize = 10 + payloadSize;
+  const bytes = new Uint8Array(10 + frameSize);
+  function synchsafe(at, value) { for (let i = 3; i >= 0; i--) { bytes[at + i] = value & 127; value >>>= 7; } }
+  bytes.set([73, 68, 51, 4, 0, 0]); synchsafe(6, frameSize);
+  bytes.set([80, 82, 73, 86], 10); synchsafe(14, payloadSize);
+  for (let i = 0; i < owner.length; i++) bytes[20 + i] = owner.charCodeAt(i);
+  let value = pts;
+  for (let i = bytes.length - 1; i >= bytes.length - 8; i--) { bytes[i] = value % 256; value = Math.floor(value / 256); }
+  return bytes;
+}
+
+function extractLiveAAC(bytes) {
+  let pmt = -1, audio = -1, pts = null, remaining = 0, lastCounter = -1;
+  const chunks = []; let total = 0;
+  for (let pos = 0; pos + 188 <= bytes.length; pos += 188) {
+    if (bytes[pos] !== 0x47 || bytes[pos + 1] & 0x80 || bytes[pos + 3] & 0xc0) throw new ApiError(422, 'LIVE_UNSUPPORTED_AUDIO', '直播音频格式暂不支持。');
+    const pid = (bytes[pos + 1] & 31) * 256 + bytes[pos + 2], start = !!(bytes[pos + 1] & 64);
+    const control = (bytes[pos + 3] >> 4) & 3;
+    if (!(control & 1)) continue;
+    let at = pos + 4 + (control & 2 ? 1 + bytes[pos + 4] : 0), end = pos + 188;
+    if (at >= end) continue;
+    if (start && (pid === 0 || pid === pmt)) {
+      const section = at + 1 + bytes[at], length = ((bytes[section + 1] & 15) << 8) + bytes[section + 2];
+      const sectionEnd = section + 3 + length - 4;
+      if (sectionEnd > end) throw new ApiError(422, 'LIVE_UNSUPPORTED_AUDIO', '直播音轨信息不完整。');
+      if (pid === 0 && bytes[section] === 0) {
+        for (let i = section + 8; i + 4 <= sectionEnd; i += 4) if (bytes[i] || bytes[i + 1]) { pmt = ((bytes[i + 2] & 31) << 8) + bytes[i + 3]; break; }
+      } else if (pid === pmt && bytes[section] === 2) {
+        let i = section + 12 + (((bytes[section + 10] & 15) << 8) + bytes[section + 11]);
+        for (; i + 5 <= sectionEnd; i += 5 + (((bytes[i + 3] & 15) << 8) + bytes[i + 4])) {
+          if (bytes[i] === 15) audio = ((bytes[i + 1] & 31) << 8) + bytes[i + 2];
+        }
+      }
+      continue;
+    }
+    if (pid !== audio) continue;
+    const counter = bytes[pos + 3] & 15;
+    if (counter === lastCounter) continue;
+    if (lastCounter >= 0 && counter !== (lastCounter + 1) % 16) throw new ApiError(502, 'LIVE_AUDIO_GAP', '直播音频片段不完整，请重试。');
+    lastCounter = counter;
+    if (start) {
+      if (at + 9 > end || bytes[at] || bytes[at + 1] || bytes[at + 2] !== 1) throw new ApiError(422, 'LIVE_UNSUPPORTED_AUDIO', '直播音频封装暂不支持。');
+      const packetSize = bytes[at + 4] * 256 + bytes[at + 5], headerSize = bytes[at + 8];
+      if (pts === null && bytes[at + 7] & 128 && headerSize >= 5) {
+        const p = at + 9;
+        pts = (bytes[p] & 14) * 536870912 + bytes[p + 1] * 4194304 + (bytes[p + 2] & 254) * 16384 + bytes[p + 3] * 128 + (bytes[p + 4] >> 1);
+      }
+      remaining = packetSize ? packetSize - 3 - headerSize : Infinity;
+      at += 9 + headerSize;
+    }
+    const length = Math.min(Math.max(0, end - at), Math.max(0, remaining));
+    if (length) { chunks.push(bytes.subarray(at, at + length)); total += length; remaining -= length; }
+  }
+  const raw = new Uint8Array(total); let offset = 0;
+  for (const chunk of chunks) { raw.set(chunk, offset); offset += chunk.length; }
+  let validEnd = 0;
+  while (validEnd + 7 <= raw.length) {
+    if (raw[validEnd] !== 255 || (raw[validEnd + 1] & 246) !== 240) break;
+    const length = ((raw[validEnd + 3] & 3) << 11) + (raw[validEnd + 4] << 3) + (raw[validEnd + 5] >> 5);
+    if (length < 7 || validEnd + length > raw.length) break;
+    validEnd += length;
+  }
+  if (pts === null || !validEnd || validEnd !== raw.length) throw new ApiError(422, 'LIVE_NO_AUDIO', '直播间暂时没有完整的 AAC 音频。');
+  const id3 = packedAudioTimestamp(pts), result = new Uint8Array(id3.length + validEnd);
+  result.set(id3); result.set(raw.subarray(0, validEnd), id3.length);
+  return result;
+}
+
+async function livePlaylist(request, url, corsHeaders) {
+  const { bytes, url: upstream } = await fetchLiveMedia(url.searchParams.get('url'), '.m3u8', 65536);
+  const text = new TextDecoder().decode(bytes);
+  if (!text.startsWith('#EXTM3U') || /#EXT-X-(?:KEY|MAP|STREAM-INF|BYTERANGE)/.test(text)) throw new ApiError(422, 'LIVE_UNSUPPORTED_AUDIO', '这个直播间的音频格式暂不支持，请前往 B 站收听。');
+  let count = 0;
+  const output = text.split(/\r?\n/).map(line => {
+    if (!line || line.startsWith('#')) return line;
+    const segment = liveMediaUrl(new URL(line, upstream).href, '.ts');
+    const proxy = new URL('/live/segment.aac', url.origin); proxy.searchParams.set('url', segment.href); count++;
+    return proxy.href;
+  }).join('\n');
+  if (!count) throw new ApiError(422, 'LIVE_NO_AUDIO', '直播间暂时没有音频，请稍后重试。');
+  return new Response(request.method === 'HEAD' ? null : output, { headers: { ...corsHeaders, 'Content-Type': 'application/vnd.apple.mpegurl', 'Cache-Control': 'no-store' } });
+}
+
+async function liveSegment(request, value, corsHeaders) {
+  const key = liveMediaUrl(value, '.ts').href, cached = LIVE_SEGMENTS.get(key);
+  let bytes = cached && cached.expires > Date.now() ? cached.bytes : null;
+  if (!bytes) {
+    let pending = LIVE_SEGMENT_REQUESTS.get(key);
+    if (!pending) {
+      pending = (async () => {
+        const result = extractLiveAAC((await fetchLiveMedia(key, '.ts', 4 * 1024 * 1024)).bytes);
+        if (LIVE_SEGMENTS.size >= 24) LIVE_SEGMENTS.delete(LIVE_SEGMENTS.keys().next().value);
+        LIVE_SEGMENTS.set(key, { bytes: result, expires: Date.now() + 45000 }); return result;
+      })();
+      LIVE_SEGMENT_REQUESTS.set(key, pending);
+    }
+    try { bytes = await pending; } finally { if (LIVE_SEGMENT_REQUESTS.get(key) === pending) LIVE_SEGMENT_REQUESTS.delete(key); }
+  }
+  return new Response(request.method === 'HEAD' ? null : bytes, { headers: { ...corsHeaders, 'Content-Type': 'audio/aac', 'Cache-Control': 'private, max-age=30' } });
+}
 
 class ApiError extends Error {
   constructor(status, code, message, details = {}) {
@@ -343,6 +547,10 @@ async function handleRequest(request) {
   if (!["GET", "HEAD"].includes(request.method)) return json({ code: "METHOD_NOT_ALLOWED", error: "仅支持 GET、HEAD 和 OPTIONS 请求。" }, 405);
   try {
     const url = new URL(request.url);
+    if (url.pathname === '/live/status') return json(await liveStatus());
+    if (url.pathname === '/live/stream') return json(await liveStream(url.searchParams.get('member'), url.origin));
+    if (url.pathname === '/live/playlist.m3u8') return await livePlaylist(request, url, corsHeaders);
+    if (url.pathname === '/live/segment.aac') return await liveSegment(request, url.searchParams.get('url'), corsHeaders);
     if (url.pathname === '/info') {
       const id = url.searchParams.has('bvid') ? normalizeVideoId(url.searchParams.get('bvid')) : await shortVideoId(url.searchParams.get('url'));
       if (!id) throw new ApiError(400, 'INVALID_VIDEO_ID', '请输入有效的 BV 号。');

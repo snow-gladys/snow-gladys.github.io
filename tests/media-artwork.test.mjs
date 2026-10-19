@@ -34,7 +34,7 @@ test('switching profiles cannot publish an older profile as the active artwork',
 test('regular media session updates include current artwork and respect the user off switch',()=>{
  const player=read('index.js');const start=player.indexOf('        function updateMediaSession()');const end=player.indexOf('        // 原生 HLS',start);
  const session={setActionHandler(){}};const art=[{src:'data:image/jpeg;base64,current',type:'image/jpeg',sizes:'512x512'}];
- const context=vm.createContext({navigator:{mediaSession:session},settings:{},window:{SG_WARDROBE:{artwork:()=>art}},bgmAudio:{paused:false},currentPlayingBvid:'BV17uZQBHEDo',getSongNameByBvid:()=> '歌曲',MediaMetadata:function(data){Object.assign(this,data);}});
+ const context=vm.createContext({liveRadio:null,navigator:{mediaSession:session},settings:{},window:{SG_WARDROBE:{artwork:()=>art}},bgmAudio:{paused:false},currentPlayingBvid:'BV17uZQBHEDo',getSongNameByBvid:()=> '歌曲',MediaMetadata:function(data){Object.assign(this,data);}});
  vm.runInContext(player.slice(start,end),context);context.updateMediaSession();assert.equal(session.metadata.artwork,art);
  context.settings.mediaSession='off';context.updateMediaSession();assert.equal(session.metadata,null);assert.equal(session.playbackState,'none');
 });

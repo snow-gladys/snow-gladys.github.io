@@ -320,7 +320,7 @@ async function playback({ preload = false, expired = false, playError, resolveEr
     const sandbox = vm.createContext({
         window: { SG_CACHE: { supported: true, getCachedBlob: async () => cachedBlob, hasCached: async () => false, saveToCache() {} } },
         settings: { cacheEnabled: cache ? 'on' : 'off' }, Date, URL, AbortController, setImmediate,
-        listeningLibrary: { anchor: null }, bulkCache: null,
+        liveRadio: null, listeningLibrary: { anchor: null }, bulkCache: null,
         playScope: 'all', adjustMode: false, pendingPlayback: null, sessionAudioBvid: '',
         savePlaybackSession() {}, rememberStartedPlayback() {}, applyResumePosition() {},
         cachedBvidsSet: new Set(), updatePlayDownloadsButton() {},

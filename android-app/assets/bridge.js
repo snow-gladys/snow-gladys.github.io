@@ -19,17 +19,18 @@
 
     let lastUpdate = 0;
     function send(force) {
-        const audio = typeof bgmAudio === 'undefined' ? null : bgmAudio;
+        const active = window.SG_GET_ACTIVE_MEDIA ? window.SG_GET_ACTIVE_MEDIA() : null;
+        const audio = active ? active.audio : typeof bgmAudio === 'undefined' ? null : bgmAudio;
         const now = Date.now();
         if (!force && now - lastUpdate < 10000) return;
         lastUpdate = now;
         const title = document.getElementById('play-song-name');
         GladysNative.mediaState(JSON.stringify({
             playing: !!(audio && audio.src && !audio.paused && !audio.ended),
-            title: title && title.textContent !== '—' ? title.textContent : document.title,
-            artist: '思诺音乐',
+            title: active ? active.title : title && title.textContent !== '—' ? title.textContent : document.title,
+            artist: active ? active.artist : '思诺音乐',
             position: audio && Number.isFinite(audio.currentTime) ? Math.round(audio.currentTime * 1000) : 0,
-            duration: audio && Number.isFinite(audio.duration) ? Math.round(audio.duration * 1000) : 0,
+            duration: active && active.live ? 0 : audio && Number.isFinite(audio.duration) ? Math.round(audio.duration * 1000) : 0,
         }));
     }
     const watched = new WeakSet();

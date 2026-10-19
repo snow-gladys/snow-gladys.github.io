@@ -14,7 +14,7 @@ python3 android-app/build.py --sdk /path/to/android-sdk
 
 也可以设置 `ANDROID_HOME`／`ANDROID_SDK_ROOT`，或将 SDK 放到项目下 `.android-local/sdk`，然后省略 `--sdk`。
 
-输出为 `android-app/build/gladys-player-0.2.0.apk`，附有 SHA-256 文件；脚本完成签名、签名验证及安装包对齐检查。
+输出为 `android-app/build/gladys-player-0.2.1.apk`，附有 SHA-256 文件；脚本完成签名、签名验证及安装包对齐检查。0.2.1 增加直播电台的通知栏播放／暂停适配，旧安装包需覆盖安装新版才能正确控制直播。
 
 第一次构建会生成个人分发用签名，存放在 `.android-local/signing/`。请妥善备份整个目录，后续版本必须沿用这份签名才能覆盖安装。签名文件、密码、SDK 和编译产物均已排除在 Git 之外。版本号及版本代码在 `AndroidManifest.xml`，升级时同步更新构建脚本里的输出文件名和 MainActivity 的客户端版本。
 

@@ -89,7 +89,7 @@ public final class MainActivity extends Activity {
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setSafeBrowsingEnabled(true);
         settings.setSupportMultipleWindows(false);
-        settings.setUserAgentString(settings.getUserAgentString() + " GladysPlayer/0.2.0");
+        settings.setUserAgentString(settings.getUserAgentString() + " GladysPlayer/0.2.1");
         WebView.setWebContentsDebuggingEnabled(false);
         android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(browser, false);
         browser.addJavascriptInterface(new NativeBridge(), "GladysNative");
@@ -200,7 +200,7 @@ public final class MainActivity extends Activity {
                 case "seek": command = "if(typeof bgmAudio !== 'undefined' && Number.isFinite(bgmAudio.duration)) bgmAudio.currentTime = Math.min(bgmAudio.duration," + Math.max(0, position) + "/1000);"; break;
                 default: return;
             }
-            activity.browser.evaluateJavascript("(function(){" + command + "})()", null);
+            activity.browser.evaluateJavascript("(function(){if(window.SG_MEDIA_ACTION && window.SG_MEDIA_ACTION(" + JSONObject.quote(action) + "))return;" + command + "})()", null);
         });
         return true;
     }

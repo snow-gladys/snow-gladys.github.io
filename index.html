@@ -13,7 +13,7 @@
     <title>思诺 · Gladys</title>
     <script src="wardrobe.js?v=20261019-details"></script>
     <link rel="preconnect" href="https://snow-gladys-api-zone-3msnp1a62hlu-1304656834.eo-edgefunctions.com" crossorigin>
-    <link rel="stylesheet" href="index.css?v=20261019-fluency">
+    <link rel="stylesheet" href="index.css?v=20261019-home-live">
     <link rel="stylesheet" href="personal.css?v=20261019-details">
 </head>
 <body>
@@ -25,9 +25,12 @@
 
         <!-- 顶部状态栏：切换角色 + 粉丝数 + 设置 -->
             <div class="home-top-bar">
+                <div class="home-top-left">
                 <button type="button" class="nav-link-modern wardrobe-trigger" id="btn-wardrobe" aria-label="装扮" title="装扮">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 3-5 3-2 5 4 2 2-3v11h10V10l2 3 4-2-2-5-5-3c0 2-2 3-4 3S8 5 8 3Z"/></svg>
                 </button>
+                <button type="button" class="live-trigger" id="btn-live" aria-haspopup="dialog" aria-controls="live-dialog"><i aria-hidden="true"></i><span>直播电台</span></button>
+                </div>
 
                 <div class="home-top-right">
                     <div class="stats-card">
@@ -49,6 +52,7 @@
             <div class="hero-section">
                 <div class="hero-avatar-wrapper">
                     <div class="character-img-modern"></div>
+                    <span class="home-playing-badge" aria-hidden="true"><i></i><i></i><i></i>正在播放</span>
                 </div>
 
                 <div class="hero-text">
@@ -79,6 +83,12 @@
                     <svg class="icon-pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
                 </button>
                 <div class="home-now-playing-progress" aria-hidden="true"><span id="home-now-playing-progress"></span></div>
+            </div>
+            <div class="live-now-playing" id="live-now-playing" hidden aria-label="直播播放器">
+                <img alt="" width="42" height="42">
+                <div class="live-now-copy"><span id="live-now-status" role="status">正在连接直播…</span><strong id="live-now-title"></strong><div><button type="button" id="live-back-music">返回歌曲</button><a id="live-room-link" target="_blank" rel="noopener noreferrer">去直播间 ↗</a></div></div>
+                <button type="button" id="live-toggle">暂停</button>
+                <button type="button" id="live-stop" aria-label="关闭直播">×</button>
             </div>
         </div>
 
@@ -778,14 +788,21 @@
         <div class="personal-footer"><span id="collection-add-count">已选择 0 首</span><button type="button" class="personal-primary" id="collection-add-save" disabled>加入歌单</button></div>
     </dialog>
 
+    <dialog class="personal-dialog live-dialog" id="live-dialog" aria-labelledby="live-heading">
+        <div class="personal-heading"><div><p class="personal-eyebrow">ON AIR</p><h3 id="live-heading">直播电台</h3></div><button type="button" class="btn-close-small" id="live-close" aria-label="关闭直播电台">×</button></div>
+        <div id="live-members" class="live-members"></div>
+        <p class="personal-status" id="live-status" role="status">选择一位成员，只听声音。</p>
+        <button type="button" class="personal-full" id="live-refresh">刷新开播状态</button>
+    </dialog>
     <div id="toast" class="toast" aria-live="polite" role="status"></div>
     <div id="loading-info" class="loading-info" aria-live="polite" role="status"></div>
 
+    <script src="home-experience.js?v=20261019-home-live"></script>
     <script src="pinyin_dict_notone.js"></script>
     <script src="pinyinUtil.js"></script>
     <script src="lyrics-db.js?v=20261018-perf"></script>
     <script src="cache-db.js?v=20261018-fast-play"></script>
-    <script src="changelog-data.js?v=20261019-fluency"></script>
+    <script src="changelog-data.js?v=20261019-home-live"></script>
     <script src="bili-api.js?v=20261019-details"></script>
     <script src="favorites-import.js?v=20261019-library"></script>
     <script src="lyrics-search.js?v=20261018-lyrics-search"></script>
@@ -797,7 +814,8 @@
     <script src="mobile-visualizer.js?v=20261019-spectrum"></script>
     <script src="song-entry.js?v=20261019-details"></script>
     <script src="playback-ui.js?v=20261019-fluency"></script>
-    <script src="index.js?v=20261019-fluency"></script>
+    <script src="live-radio.js?v=20261019-home-live"></script>
+    <script src="index.js?v=20261019-home-live"></script>
     <script src="library-ui.js?v=20261019-fluency"></script>
 </body>
 </html>

@@ -1,3 +1,4 @@
+        var liveRadio = null;
         // 首页频谱背景（与 index_new 风格一致）
         (function () {
             var visualizer = document.getElementById('visualizer');
@@ -374,6 +375,7 @@
         }
 
         function syncHomePlayer() {
+            viewHome.classList.toggle('is-music-playing', !!(liveRadio && liveRadio.playing() || currentPlayingBvid && !bgmAudio.paused && !loadingBvid && !failedPlaybackBvid));
             if (!homePlayerEl) return;
             const saved = !currentPlayingBvid && resumeSession && songList.some(song => song.bvid === resumeSession.bvid) ? resumeSession : null;
             const id = loadingBvid || currentPlayingBvid || (saved && saved.bvid);
@@ -1642,6 +1644,7 @@
                 updateSleepTimerLabel();
                 
                 // 执行关闭逻辑
+                if (liveRadio && liveRadio.active()) liveRadio.pause();
                 if (!bgmAudio.paused) {
                     bgmAudio.pause();
                     stopVisuals();
@@ -2710,6 +2713,8 @@
             if (songList.length === 0) return;
             if (currentPlayingBvid) return;
             if (playScope === 'downloaded') return;
+            if (liveRadio && liveRadio.active()) return;
+            if (navigator.connection && navigator.connection.saveData) return;
             const candidates = songList.filter(song => !listeningLibrary.isExcluded(song.bvid));
             var idx = getRandomIndex(candidates.length, -1);
             initialPreloadForResume = !!(resumeSession && songList.some(song => song.bvid === resumeSession.bvid));
@@ -2738,6 +2743,7 @@
          * 使用 resolve + proxy，失败后不立即重试，避免放大上游风控。
          */
         function tryPreloadNext() {
+            if (liveRadio && liveRadio.active()) return;
             if (playScope === 'downloaded') return;
             const nextBvid = getNextBvid();
             if (!nextBvid || nextBvid === currentPlayingBvid) return;
@@ -2800,6 +2806,9 @@
         }
 
         function updateDocumentTitle() {
+            if (liveRadio && liveRadio.active()) {
+                document.title = window.SG_WARDROBE.profile(liveRadio.state().member).name + ' · 直播电台'; return;
+            }
             if (currentPlayingBvid && !bgmAudio.paused) {
                 const name = getSongNameByBvid(currentPlayingBvid);
                 document.title = name + ' · ' + CONFIG.titleSuffix;
@@ -2816,11 +2825,12 @@
                     // 用户关闭媒体会话：清除元数据并注销所有 handler，让系统不感知此页面
                     navigator.mediaSession.metadata = null;
                     navigator.mediaSession.playbackState = 'none';
-                    ['play', 'pause', 'previoustrack', 'nexttrack'].forEach(function (action) {
+                    ['play', 'pause', 'stop', 'previoustrack', 'nexttrack', 'seekto', 'seekbackward', 'seekforward'].forEach(function (action) {
                         try { navigator.mediaSession.setActionHandler(action, null); } catch (e) {}
                     });
                     return;
                 }
+                if (liveRadio && liveRadio.ownsMedia()) { liveRadio.metadata(); return; }
                 navigator.mediaSession.playbackState = bgmAudio.paused ? 'paused' : 'playing';
                 if (currentPlayingBvid) {
                     const name = getSongNameByBvid(currentPlayingBvid);
@@ -2843,6 +2853,7 @@
                 });
                 navigator.mediaSession.setActionHandler('previoustrack', function () { goPrev(); });
                 navigator.mediaSession.setActionHandler('nexttrack', function () { goNext(); });
+                try { navigator.mediaSession.setActionHandler('stop', null); } catch (_) {}
             } catch (e) { /* 部分环境不支持或 setActionHandler 不可用 */ }
         }
 
@@ -2854,6 +2865,7 @@
                 if (!confirm('正在调轴，是否不保存并切换歌曲？')) return;
                 cancelAdjustMode();
             }
+            if (liveRadio && liveRadio.active()) liveRadio.stop();
             if (progressUI) progressUI.cancel();
             primeMobileAudioAnalyser();
             mobileVisualizerWaiting = true;
@@ -3136,6 +3148,7 @@
 
         // 所有播放入口共用错误处理，避免恢复播放时出现未处理的异常。
         async function togglePlayback() {
+            if (liveRadio && liveRadio.active()) { liveRadio.toggle(); return; }
             if (bgmAudio.paused) primeMobileAudioAnalyser();
             if (!currentPlayingBvid && resumeSession) return resumeLastPlayback();
             if (!bgmAudio.paused) {
@@ -3164,6 +3177,7 @@
         if (homePlayerToggleEl) homePlayerToggleEl.addEventListener('click', togglePlayback);
         const homePlayerOpenEl = document.getElementById('home-now-playing-open');
         if (homePlayerOpenEl) homePlayerOpenEl.addEventListener('click', function () {
+            if (liveRadio && liveRadio.active()) { liveRadio.open(); return; }
             if (!currentPlayingBvid && resumeSession) { resumeLastPlayback(); return; }
             showView('play');
             if (currentPlayingBvid && !bgmAudio.paused) startVisuals(currentPlayingBvid);
@@ -3206,6 +3220,7 @@
             try { localStorage.setItem(PLAY_SCOPE_STORAGE_KEY, playScope); } catch (_) {}
             setPlayMode(order);
         })();
+
         updatePlayPauseIcon();
 
         // 初始化版本小红点提示
@@ -3761,7 +3776,7 @@
             }
 
             // 装扮与歌曲独立，媒体信息不将当前装扮误标为演唱者。
-            if (!isDraggingProgress && (settings && settings.lockscreenLyric) === 'on' &&
+            if (!(liveRadio && liveRadio.ownsMedia()) && !isDraggingProgress && (settings && settings.lockscreenLyric) === 'on' &&
                 typeof navigator !== 'undefined' && navigator.mediaSession && navigator.mediaSession.metadata) {
                 try {
                     var meta = navigator.mediaSession.metadata;
@@ -4535,3 +4550,41 @@
             for (const layer of layers) observer.observe(layer, { attributes: true, attributeFilter: ['open', 'class'] });
             sync();
         })();
+
+        liveRadio = window.SG_LIVE.create({
+            base: CONFIG.apiBase,
+            toast: showToast,
+            volume: () => bgmAudio.volume,
+            mediaEnabled: () => settings.mediaSession !== 'off',
+            suspend() {
+                if (adjustMode) return '请先结束歌词调轴，再收听直播。';
+                if (loadingBvid) return '歌曲正在加载，请稍后再切换直播。';
+                savePlaybackSession(true); bgmAudio.pause();
+                clearPreload(); stopInitialPreload(); stopVisuals();
+                if (bulkCache && bulkCache.isActive()) bulkCache.pause('正在收听直播，已暂停缓存。');
+                showView('home'); return true;
+            },
+            resume() {
+                if (currentPlayingBvid) { togglePlayback(); showView('play'); }
+                else if (resumeSession) resumeLastPlayback();
+                else { const id = getHomeRandomBvid(); if (id) { playMusic(id); showView('play'); } }
+            },
+            changed() { syncHomePlayer(); updateDocumentTitle(); if (window.__SG_ANDROID_PING) window.__SG_ANDROID_PING(); },
+            media: updateMediaSession,
+        });
+        syncHomePlayer();
+        // 安卓壳通知栏与网页使用同一个当前音源，直播不提供跳转歌曲或拖动进度。
+        window.SG_GET_ACTIVE_MEDIA = function () {
+            const state = liveRadio && liveRadio.state();
+            if (state && state.engaged) {
+                const profile = window.SG_WARDROBE.profile(state.member);
+                return { audio: liveRadio.audio(), live: true, title: profile.name + '的直播', artist: profile.name };
+            }
+            return { audio: bgmAudio, live: false, title: currentPlayingBvid ? getSongNameByBvid(currentPlayingBvid) : DEFAULT_TITLE, artist: '思诺音乐' };
+        };
+        window.SG_MEDIA_ACTION = function (action) {
+            if (!liveRadio || !liveRadio.ownsMedia()) return false;
+            if (action === 'play' && !liveRadio.playing() && !liveRadio.state().loading) liveRadio.toggle();
+            else if (action === 'pause') liveRadio.pause();
+            return true;
+        };

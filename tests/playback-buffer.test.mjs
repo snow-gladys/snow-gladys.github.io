@@ -114,7 +114,7 @@ test('first home random play reuses the prepared song but later clicks remain ra
 
 test('downloaded mode advances within downloaded songs and never preloads from the network', () => {
     const played = [];
-    const sandbox = vm.createContext({ listeningLibrary: { anchor: null }, getQueuedNext: () => null, playMode: 'list', playScope: 'downloaded', currentPlayingBvid: 'A', songList: [{bvid:'A'},{bvid:'B'},{bvid:'C'}],
+    const sandbox = vm.createContext({ liveRadio: null, listeningLibrary: { anchor: null }, getQueuedNext: () => null, playMode: 'list', playScope: 'downloaded', currentPlayingBvid: 'A', songList: [{bvid:'A'},{bvid:'B'},{bvid:'C'}],
         getEffectiveList: () => [{bvid:'A'},{bvid:'C'}], getCurrentIndexInEffectiveList: () => 0, getCurrentIndex: () => 0,
         playMusic: bvid => played.push(bvid), fetchResolveViaProxy: () => assert.fail('downloaded mode must not preload'),
     });

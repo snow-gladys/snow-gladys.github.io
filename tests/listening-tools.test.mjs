@@ -195,12 +195,12 @@ test('random exclusions affect automatic selection while explicit queue entries 
     lib.add(B); assert.equal(lib.list('queue')[0].bvid, B.bvid);
 });
 
-test('both sites load listening tools and expose the same library, queue actions, and cache controls', () => {
-    for (const file of ['index.html', 'fiona/index.html']) {
+test('the unified player loads listening tools and exposes collections, queue actions, and cache controls', () => {
+    for (const file of ['index.html']) {
         const html = read(file);
         assert.ok(html.indexOf('listening-library.js?') < html.indexOf('index.js?'));
         assert.ok(html.indexOf('favorites-cache.js?') < html.indexOf('index.js?'));
-        assert.equal((html.match(/data-library-tab=/g) || []).length, 4);
+        assert.equal((html.match(/data-library-tab=/g) || []).length, 5);
         for (const id of ['bulk-cache-start', 'bulk-cache-pause', 'bulk-cache-resume', 'bulk-cache-retry', 'song-actions-dialog']) assert.ok(html.includes('id="' + id + '"'));
     }
 });

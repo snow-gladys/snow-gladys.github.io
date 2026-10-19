@@ -6,7 +6,7 @@
 用法:
   python scripts/check-duplicate-names.py
   python scripts/check-duplicate-names.py songs.json
-  python scripts/check-duplicate-names.py fiona/songs_fiona.json
+  python scripts/check-duplicate-names.py catalogs/fiona.json
 """
 
 import json

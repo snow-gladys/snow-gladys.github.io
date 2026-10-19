@@ -293,10 +293,10 @@ test('actual custom-song form preserves the existing BV storage schema', async (
     assert.deepEqual(saved, [{ name: '测试歌曲', bvid: BV }]);
 });
 
-test('both pages load the shared API before the player and retain BV input', () => {
-    for (const path of ['../index.html', '../fiona/index.html']) {
+test('the unified page loads the shared API before the player and retains BV input', () => {
+    for (const path of ['../index.html']) {
         const html = readFileSync(new URL(path, import.meta.url), 'utf8');
-        assert.ok(html.indexOf('bili-api.js?v=20261018') < html.indexOf('index.js?v=20261018'));
+        assert.ok(html.indexOf('bili-api.js?') < html.indexOf('index.js?'));
         assert.match(html, /placeholder="BVxxxxxxxxxx"/);
     }
 });

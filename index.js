@@ -1,26 +1,3 @@
-        (function () {
-            var navLink = document.querySelector('.nav-emoji-link');
-            if (!navLink) return;
-            navLink.addEventListener('click', function (e) {
-                e.preventDefault();
-                var href = navLink.getAttribute('href');
-                if (!href) return;
-                var x = e.clientX, y = e.clientY;
-                var radius = Math.max(window.innerWidth, window.innerHeight) * 1.5;
-                var overlay = document.createElement('div');
-                overlay.className = 'nav-transition-overlay';
-                overlay.style.background = 'rgba(244, 114, 168, 0.5)';
-                overlay.style.clipPath = 'circle(0px at ' + x + 'px ' + y + 'px)';
-                document.body.appendChild(overlay);
-                requestAnimationFrame(function () {
-                    overlay.style.clipPath = 'circle(' + radius + 'px at ' + x + 'px ' + y + 'px)';
-                });
-                overlay.addEventListener('transitionend', function () {
-                    window.location.href = navLink.href;
-                });
-            });
-        })();
-
         // 首页频谱背景（与 index_new 风格一致）
         (function () {
             var visualizer = document.getElementById('visualizer');
@@ -77,8 +54,9 @@
             visualizer.appendChild(fragment);
         })();
 
-        // --- 0. 配置中心（支持多站点：通过 window.SG_PLAYER_CONFIG 覆盖，心宜等复用此逻辑）---
+        // --- 0. 播放器配置：歌库共用，外观由装扮选择 ---
         var SG_PLAYER_CONFIG = window.SG_PLAYER_CONFIG || {};
+        var initialAppearance = window.SG_WARDROBE.profile(window.SG_WARDROBE.selected);
         var CONFIG = {
             storageKeys: {
                 fav: SG_PLAYER_CONFIG.storageKeys && SG_PLAYER_CONFIG.storageKeys.fav !== undefined ? SG_PLAYER_CONFIG.storageKeys.fav : 'sg_fav',
@@ -86,16 +64,16 @@
                 custom: SG_PLAYER_CONFIG.storageKeys && SG_PLAYER_CONFIG.storageKeys.custom !== undefined ? SG_PLAYER_CONFIG.storageKeys.custom : 'sg_custom_songs'
             },
             settingsCookie: SG_PLAYER_CONFIG.settingsCookie !== undefined ? SG_PLAYER_CONFIG.settingsCookie : 'sg_settings',
-            defaultTitle: SG_PLAYER_CONFIG.defaultTitle !== undefined ? SG_PLAYER_CONFIG.defaultTitle : '思诺 · Gladys',
-            titleSuffix: SG_PLAYER_CONFIG.titleSuffix !== undefined ? SG_PLAYER_CONFIG.titleSuffix : '思诺',
-            vmid: SG_PLAYER_CONFIG.vmid !== undefined ? SG_PLAYER_CONFIG.vmid : '3537115310721781',
+            defaultTitle: SG_PLAYER_CONFIG.defaultTitle !== undefined ? SG_PLAYER_CONFIG.defaultTitle : initialAppearance.name,
+            titleSuffix: SG_PLAYER_CONFIG.titleSuffix !== undefined ? SG_PLAYER_CONFIG.titleSuffix : initialAppearance.short,
+            vmid: SG_PLAYER_CONFIG.vmid !== undefined ? SG_PLAYER_CONFIG.vmid : initialAppearance.vmid,
             apiBase: SG_PLAYER_CONFIG.apiBase !== undefined ? SG_PLAYER_CONFIG.apiBase : 'https://snow-gladys-api-zone-3msnp1a62hlu-1304656834.eo-edgefunctions.com',
-            version: SG_PLAYER_CONFIG.version !== undefined ? SG_PLAYER_CONFIG.version : '0.0.10(测)',
+            version: SG_PLAYER_CONFIG.version !== undefined ? SG_PLAYER_CONFIG.version : '0.1.0(测)',
             exportFilename: SG_PLAYER_CONFIG.exportFilename !== undefined ? SG_PLAYER_CONFIG.exportFilename : 'custom_songs_sinuo.txt',
             lyricsBasePath: SG_PLAYER_CONFIG.lyricsBasePath
         };
 
-        const DEFAULT_TITLE = CONFIG.defaultTitle;
+        let DEFAULT_TITLE = CONFIG.defaultTitle;
         const CURRENT_VERSION = CONFIG.version;
         // 确保在任何函数使用前就声明当前播放的 bvid
         let currentPlayingBvid = '';
@@ -121,16 +99,20 @@
         // --- 1. 获取粉丝数逻辑 ---
         const fanCountElement = document.getElementById('fan-count');
         
+        let fanRequestVersion = 0;
         async function fetchFanCount() {
+            const requestVersion = ++fanRequestVersion;
             try {
                 const response = await fetch(`${API_BASE}/fans?vmid=${CONFIG.vmid}`);
                 if (!response.ok) throw new Error();
                 
                 const data = await response.json();
+                if (requestVersion !== fanRequestVersion) return;
                 if (data.code === 0) {
                     fanCountElement.innerText = data.data.follower.toLocaleString();
                 }
             } catch (error) {
+                if (requestVersion !== fanRequestVersion) return;
                 console.error("粉丝数获取失败:", error);
                 fanCountElement.innerText = '---';
             }
@@ -145,6 +127,16 @@
         const randomQueue = window.SG_PLAYBACK_STATE.createQueue();
         let libraryStorage = null;
         try { libraryStorage = localStorage; } catch (_) {}
+        let legacyMigrationError = '';
+        try { window.SG_PERSONAL.migrateLegacy(libraryStorage); }
+        catch (error) { legacyMigrationError = error.message || '旧版数据合并暂未完成，原数据已保留。'; }
+        const personalLibrary = window.SG_PERSONAL.create({ storage: libraryStorage,
+            onChange: function () { if (typeof syncCollections === 'function') syncCollections(); },
+        });
+        let playbackPlaylistId = '';
+        try { playbackPlaylistId = localStorage.getItem('sg_playback_playlist') || ''; } catch (_) {}
+        let browsedPlaylistId = '';
+
         const listeningLibrary = window.SG_LISTENING.create({ storage: libraryStorage, key: PLAY_MODE_STORAGE_KEY + '_library',
             onError: function () { showToast('浏览器存储不可用，本次修改暂时只在当前页面保留。'); },
             onChange: function () {
@@ -234,7 +226,14 @@
                 cacheEnabled: 'off'
             };
             try {
-                const raw = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith(SETTINGS_COOKIE + '='));
+                let raw = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith(SETTINGS_COOKIE + '='));
+                if (!raw && SETTINGS_COOKIE === 'sg_settings') {
+                    const previous = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('sg_settings_fiona='));
+                    if (previous) {
+                        raw = SETTINGS_COOKIE + '=' + previous.slice(previous.indexOf('=') + 1);
+                        document.cookie = raw + '; path=/; max-age=' + SETTINGS_MAX_AGE + '; SameSite=Lax';
+                    }
+                }
                 if (!raw) return fallback;
                 const value = decodeURIComponent((raw.indexOf('=') >= 0 ? raw.substring(raw.indexOf('=') + 1) : '').trim());
                 const o = JSON.parse(value || '{}');
@@ -321,27 +320,18 @@
         let mainList = [];
         let liveList = [];
         let customList = [];
+        let catalogPlaylists = [];
         let settings = getSettingsFromCookie();
         let cachedBvidsSet = new Set();
         const favoritesImporter = window.SG_FAVORITES_IMPORT.create({
             client: biliClient,
-            getExisting: function () { return customList; },
-            onImport: function (songs) {
-                const merged = window.SG_BILI_API.mergeCustomSongs(customList, songs);
-                if (!merged.added) throw new Error('所选内容已在自定义歌单中，无需重复导入。');
-                if (!saveCustomToStorage(merged.songs)) throw new Error('保存失败，请检查浏览器存储空间后重试。');
-                customList = merged.songs;
-                settings.showCustom = true;
-                saveSettingsToCookie(settings);
-                syncSettingsToggles();
-                buildSongList();
-                renderCustomSectionInSettings();
-                return merged.added;
-            },
+            getExisting: function () { return typeof getImportTargetSongs === 'function' ? getImportTargetSongs() : []; },
+            onOpen: function () { if (typeof populateImportTargets === 'function') populateImportTargets(); },
+            onImport: function (songs, source) { return importFavoritePlaylist(songs, source); },
             onComplete: function (count) {
                 document.getElementById('settings-modal-backdrop').classList.remove('is-open');
-                openPlaylist();
-                showToast('已导入 ' + count + ' 项到自定义歌单。', 4500);
+                openCollection(lastImportedPlaylist);
+                showToast('已导入 ' + count + ' 首歌曲到歌单。', 4500);
             },
         });
         let playlistRevision = 0;
@@ -508,7 +498,7 @@
         const playlistSearchEl = document.getElementById('playlist-search');
         const playlistFilterBtn = document.getElementById('playlist-filter-btn');
         let playlistFilterFavorites = false;
-        let playlistTab = 'songs';
+        let playlistTab = 'collections';
 
         function openPlaylist(focusIndex, tab) {
             if (tab) playlistTab = tab;
@@ -527,7 +517,8 @@
             const scrollToIdx = focusIndex != null && focusIndex >= 0 ? focusIndex : getCurrentIndex();
             requestAnimationFrame(function () {
                 if (playlistTab !== 'songs') return;
-                const item = playlistListEl.querySelector(`[data-index="${scrollToIdx}"]`);
+                const item = browsedPlaylistId ? playlistListEl.querySelector('.playlist-item[data-bvid="' + currentPlayingBvid + '"]')
+                    : playlistListEl.querySelector(`[data-index="${scrollToIdx}"]`);
                 if (item) item.scrollIntoView({ block: 'center', behavior: 'instant' });
             });
         }
@@ -562,10 +553,11 @@
                 clear.hidden = !['queue', 'recent'].includes(playlistTab);
                 clear.textContent = playlistTab === 'queue' ? '清空待播' : '清空记录';
             }
+            if (typeof syncCollectionToolbar === 'function') syncCollectionToolbar();
             const hint = document.getElementById('library-hint');
             if (hint) {
-                hint.parentElement.hidden = playlistTab === 'songs';
-                hint.hidden = playlistTab === 'songs';
+                hint.parentElement.hidden = ['songs', 'collections'].includes(playlistTab);
+                hint.hidden = ['songs', 'collections'].includes(playlistTab);
                 hint.textContent = ({ queue: playScope === 'downloaded' ? '下载模式下仅播放已缓存的待播歌曲，听完接回原来的顺序。' : '待播歌曲优先播放，听完接回原来的顺序。',
                     recent: '保留最近听过的 100 首歌曲，可搜索、播放或收藏。', excluded: '这些歌曲不参与随机，仍可手动播放；在更多操作中随时恢复。' })[playlistTab] || '';
             }
@@ -590,9 +582,9 @@
             playlistListEl.replaceChildren(fragment);
         }
 
-        let actionSongBvid = '', actionQueueId = null;
+        let actionSongBvid = '', actionQueueId = null, actionPlaylistId = '';
         function openSongActions(bvid, queueId) {
-            actionSongBvid = bvid; actionQueueId = queueId || null;
+            actionSongBvid = bvid; actionQueueId = queueId || null; actionPlaylistId = playlistTab === 'songs' ? browsedPlaylistId : '';
             const dialog = document.getElementById('song-actions-dialog');
             document.getElementById('song-actions-title').textContent = getSongNameByBvid(bvid);
             document.querySelector('[data-song-action="favorite"]').textContent = isFavorite(bvid) ? '取消收藏' : '收藏歌曲';
@@ -603,11 +595,13 @@
                 button.hidden = index < 0;
                 button.disabled = action === 'up' && index === 0 || action === 'down' && index === queue.length - 1;
             });
+            if (typeof configureCollectionSongActions === 'function') configureCollectionSongActions(bvid);
             if (!dialog.open) dialog.showModal();
         }
 
         function changeSongAction(action) {
             const song = getSongInfo(actionSongBvid);
+            if (action === 'playlist' || action.startsWith('playlist-')) { handleCollectionSongAction(action, song); return; }
             if (action === 'next' || action === 'append') {
                 if (playScope === 'downloaded' && !cachedBvidsSet.has(song.bvid)) { showToast('下载模式下，请先缓存这首歌，或切换为全部歌曲。'); return; }
                 if (!listeningLibrary.add(song, action === 'next')) { showToast('待播队列已满，请先移除一些歌曲。'); return; }
@@ -754,6 +748,7 @@
             if (more) { openSongActions(more.dataset.bvid, more.dataset.queueEntryId); return; }
             const item = event.target.closest('.playlist-item');
             if (!item || !playlistListEl.contains(item)) return;
+            if (playlistTab === 'songs') setPlaybackPlaylist(browsedPlaylistId);
             playMusic(item.dataset.bvid || '', { queueEntryId: item.dataset.queueEntryId });
             closePlaylist();
             showView('play');
@@ -763,11 +758,13 @@
             if (!playlistListEl) return;
             const query = (playlistSearchEl && playlistSearchEl.value || '').trim().toLowerCase();
             const renderKey = JSON.stringify([playlistRevision, query, playlistFilterFavorites, currentPlayingBvid,
-                Array.from(favoritesSet), Array.from(cachedBvidsSet), playlistTab, listeningLibrary.revision]);
+                Array.from(favoritesSet), Array.from(cachedBvidsSet), playlistTab, listeningLibrary.revision, personalLibrary.revision, browsedPlaylistId]);
             if (renderKey === playlistRenderKey) return;
             playlistRenderKey = renderKey;
             syncLibraryTabs();
+            if (playlistTab === 'collections') { if (typeof renderPersonalCollections === 'function') renderPersonalCollections(query); return; }
             if (playlistTab !== 'songs') { renderLibraryPlaylist(query); return; }
+            if (browsedPlaylistId && typeof renderCollectionSongs === 'function') { renderCollectionSongs(query); return; }
             if (!playlistSortedItems) {
                 playlistSortedItems = songList.map(function (s, i) {
                     s._sortKey = getSongSortLetter(s.name || s.title || '');
@@ -787,7 +784,7 @@
 
             // ── 搜索 / 收藏模式：原有逻辑，无分组 ──────────────────
             if (query) {
-                items = items.filter(({ s }) => s._searchName.includes(query));
+                items = items.filter(({ s }) => s._searchName.includes(query) || s.bvid.toLowerCase().includes(query));
                 items.sort((a, b) => {
                     const na = a.s._searchName;
                     const nb = b.s._searchName;
@@ -832,12 +829,26 @@
         }
 
         function buildSongList() {
-            const out = [];
-            if (settings.showMain) mainList.forEach(s => out.push({ name: s.name || s.title, bvid: s.bvid || '', isCustom: false, isLive: false }));
-            if (settings.showLive) liveList.forEach(s => out.push({ name: s.name || s.title, bvid: s.bvid || '', isCustom: false, isLive: true }));
-            if (settings.showCustom) customList.forEach(s => out.push({ name: s.name, bvid: s.bvid || '', isCustom: true, isLive: false }));
-            // 清除缓存的排序键，以便重新计算
-            out.forEach(s => { s._sortKey = undefined; });
+            const records = [
+                ...mainList.map(s => ({ name: s.name || s.title, bvid: s.bvid, isCustom: false, isLive: false })),
+                ...liveList.map(s => ({ name: s.name || s.title, bvid: s.bvid, isCustom: false, isLive: true })),
+                ...customList.map(s => ({ name: s.name, bvid: s.bvid, isCustom: true, isLive: false })),
+                ...personalLibrary.allSongs().map(s => ({ ...s, isCustom: true, isLive: false })),
+            ];
+            const seen = new Set();
+            const out = records.filter(s => {
+                const key = (s.bvid || '').toUpperCase();
+                if (!/^BV[0-9a-zA-Z]{10}$/.test(s.bvid) || seen.has(key)) return false;
+                seen.add(key); return true;
+            });
+            // 手动修改的歌名优先于预置标题，并保证旧数据也有可搜索的名称。
+            const customNames = new Map(customList.map(song => [(song.bvid || '').toUpperCase(), song]));
+            out.forEach(s => {
+                const custom = customNames.get(s.bvid.toUpperCase());
+                s.name = String(custom ? custom.name || custom.title || s.name || s.bvid : s.name || s.bvid);
+                if (custom) s.isCustom = true;
+                s._sortKey = undefined;
+            });
             songList = out;
             playlistRevision++;
             playlistSortedItems = null;
@@ -959,14 +970,24 @@
 ];
             const lists = await Promise.all([
                 fetch('./songs.json').then(r => r.ok ? r.json() : null).catch(() => null),
-                fetch('./songs_live.json').then(r => r.ok ? r.json() : null).catch(() => null)
+                fetch('./songs_live.json').then(r => r.ok ? r.json() : null).catch(() => null),
+                fetch('./catalogs/fiona.json').then(r => r.ok ? r.json() : null).catch(() => null),
+                fetch('./catalogs/fiona-live.json').then(r => r.ok ? r.json() : null).catch(() => null)
             ]);
-            mainList = Array.isArray(lists[0]) && lists[0].length ? lists[0] : fallbackList;
-            liveList = Array.isArray(lists[1]) ? lists[1] : [];
+            catalogPlaylists = [
+                { id: 'builtin-gladys', name: '思诺 · 精选', profile: 'gladys', songs: window.SG_PERSONAL.songs(Array.isArray(lists[0]) && lists[0].length ? lists[0] : fallbackList) },
+                { id: 'builtin-fiona', name: '心宜 · 精选', profile: 'fiona', songs: window.SG_PERSONAL.songs(lists[2]) },
+                { id: 'builtin-gladys-live', name: '思诺 · Live', profile: 'gladys', songs: window.SG_PERSONAL.songs(lists[1]) },
+                { id: 'builtin-fiona-live', name: '心宜 · Live', profile: 'fiona', songs: window.SG_PERSONAL.songs(lists[3]) },
+            ];
+            mainList = [...catalogPlaylists[0].songs, ...catalogPlaylists[1].songs];
+            liveList = [...catalogPlaylists[2].songs, ...catalogPlaylists[3].songs];
             customList = getCustomFromStorage();
             buildSongList();
+            if (typeof validatePlaybackPlaylist === 'function') validatePlaybackPlaylist();
             renderPlaylist();
             runInitialPreload();
+            if (legacyMigrationError || personalLibrary.error) showToast(legacyMigrationError || personalLibrary.error, 7000);
         }
 
         function syncSettingsToggles() {
@@ -1382,7 +1403,7 @@
                     renderPlaylist();
                     renderCustomManageList(document.getElementById('custom-manage-search').value);
                     if (customList.length === 0) { closeCustomManage(); renderCustomSectionInSettings(); }
-                    if (delBvid && window.SG_LYRICS && window.SG_LYRICS.supported) {
+                    if (delBvid && !songList.some(song => song.bvid === delBvid) && window.SG_LYRICS && window.SG_LYRICS.supported) {
                         window.SG_LYRICS.deleteUserLrc(delBvid).catch(function () {});
                     }
                 });
@@ -1958,6 +1979,7 @@
         if (btnPlayRandom) {
             btnPlayRandom.addEventListener('click', () => {
                 if (!songList.length) return;
+                setPlaybackPlaylist(''); setPlayScope('all');
                 const bvid = getHomeRandomBvid();
                 if (!bvid) { showToast('没有可随机播放的歌曲，可在歌单的“已排除”中恢复。'); return; }
                 setPlayScope('all');
@@ -1970,6 +1992,7 @@
         const btnPlayFavorites = document.getElementById('btn-play-favorites');
         if (btnPlayFavorites) {
             btnPlayFavorites.addEventListener('click', () => {
+                setPlaybackPlaylist('');
                 const favList = getFavoritesList();
                 if (!favList.length) return;
                 setPlayScope('favorites');
@@ -1980,6 +2003,7 @@
         const btnPlayDownloads = document.getElementById('btn-play-downloads');
         if (btnPlayDownloads) {
             btnPlayDownloads.addEventListener('click', () => {
+                setPlaybackPlaylist('');
                 const dlList = getDownloadedList();
                 if (!dlList.length) {
                     showToast('当前没有已下载歌曲', 2600);
@@ -2476,7 +2500,9 @@
         }
 
         function syncPlaybackOptions() {
-            const summary = SCOPE_TITLES[playScope] + ' · ' + MODE_TITLES[playMode];
+            const collectionName = typeof getPlaybackPlaylistName === 'function' ? getPlaybackPlaylistName() : '';
+            const scopeName = collectionName ? collectionName + (playScope === 'all' ? '' : ' · ' + SCOPE_TITLES[playScope]) : SCOPE_TITLES[playScope];
+            const summary = scopeName + ' · ' + MODE_TITLES[playMode];
             if (btnModeCycle) {
                 btnModeCycle.classList.remove('is-mode-list', 'is-mode-single', 'is-mode-random', 'is-mode-favorites', 'is-mode-downloaded');
                 btnModeCycle.classList.add('is-mode-' + playMode);
@@ -2487,9 +2513,15 @@
                     : ({ favorites: '收藏', downloaded: '下载' })[playScope] + '·' + ({ list: '循环', single: '单曲', random: '随机' })[playMode];
             }
             document.querySelectorAll('[data-play-scope]').forEach(function (button) {
+                if (button.dataset.playScope === 'all') button.textContent = collectionName ? '当前歌单' : '全部歌曲';
                 button.setAttribute('aria-pressed', String(button.dataset.playScope === playScope));
                 button.disabled = button.dataset.playScope === 'favorites' && !getFavoritesList().length ||
                     button.dataset.playScope === 'downloaded' && !getDownloadedList().length;
+                if (collectionName) {
+                    const source = getCollectionSongs(playbackPlaylistId);
+                    button.disabled = button.dataset.playScope === 'favorites' && !source.some(song => isFavorite(song.bvid)) ||
+                        button.dataset.playScope === 'downloaded' && !source.some(song => cachedBvidsSet.has(song.bvid));
+                }
             });
             document.querySelectorAll('[data-play-order]').forEach(function (button) {
                 button.setAttribute('aria-pressed', String(button.dataset.playOrder === playMode));
@@ -2532,6 +2564,10 @@
 
         /** 当前模式下的可播列表 */
         function getEffectiveList() {
+            if (typeof playbackPlaylistId !== 'undefined' && playbackPlaylistId && typeof getCollectionSongs === 'function') {
+                const list = getCollectionSongs(playbackPlaylistId);
+                return list.filter(song => playScope === 'favorites' ? isFavorite(song.bvid) : playScope === 'downloaded' ? cachedBvidsSet.has(song.bvid) : true);
+            }
             if (playScope === 'favorites') return getFavoritesList();
             if (playScope === 'downloaded') return getDownloadedList();
             return songList;
@@ -2720,7 +2756,7 @@
                         ? (currentLyrics[currentLyricIndex].text || '') : '';
                     navigator.mediaSession.metadata = new MediaMetadata({
                         title: (useLockscreenLyric && hasLyrics) ? (currentTxt || name) : name,
-                        artist: (useLockscreenLyric && hasLyrics) ? (name + ' · 思诺') : '思诺',
+                        artist: (useLockscreenLyric && hasLyrics) ? (name + ' · 思诺音乐') : '思诺音乐',
                         album: ''
                     });
                 }
@@ -3642,7 +3678,7 @@
                 if (pipLyricEl) pipLyricEl.textContent = txt;
             }
 
-            // 锁屏歌词：开启时用歌词文本覆盖 title，artist 改为 歌名 · 思诺
+            // 装扮与歌曲独立，媒体信息不将当前装扮误标为演唱者。
             if ((settings && settings.lockscreenLyric) === 'on' &&
                 typeof navigator !== 'undefined' && navigator.mediaSession && navigator.mediaSession.metadata) {
                 try {
@@ -3651,7 +3687,7 @@
                     var songName2 = (idx2 >= 0 && songList[idx2]) ? (songList[idx2].name || songList[idx2].title || '—') : '—';
                     navigator.mediaSession.metadata = new MediaMetadata({
                         title: txt || songName2,
-                        artist: songName2 + ' · 思诺',
+                        artist: songName2 + ' · 思诺音乐',
                         album: meta.album,
                         artwork: meta.artwork
                     });
@@ -4342,6 +4378,7 @@
             document.querySelectorAll('[data-library-tab]').forEach(function (button) {
                 button.addEventListener('click', function () {
                     playlistTab = button.dataset.libraryTab;
+                    if (playlistTab === 'songs') browsedPlaylistId = '';
                     if (playlistSearchEl) playlistSearchEl.value = '';
                     playlistRenderKey = ''; syncLibraryTabs(); renderPlaylist();
                     playlistListEl.scrollTop = 0;

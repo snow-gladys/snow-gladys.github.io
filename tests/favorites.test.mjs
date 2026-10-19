@@ -115,7 +115,7 @@ test('merge deduplicates BV IDs, preserves existing names and never mutates the 
 });
 
 test('both players load the importer and expose an accessible native preview dialog', () => {
-    for (const file of ['../index.html', '../fiona/index.html']) {
+    for (const file of ['../index.html']) {
         const html = readFileSync(new URL(file, import.meta.url), 'utf8');
         assert.match(html, /<dialog class="favorites-import-dialog"/);
         assert.ok(html.indexOf('favorites-import.js?') < html.indexOf('index.js?'));

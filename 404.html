@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex">
+    <title>回到播放器</title>
+    <script>
+        // 兼容旧的心宜链接及已添加到主屏幕的入口，直接进入统一播放器。
+        if (/^\/fiona\/?(?:index\.html)?$/.test(location.pathname)) {
+            location.replace('/?from=fiona');
+        }
+    </script>
+    <style>body{margin:0;min-height:100dvh;display:grid;place-content:center;text-align:center;background:#fafafc;color:#111;font-family:system-ui,sans-serif}a{color:inherit}p{color:#888;font-size:14px}</style>
+</head>
+<body><h1>回到音乐里</h1><p>这个页面已经搬家了。</p><a href="/">打开播放器</a></body>
+</html>

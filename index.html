@@ -11,8 +11,10 @@
     <meta name="apple-mobile-web-app-title" content="思诺">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <title>思诺 · Gladys</title>
+    <script src="wardrobe.js?v=20261019-library"></script>
     <link rel="preconnect" href="https://snow-gladys-api-zone-3msnp1a62hlu-1304656834.eo-edgefunctions.com" crossorigin>
-    <link rel="stylesheet" href="index.css?v=20261019-standalone-layout">
+    <link rel="stylesheet" href="index.css?v=20261019-library">
+    <link rel="stylesheet" href="personal.css?v=20261019-library">
 </head>
 <body>
 
@@ -23,9 +25,10 @@
 
         <!-- 顶部状态栏：切换角色 + 粉丝数 + 设置 -->
             <div class="home-top-bar">
-                <a class="nav-link-modern nav-emoji-link" href="./fiona/" title="去心宜">
-                    <span style="font-size: 1.2rem;">🦭</span>
-                </a>
+                <button type="button" class="nav-link-modern wardrobe-trigger" id="btn-wardrobe" aria-label="装扮" title="装扮">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 3-5 3-2 5 4 2 2-3v11h10V10l2 3 4-2-2-5-5-3c0 2-2 3-4 3S8 5 8 3Z"/></svg>
+                    <span>装扮</span>
+                </button>
 
                 <div class="home-top-right">
                     <div class="stats-card">
@@ -85,7 +88,7 @@
             <div class="playlist-backdrop" id="playlist-backdrop"></div>
             <div class="playlist-panel">
                 <div class="playlist-header">
-                    <div class="playlist-header-title">♪ 歌单·<span id="playlist-count">0</span>首</div>
+                    <div class="playlist-header-title">♪ <span id="playlist-heading-name">歌单</span><span id="playlist-count-wrap">·<span id="playlist-count">0</span>首</span></div>
                     <button type="button" class="panel-close-btn" id="btn-close-playlist" aria-label="关闭">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                             stroke-linecap="round" aria-hidden="true">
@@ -116,11 +119,27 @@
                     </button>
                 </div>
                 <nav class="library-tabs" aria-label="歌单分类">
-                    <button type="button" data-library-tab="songs" aria-pressed="true">歌曲</button>
+                    <button type="button" data-library-tab="collections" aria-pressed="true">歌单</button>
+                    <button type="button" data-library-tab="songs" aria-pressed="false">全部歌曲</button>
                     <button type="button" data-library-tab="queue" aria-pressed="false">待播</button>
                     <button type="button" data-library-tab="recent" aria-pressed="false">最近</button>
                     <button type="button" data-library-tab="excluded" aria-pressed="false">已排除</button>
                 </nav>
+                <div class="collection-tools" id="collection-tools" hidden>
+                    <button type="button" id="collection-back">‹ 所有歌单</button>
+                    <span id="collection-name"></span>
+                    <div class="collection-tool-actions">
+                        <button type="button" id="collection-play" class="personal-primary">播放歌单</button>
+                        <button type="button" id="collection-add">添加歌曲</button>
+                        <button type="button" id="collection-manage">管理</button>
+                    </div>
+                </div>
+                <div class="collection-create-actions" id="collection-create-actions">
+                    <button type="button" id="collection-create">＋ 新建歌单</button>
+                    <button type="button" id="collection-import-bili">从 B 站导入</button>
+                    <button type="button" id="collection-import-file">导入文件</button>
+                    <input type="file" id="collection-file-input" accept=".json,.txt,application/json,text/plain" hidden>
+                </div>
                 <div class="library-description"><p id="library-hint" hidden></p><button type="button" id="library-clear" hidden>清空待播</button></div>
                 <div class="playlist-body">
                     <div class="playlist-list" id="playlist-list"></div>
@@ -320,26 +339,12 @@
                 </div>
 
                 <div class="settings-body">
-                    <!-- 歌单与自定义 -->
-                    <div class="group-title">歌单与自定义</div>
+                    <!-- 歌单与歌曲 -->
+                    <div class="group-title">歌单与歌曲</div>
                     <div class="settings-group">
                         <div class="settings-row">
-                            <div>
-                                <div class="row-label">显示精选歌单</div>
-                            </div>
-                            <button type="button" class="toggle-switch" id="toggle-show-main" aria-label="显示精选歌单"></button>
-                        </div>
-                        <div class="settings-row">
-                            <div>
-                                <div class="row-label">显示 Live 歌单</div>
-                            </div>
-                            <button type="button" class="toggle-switch" id="toggle-show-live" aria-label="显示 Live 歌单"></button>
-                        </div>
-                        <div class="settings-row">
-                            <div>
-                                <div class="row-label">显示自定义歌单</div>
-                            </div>
-                            <button type="button" class="toggle-switch" id="toggle-show-custom" aria-label="显示自定义歌单"></button>
+                            <div><div class="row-label">我的歌单</div><div class="row-hint">创建歌单、整理歌曲或导入公开收藏夹</div></div>
+                            <button type="button" class="settings-link-button" id="settings-open-collections">管理歌单</button>
                         </div>
                         <!-- 自定义歌曲按钮区域，由 JS 渲染（renderCustomSectionInSettings） -->
                         <div class="settings-row" style="flex-direction: column; align-items: flex-start;">
@@ -481,6 +486,7 @@
                     </svg>
                 </button>
             </div>
+            <p class="personal-description" style="margin: 8px 24px;">这里管理手动添加和旧版导入的歌曲。移除后，其他歌单中的歌曲和歌词仍会保留。</p>
             <div class="custom-manage-search">
                 <input type="text" id="custom-manage-search" placeholder="搜索歌名或 BVID" autocomplete="off">
             </div>
@@ -651,6 +657,9 @@
             <div class="favorites-preview-list" id="favorites-preview-list" aria-label="收藏夹视频列表"></div>
             <button type="button" class="favorites-show-more" id="favorites-show-more" hidden>显示更多</button>
         </div>
+        <label class="personal-field" for="favorites-target">导入到
+            <select id="favorites-target"><option value="">新建歌单（沿用收藏夹名称）</option></select>
+        </label>
         <div class="favorites-import-footer">
             <span>多分 P 视频按第 1 P 播放</span>
             <button type="button" class="favorites-import-submit" id="favorites-import-submit" disabled>导入所选</button>
@@ -666,6 +675,10 @@
             <button type="button" data-song-action="next">下一首播放</button>
             <button type="button" data-song-action="append">加入待播队列</button>
             <button type="button" data-song-action="favorite">收藏歌曲</button>
+            <button type="button" data-song-action="playlist">添加到歌单</button>
+            <button type="button" data-song-action="playlist-up" hidden>在歌单中上移</button>
+            <button type="button" data-song-action="playlist-down" hidden>在歌单中下移</button>
+            <button type="button" data-song-action="playlist-remove" hidden>移出这个歌单</button>
             <button type="button" data-song-action="exclude">不参与随机</button>
             <button type="button" data-song-action="up" hidden>上移一首</button>
             <button type="button" data-song-action="down" hidden>下移一首</button>
@@ -716,6 +729,55 @@
         </div>
     </section>
 
+
+    <dialog class="personal-dialog wardrobe-dialog" id="wardrobe-dialog" aria-labelledby="wardrobe-heading">
+        <div class="personal-heading"><div><p class="personal-eyebrow">换个心情，继续听歌</p><h3 id="wardrobe-heading">装扮</h3></div><button type="button" class="btn-close-small" data-close-wardrobe aria-label="关闭装扮">×</button></div>
+        <p class="personal-description">装扮只改变外观，歌单和正在播放的歌曲会保留。</p>
+        <div class="wardrobe-grid" id="wardrobe-grid"></div>
+        <p class="personal-status" id="wardrobe-status" role="status" aria-live="polite">每位可保存一张头像，仅存在此设备；裁剪后每张不超过 512 KB。</p>
+        <input type="file" id="wardrobe-file-input" accept="image/*" hidden>
+    </dialog>
+
+    <dialog class="personal-dialog avatar-crop-dialog" id="avatar-crop-dialog" aria-labelledby="avatar-crop-heading">
+        <div class="personal-heading"><h3 id="avatar-crop-heading">裁剪头像</h3><button type="button" class="btn-close-small" data-close-crop aria-label="取消裁剪">×</button></div>
+        <div class="avatar-crop-preview"><canvas id="avatar-crop-canvas" width="512" height="512" aria-label="头像裁剪预览，拖动调整位置"></canvas></div>
+        <div class="avatar-crop-controls">
+            <label for="avatar-crop-zoom">缩放<input type="range" id="avatar-crop-zoom" min="1" max="3" step="0.01" value="1"></label>
+            <label for="avatar-crop-x">左右<input type="range" id="avatar-crop-x" min="0" max="1" step="0.005" value="0.5"></label>
+            <label for="avatar-crop-y">上下<input type="range" id="avatar-crop-y" min="0" max="1" step="0.005" value="0.5"></label>
+        </div>
+        <p class="personal-status" id="avatar-crop-status" role="status" aria-live="polite"></p>
+        <button type="button" class="personal-primary personal-full" id="avatar-crop-save">保存头像</button>
+    </dialog>
+
+    <dialog class="personal-dialog" id="collection-editor-dialog" aria-labelledby="collection-editor-heading">
+        <div class="personal-heading"><h3 id="collection-editor-heading">新建歌单</h3><button type="button" class="btn-close-small" data-close-personal aria-label="关闭歌单编辑">×</button></div>
+        <form id="collection-editor-form">
+            <label class="personal-field" for="collection-editor-name">歌单名称<input id="collection-editor-name" maxlength="40" required placeholder="例如：通勤路上、睡前听听" autocomplete="off"></label>
+            <p class="personal-status" id="collection-editor-status" role="status" aria-live="polite"></p>
+            <div class="personal-footer"><button type="button" id="collection-export">导出歌单</button><button type="button" id="collection-delete" class="personal-danger">删除歌单</button><button type="submit" class="personal-primary">保存</button></div>
+            <div class="collection-delete-confirm" id="collection-delete-confirm" hidden><p>确定删除这个歌单吗？歌曲、收藏和缓存仍会保留。</p><button type="button" id="collection-delete-cancel">取消</button><button type="button" id="collection-delete-confirm-button" class="personal-danger">删除歌单</button></div>
+        </form>
+    </dialog>
+
+    <dialog class="personal-dialog" id="collection-picker-dialog" aria-labelledby="collection-picker-heading">
+        <div class="personal-heading"><h3 id="collection-picker-heading">添加到歌单</h3><button type="button" class="btn-close-small" data-close-personal aria-label="关闭添加到歌单">×</button></div>
+        <p class="personal-description" id="collection-picker-song"></p>
+        <div class="collection-picker-list" id="collection-picker-list"></div>
+        <form id="collection-picker-create" class="personal-inline-form"><input id="collection-picker-name" maxlength="40" required aria-label="新歌单名称" placeholder="新歌单名称"><button type="submit">新建并加入</button></form>
+        <p class="personal-status" id="collection-picker-status" role="status" aria-live="polite"></p>
+    </dialog>
+
+    <dialog class="personal-dialog" id="collection-add-dialog" aria-labelledby="collection-add-heading">
+        <div class="personal-heading"><h3 id="collection-add-heading">添加歌曲</h3><button type="button" class="btn-close-small" data-close-personal aria-label="关闭添加歌曲">×</button></div>
+        <input type="search" id="collection-add-search" class="personal-search" placeholder="搜索歌名或 BV 号" aria-label="搜索可添加的歌曲">
+        <p class="personal-description">从歌曲库选择，也可以先在设置中添加 BV 号歌曲。</p>
+        <div class="collection-add-list" id="collection-add-list"></div>
+        <button type="button" class="personal-load-more" id="collection-add-more" hidden>显示更多</button>
+        <p class="personal-status" id="collection-add-status" role="status" aria-live="polite"></p>
+        <div class="personal-footer"><span id="collection-add-count">已选择 0 首</span><button type="button" class="personal-primary" id="collection-add-save" disabled>加入歌单</button></div>
+    </dialog>
+
     <div id="toast" class="toast" aria-live="polite" role="status"></div>
     <div id="loading-info" class="loading-info" aria-live="polite" role="status"></div>
 
@@ -723,15 +785,17 @@
     <script src="pinyinUtil.js"></script>
     <script src="lyrics-db.js?v=20261018-perf"></script>
     <script src="cache-db.js?v=20261018-fast-play"></script>
-    <script src="changelog-data.js?v=202610181437"></script>
+    <script src="changelog-data.js?v=20261019-library"></script>
     <script src="bili-api.js?v=20261018-listening-tools"></script>
-    <script src="favorites-import.js?v=20261018-favorites"></script>
+    <script src="favorites-import.js?v=20261019-library"></script>
     <script src="lyrics-search.js?v=20261018-lyrics-search"></script>
     <script src="playback-buffer.js?v=20261018-fast-play"></script>
     <script src="playback-state.js?v=20261018-listening-tools"></script>
     <script src="listening-library.js?v=20261018-listening-tools"></script>
     <script src="favorites-cache.js?v=20261018-listening-tools"></script>
-    <script src="index.js?v=20261018-listening-tools"></script>
+    <script src="personal-library.js?v=20261019-library"></script>
+    <script src="index.js?v=20261019-library"></script>
+    <script src="library-ui.js?v=20261019-library"></script>
 </body>
 </html>
 

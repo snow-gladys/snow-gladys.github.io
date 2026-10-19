@@ -147,8 +147,8 @@ test('starting a fresh track does not seek to zero again while WebKit is startin
     assert.equal(context.pendingPlayback.positionApplied, true);
 });
 
-test('both sites expose independent scope/order controls and load shared state before the player', () => {
-    for (const file of ['index.html', 'fiona/index.html']) {
+test('the unified player exposes independent scope/order controls and loads shared state before playback', () => {
+    for (const file of ['index.html']) {
         const html = readFileSync(new URL('../' + file, import.meta.url), 'utf8');
         assert.ok(html.indexOf('playback-state.js?') < html.indexOf('index.js?'));
         assert.equal((html.match(/data-play-scope=/g) || []).length, 3);

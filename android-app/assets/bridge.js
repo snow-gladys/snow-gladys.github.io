@@ -12,7 +12,7 @@
         event.preventDefault();
         const filename = anchor.download, href = anchor.href, known = objects.get(href);
         Promise.resolve(known || fetch(href).then(response => response.blob())).then(function (blob) {
-            if (blob.size > 1000000) throw new Error('文件较大，请在浏览器中导出。');
+            if (blob.size > 2097152) throw new Error('文件较大，请在浏览器中导出。');
             return blob.text();
         }).then(text => GladysNative.saveText(filename, text)).catch(error => alert(error.message || '导出失败，请重试。'));
     }, true);
@@ -27,7 +27,7 @@
         GladysNative.mediaState(JSON.stringify({
             playing: !!(audio && audio.src && !audio.paused && !audio.ended),
             title: title && title.textContent !== '—' ? title.textContent : document.title,
-            artist: typeof CONFIG !== 'undefined' ? CONFIG.titleSuffix : '思诺',
+            artist: '思诺音乐',
             position: audio && Number.isFinite(audio.currentTime) ? Math.round(audio.currentTime * 1000) : 0,
             duration: audio && Number.isFinite(audio.duration) ? Math.round(audio.duration * 1000) : 0,
         }));
@@ -53,8 +53,11 @@
     document.addEventListener('visibilitychange', () => send(true));
     window.__SG_ANDROID_PING = () => send(true);
     window.__SG_ANDROID_BACK = function () {
-        const dialog = document.querySelector('dialog[open]');
-        if (dialog) { dialog.close(); return true; }
+        const dialogs = document.querySelectorAll('dialog[open]'), dialog = dialogs[dialogs.length - 1];
+        if (dialog) {
+            if (dialog.dispatchEvent(new Event('cancel', { cancelable: true }))) dialog.close();
+            return true;
+        }
         const modals = [
             ['cache-confirm-backdrop', 'cache-confirm-cancel'], ['sleep-timer-backdrop', 'sleep-timer-cancel'],
             ['lyric-form-backdrop', 'lyric-form-cancel'], ['custom-form-backdrop', 'custom-form-cancel'],
@@ -70,6 +73,9 @@
             }
         }
         const playlist = document.getElementById('view-playlist');
+        if (playlist && playlist.classList.contains('is-open') && typeof browsedPlaylistId !== 'undefined' && browsedPlaylistId && typeof openPlaylist === 'function') {
+            browsedPlaylistId = ''; openPlaylist(undefined, 'collections'); return true;
+        }
         if (playlist && playlist.classList.contains('is-open') && typeof closePlaylist === 'function') { closePlaylist(); return true; }
         if (typeof lyricsViewOpen !== 'undefined' && lyricsViewOpen && typeof toggleLyricsView === 'function') { toggleLyricsView(false); return true; }
         const play = document.getElementById('view-play');

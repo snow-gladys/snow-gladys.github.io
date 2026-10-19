@@ -19,7 +19,7 @@ function setup() {
         MutationObserver: class { observe() {} },
         CONFIG: { titleSuffix: '心宜' },
         GladysNative: { mediaState: data => states.push(JSON.parse(data)), saveText: (name, text) => exports.push({ name, text }) },
-        document: { title: '思诺', getElementById: id => elements.get(id), querySelector: () => null,
+        document: { title: '思诺', getElementById: id => elements.get(id), querySelectorAll: () => [],
             addEventListener: (name, callback) => listeners.set(name, callback) },
         alert: text => alerts.push(text), fetch: () => { throw new Error('unexpected fetch'); },
     });
@@ -43,7 +43,7 @@ test('bridge follows current audio and newly swapped preload audio, without repo
     app.evaluate("globalPreloadAudio.src='preload';globalPreloadAudio.paused=false;globalPreloadAudio.dispatchEvent(new Event('play'))");
     assert.equal(app.states.length, 1);
     app.evaluate("bgmAudio.src='song';bgmAudio.paused=false;bgmAudio.currentTime=3;bgmAudio.duration=60;bgmAudio.dispatchEvent(new Event('play'))");
-    assert.deepEqual(app.states.at(-1), { playing: true, title: '歌曲', artist: '心宜', position: 3000, duration: 60000 });
+    assert.deepEqual(app.states.at(-1), { playing: true, title: '歌曲', artist: '思诺音乐', position: 3000, duration: 60000 });
     app.evaluate("bgmAudio=globalPreloadAudio;globalPreloadAudio=new Audio();bgmAudio.currentTime=8;bgmAudio.dispatchEvent(new Event('play'))");
     assert.equal(app.states.at(-1).position, 8000);
     const count = app.states.length;
@@ -77,12 +77,27 @@ test('blob lyrics export survives immediate URL revocation and preserves UTF-8 t
 
 test('oversized exports do not reach native save; normal links are left alone', async () => {
     const app = setup();
-    await app.export(new Blob(['a'.repeat(1000001)]), 'large.txt');
+    await app.export(new Blob(['a'.repeat(2097153)]), 'large.txt');
     assert.equal(app.exports.length, 0);
     assert.equal(app.alerts.length, 1);
     let prevented = false;
     app.listeners.get('click')({ target: { closest: () => ({ href: 'https://example.com/file', download: 'file.txt' }) }, preventDefault: () => prevented = true });
     assert.equal(prevented, false);
+});
+
+test('larger playlist JSON exports within 2 MB reach the native save dialog', async () => {
+    const app = setup(), text = 'a'.repeat(1500000);
+    await app.export(new Blob([text]), '歌单.json');
+    assert.equal(app.exports[0].text.length, text.length);
+});
+
+test('Android back targets the top crop dialog and respects cancellation while saving', () => {
+    const app = setup(); let underlyingClosed = false, cropClosed = false;
+    const crop = new EventTarget(); crop.close = () => cropClosed = true;
+    crop.addEventListener('cancel', event => event.preventDefault());
+    app.context.document.querySelectorAll = () => [{ close: () => underlyingClosed = true }, crop];
+    assert.equal(app.context.__SG_ANDROID_BACK(), true);
+    assert.equal(underlyingClosed, false); assert.equal(cropClosed, false);
 });
 
 test('Android back dismisses dialog and modal before playlist, lyrics and playing view', () => {
@@ -97,15 +112,15 @@ test('Android back dismisses dialog and modal before playlist, lyrics and playin
     app.context.showView = value => { assert.equal(value, 'home'); app.elements.get('view-play').classList.remove('is-active'); };
     app.evaluate('lyricsViewOpen=true');
     let dialogClosed = false;
-    app.context.document.querySelector = () => ({ close: () => dialogClosed = true });
+    app.context.document.querySelectorAll = () => [{ close: () => dialogClosed = true, dispatchEvent: () => true }];
     assert.equal(app.context.__SG_ANDROID_BACK(), true); assert.equal(dialogClosed, true);
     assert.equal(modal.classList.contains('is-open'), true);
-    app.context.document.querySelector = () => null;
+    app.context.document.querySelectorAll = () => [];
     for (let i = 0; i < 4; i++) assert.equal(app.context.__SG_ANDROID_BACK(), true);
     assert.equal(app.context.__SG_ANDROID_BACK(), false);
 });
 
-for (const [role, prefix, start] of [['snow', '', '/'], ['fiona', 'fiona/', '/fiona/']]) {
+for (const [role, prefix, start] of [['snow', '', '/']]) {
     test(role + ' home-screen manifest keeps role switching in scope and supplies real sized icons', () => {
         const url = new URL('../' + prefix + 'manifest.webmanifest', import.meta.url);
         const manifest = JSON.parse(readFileSync(url, 'utf8'));

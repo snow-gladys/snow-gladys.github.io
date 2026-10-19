@@ -89,7 +89,7 @@ public final class MainActivity extends Activity {
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setSafeBrowsingEnabled(true);
         settings.setSupportMultipleWindows(false);
-        settings.setUserAgentString(settings.getUserAgentString() + " GladysPlayer/0.1.0");
+        settings.setUserAgentString(settings.getUserAgentString() + " GladysPlayer/0.2.0");
         WebView.setWebContentsDebuggingEnabled(false);
         android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(browser, false);
         browser.addJavascriptInterface(new NativeBridge(), "GladysNative");

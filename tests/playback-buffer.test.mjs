@@ -125,7 +125,7 @@ test('downloaded mode advances within downloaded songs and never preloads from t
 });
 
 test('both players load buffer scheduling before initializing the player', () => {
-    for (const file of ['index.html','fiona/index.html']) {
+    for (const file of ['index.html']) {
         const html = read(file);
         assert.ok(html.indexOf('playback-buffer.js?') < html.indexOf('index.js?'));
     }

@@ -14,7 +14,7 @@ public final class AppPolicyTest {
         check(AppPolicy.filename(".txt") == null);
         check(AppPolicy.filename(new String(new char[200]).replace('\0', 'a') + ".json").endsWith(".json"));
         check(AppPolicy.exportBytes("你好").length == 6);
-        check(AppPolicy.exportBytes(new String(new char[400000]).replace('\0', '你')) == null);
+        check(AppPolicy.exportBytes(new String(new char[800000]).replace('\0', '你')) == null);
         check(AppPolicy.exportBytes(null) == null);
         System.out.println("AppPolicy: URL boundaries, filenames and UTF-8 export size checks passed.");
     }

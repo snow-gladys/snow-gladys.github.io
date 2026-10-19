@@ -95,7 +95,7 @@ test('timeout stops the request and explains how to retry', async () => {
 });
 
 test('both players expose search before loading the shared editor integration', () => {
-    for (const file of ['index.html', 'fiona/index.html']) {
+    for (const file of ['index.html']) {
         const html = source(file);
         assert.ok(html.indexOf('lyrics-search.js?') < html.indexOf('index.js?'));
         assert.match(html, /id="lyric-search-panel" hidden/);

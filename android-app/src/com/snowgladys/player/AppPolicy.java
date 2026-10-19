@@ -6,7 +6,7 @@ import java.util.Locale;
 
 public final class AppPolicy {
     public static final String HOME = "https://www.snow-gladys.com/";
-    public static final int MAX_EXPORT_BYTES = 1000000;
+    public static final int MAX_EXPORT_BYTES = 2097152;
     private AppPolicy() {}
 
     public static boolean trusted(String value) {

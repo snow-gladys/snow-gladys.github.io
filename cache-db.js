@@ -1,5 +1,5 @@
 /**
- * cache-db.js — 歌曲缓存模块（思诺/心宜两个播放器共用）
+ * cache-db.js — 歌曲缓存模块（统一播放器共用）
  *
  * 职责：
  *  1. IndexedDB 存储/读取音频 Blob（按 bvid 缓存）

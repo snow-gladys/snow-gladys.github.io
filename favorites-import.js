@@ -62,13 +62,26 @@
                 name.className = 'favorites-row-title'; name.textContent = item.name;
                 var meta = document.createElement('span');
                 meta.className = 'favorites-row-meta';
-                meta.textContent = duplicate ? '已在自定义歌单中' : [item.author, durationText(item.duration)].filter(Boolean).join(' · ');
+                meta.textContent = duplicate ? '已在目标歌单中' : [item.author, durationText(item.duration)].filter(Boolean).join(' · ');
                 copy.append(name, meta); row.append(checkbox, copy); fragment.appendChild(row);
             }
             list.appendChild(fragment);
             more.hidden = rendered >= result.items.length;
             more.textContent = '再显示 100 项（已显示 ' + rendered + ' / ' + result.items.length + '）';
         }
+        function refreshExisting() {
+            if (!result) return;
+            existing = new Set(options.getExisting().map(function (song) { return global.SG_BILI_API.normalizeId(song.bvid); }));
+            selected = new Set(result.items.filter(function (item) { return !existing.has(item.bvid); }).map(function (item) { return item.bvid; }));
+            var duplicates = result.items.length - selected.size + result.duplicateCount;
+            detail.textContent = [result.owner, '可读取 ' + result.items.length + ' 个视频',
+                result.skipped ? '跳过 ' + result.skipped + ' 项失效或非视频内容' : '',
+                duplicates ? '跳过 ' + duplicates + ' 项重复内容' : '',
+            ].filter(Boolean).join(' · ');
+            rendered = 0; list.replaceChildren(); appendRows(); updateSelection();
+        }
+        var target = document.getElementById('favorites-target');
+        if (target) target.addEventListener('change', function () { if (!busy) refreshExisting(); });
         form.addEventListener('submit', async function (event) {
             event.preventDefault();
             if (busy) return;
@@ -89,15 +102,8 @@
                 });
                 if (current !== version || !dialog.open) return;
                 result = data;
-                existing = new Set(options.getExisting().map(function (song) { return global.SG_BILI_API.normalizeId(song.bvid); }));
-                selected = new Set(data.items.filter(function (item) { return !existing.has(item.bvid); }).map(function (item) { return item.bvid; }));
                 title.textContent = data.title;
-                var duplicates = data.items.length - selected.size + data.duplicateCount;
-                detail.textContent = [data.owner, '可读取 ' + data.items.length + ' 个视频',
-                    data.skipped ? '跳过 ' + data.skipped + ' 项失效或非视频内容' : '',
-                    duplicates ? '跳过 ' + duplicates + ' 项重复内容' : '',
-                ].filter(Boolean).join(' · ');
-                rendered = 0; appendRows(); preview.hidden = false;
+                refreshExisting(); preview.hidden = false;
                 setStatus(data.items.length ? '请选择要导入的内容；歌曲和普通视频都会保留原始标题。' : '这个收藏夹暂无可导入的视频。');
             } catch (error) {
                 if (current === version && error.name !== 'AbortError') setStatus(error.message || '读取失败，请稍后重试。', true);
@@ -122,7 +128,7 @@
             var songs = result.items.filter(function (item) { return selected.has(item.bvid); });
             setBusy(true);
             try {
-                var count = await options.onImport(songs);
+                var count = await options.onImport(songs, result);
                 dialog.close();
                 options.onComplete(count);
             } catch (error) { setStatus(error.message || '保存失败，请稍后重试。', true); }
@@ -136,8 +142,9 @@
         });
         return {
             open: function () {
+                if (options.onOpen) options.onOpen();
                 result = null; selected.clear(); preview.hidden = true; list.replaceChildren();
-                setStatus('仅支持公开收藏夹。导入后保存在此浏览器的自定义歌单中。');
+                setStatus('仅支持公开收藏夹。可新建歌单，也可加入已有歌单，数据保存在此设备。');
                 setBusy(false); dialog.showModal(); input.focus();
             },
         };

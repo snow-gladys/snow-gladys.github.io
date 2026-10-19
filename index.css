@@ -24,6 +24,7 @@
             font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
             overflow: hidden;
             overscroll-behavior: none; /* 【关键修复】：防止在手机上下拖拽时网页跟着回弹露出白边 */
+            touch-action: manipulation; /* 连续点击不触发双击放大，保留滑动和双指缩放。 */
             color: var(--text-main);
             -webkit-font-smoothing: antialiased;
         }

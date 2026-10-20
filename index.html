@@ -13,8 +13,8 @@
     <title>思诺 · Gladys</title>
     <script src="wardrobe.js?v=20261019-details"></script>
     <link rel="preconnect" href="https://snow-gladys-api-zone-3msnp1a62hlu-1304656834.eo-edgefunctions.com" crossorigin>
-    <link rel="stylesheet" href="index.css?v=20261019-status-bar">
-    <link rel="stylesheet" href="personal.css?v=20261019-details">
+    <link rel="stylesheet" href="index.css?v=20261020-sources">
+    <link rel="stylesheet" href="personal.css?v=20261020-chapters">
 </head>
 <body>
 
@@ -135,6 +135,10 @@
                     <button type="button" data-library-tab="recent" aria-pressed="false">最近</button>
                     <button type="button" data-library-tab="excluded" aria-pressed="false">已排除</button>
                 </nav>
+                <div class="library-primary-actions">
+                    <button type="button" id="library-add-song">＋ 添加歌曲</button>
+                    <button type="button" id="library-music-tools">导入与管理</button>
+                </div>
                 <div class="collection-tools" id="collection-tools" hidden>
                     <button type="button" id="collection-back">‹ 所有歌单</button>
                     <span id="collection-name"></span>
@@ -146,9 +150,6 @@
                 </div>
                 <div class="collection-create-actions" id="collection-create-actions">
                     <button type="button" id="collection-create">＋ 新建歌单</button>
-                    <button type="button" id="collection-import-bili">从 B 站导入</button>
-                    <button type="button" id="collection-import-file">导入文件</button>
-                    <input type="file" id="collection-file-input" accept=".json,.txt,application/json,text/plain" hidden>
                 </div>
                 <div class="library-description"><p id="library-hint" hidden></p><button type="button" id="library-clear" hidden>清空待播</button></div>
                 <div class="playlist-body">
@@ -233,6 +234,12 @@
                     <p class="song-lyric" id="play-current-lyric"></p>
                 </div>
 
+                <div class="playback-chapter-row">
+                    <button type="button" class="playback-chapter-trigger" id="btn-playback-chapters" aria-haspopup="dialog" aria-controls="playback-chapters-dialog" aria-label="打开视频章节目录" hidden>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M9 5h12M9 12h12M9 19h12M3 5h1M3 12h1M3 19h1"/></svg>
+                        <span id="playback-chapter-label">章节</span><span aria-hidden="true">›</span>
+                    </button>
+                </div>
                 <div class="progress-wrapper">
                     <span class="time-text" id="time-current">0:00</span>
                     <div class="progress-bar-container">
@@ -349,20 +356,6 @@
                 </div>
 
                 <div class="settings-body">
-                    <!-- 歌单与歌曲 -->
-                    <div class="group-title">歌单与歌曲</div>
-                    <div class="settings-group">
-                        <div class="settings-row">
-                            <div><div class="row-label">我的歌单</div><div class="row-hint">创建歌单、整理歌曲或导入公开收藏夹</div></div>
-                            <button type="button" class="settings-link-button" id="settings-open-collections">管理歌单</button>
-                        </div>
-                        <!-- 自定义歌曲按钮区域，由 JS 渲染（renderCustomSectionInSettings） -->
-                        <div class="settings-row" style="flex-direction: column; align-items: flex-start;">
-                            <div class="row-label" style="margin-bottom: 6px;">自定义歌曲</div>
-                            <div id="custom-section-buttons"></div>
-                        </div>
-                    </div>
-
                     <!-- 播放设置 -->
                     <div class="group-title">播放设置</div>
                     <div class="settings-group">
@@ -521,11 +514,28 @@
             </div>
             <div class="custom-form-body">
                 <label for="custom-form-bvid">BV 号或分享链接</label>
-                <input type="text" id="custom-form-bvid" placeholder="粘贴 BV 号或 B 站视频分享链接" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="custom-form-info-status">
+                <input type="text" id="custom-form-bvid" placeholder="BV 号、分享链接或 b23.tv 短链" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="custom-form-info-status">
                 <div class="custom-info-row"><p id="custom-form-info-status" class="personal-status" role="status" aria-live="polite">粘贴后自动读取视频标题，也可以手动填写歌名。</p><button type="button" class="btn-import-lrc" id="custom-form-info-retry" hidden>重试</button></div>
+                <details id="custom-form-source" class="song-source-fields" hidden>
+                    <summary>分 P 与片段设置（可选）</summary>
+                    <label for="custom-form-page">分 P</label>
+                    <select id="custom-form-page" aria-label="选择视频分 P"></select>
+                    <label for="custom-form-chapter">按章节截取（可选）</label>
+                    <select id="custom-form-chapter" aria-label="选择视频章节" disabled><option value="">读取后可选择章节</option></select>
+                    <details class="song-range-details"><summary>手动设定播放片段</summary>
+                        <div class="song-range-fields">
+                            <label for="custom-form-start">开始<input id="custom-form-start" type="text" inputmode="decimal" placeholder="0:00 或秒数" autocomplete="off"></label>
+                            <label for="custom-form-end">结束<input id="custom-form-end" type="text" inputmode="decimal" placeholder="留空播放至结尾" autocomplete="off"></label>
+                        </div>
+                        <p class="personal-description">时间相对于当前 P；片段在歌单里独立保存。</p>
+                    </details>
+                    <label for="custom-form-batch">添加方式</label>
+                    <select id="custom-form-batch"><option value="single">仅添加当前选择</option></select>
+                </details>
                 <label for="custom-form-name">歌名</label>
                 <input type="text" id="custom-form-name" placeholder="自动填入，也可以自行修改" autocomplete="off" maxlength="300">
 
+                <details class="song-range-details" id="custom-form-lyrics-details"><summary>添加歌词（可选）</summary>
                 <div class="custom-form-lyrics-label-row">
                     <label class="custom-form-label-optional">
                         歌词 <span class="label-optional">（可选，LRC 格式）</span>
@@ -534,6 +544,7 @@
                     <input type="file" id="custom-form-lyrics-file-input" accept=".lrc,.txt" style="display:none;">
                 </div>
                 <textarea id="custom-form-lyrics" placeholder="[00:00.00] 第一行歌词&#10;[00:05.00] 第二行歌词&#10;留空则不添加歌词" autocomplete="off" spellcheck="false"></textarea>
+                </details>
             </div>
             <div class="custom-form-actions">
                 <button type="button" class="btn-cancel" id="custom-form-cancel-footer">取消</button>
@@ -671,7 +682,7 @@
             <select id="favorites-target"><option value="">新建歌单（沿用收藏夹名称）</option></select>
         </label>
         <div class="favorites-import-footer">
-            <span>多分 P 视频按第 1 P 播放</span>
+            <span>播放时可打开章节目录，歌曲菜单可选择分 P</span>
             <button type="button" class="favorites-import-submit" id="favorites-import-submit" disabled>导入所选</button>
         </div>
     </dialog>
@@ -685,6 +696,7 @@
             <button type="button" data-song-action="next">下一首播放</button>
             <button type="button" data-song-action="append">加入待播队列</button>
             <button type="button" data-song-action="favorite">收藏歌曲</button>
+            <button type="button" data-song-action="source">选择分 P / 添加片段</button>
             <button type="button" data-song-action="playlist">添加到歌单</button>
             <button type="button" data-song-action="playlist-up" hidden>在歌单中上移</button>
             <button type="button" data-song-action="playlist-down" hidden>在歌单中下移</button>
@@ -789,6 +801,25 @@
         <div class="personal-footer"><span id="collection-add-count">已选择 0 首</span><button type="button" class="personal-primary" id="collection-add-save" disabled>加入歌单</button></div>
     </dialog>
 
+    <dialog class="personal-dialog playback-chapters-dialog" id="playback-chapters-dialog" aria-labelledby="playback-chapters-heading">
+        <div class="personal-heading"><div><p class="personal-eyebrow">CHAPTERS</p><h3 id="playback-chapters-heading">视频章节</h3></div><button type="button" class="btn-close-small" data-close-chapters aria-label="关闭章节目录">×</button></div>
+        <div id="playback-chapters-list" class="playback-chapters-list" aria-label="章节目录"></div>
+        <p class="personal-status" id="playback-chapters-status" role="status"></p>
+        <button type="button" class="personal-full" id="playback-chapters-retry">刷新章节</button>
+    </dialog>
+
+    <dialog class="personal-dialog music-tools-dialog" id="music-tools-dialog" aria-labelledby="music-tools-heading">
+        <div class="personal-heading"><div><p class="personal-eyebrow">YOUR LIBRARY</p><h3 id="music-tools-heading">导入与管理</h3></div><button type="button" class="btn-close-small" data-close-personal aria-label="关闭导入与管理">×</button></div>
+        <p class="personal-description">单首歌曲可直接粘贴链接；收藏夹和文件会保存为歌单。</p>
+        <div class="music-import-options">
+                    <button type="button" id="collection-import-bili">从 B 站导入</button>
+                    <button type="button" id="collection-import-file">导入文件</button>
+                    <input type="file" id="collection-file-input" accept=".json,.txt,application/json,text/plain" hidden>
+        </div>
+        <div id="custom-section-buttons"></div>
+        <button type="button" class="personal-full" id="settings-open-collections">浏览我的歌单</button>
+    </dialog>
+
     <dialog class="personal-dialog live-dialog" id="live-dialog" aria-labelledby="live-heading">
         <div class="personal-heading"><div><p class="personal-eyebrow">ON AIR</p><h3 id="live-heading">直播电台</h3></div><button type="button" class="btn-close-small" id="live-close" aria-label="关闭直播电台">×</button></div>
         <div id="live-members" class="live-members"></div>
@@ -803,21 +834,22 @@
     <script src="pinyinUtil.js"></script>
     <script src="lyrics-db.js?v=20261018-perf"></script>
     <script src="cache-db.js?v=20261018-fast-play"></script>
-    <script src="changelog-data.js?v=20261019-status-bar"></script>
-    <script src="bili-api.js?v=20261019-details"></script>
+    <script src="changelog-data.js?v=20261020-chapters"></script>
+    <script src="bili-api.js?v=20261020-sources"></script>
+    <script src="playback-chapters.js?v=20261020-chapters"></script>
     <script src="favorites-import.js?v=20261019-library"></script>
     <script src="lyrics-search.js?v=20261018-lyrics-search"></script>
-    <script src="playback-buffer.js?v=20261018-fast-play"></script>
-    <script src="playback-state.js?v=20261018-listening-tools"></script>
-    <script src="listening-library.js?v=20261019-fluency"></script>
-    <script src="favorites-cache.js?v=20261018-listening-tools"></script>
-    <script src="personal-library.js?v=20261019-library"></script>
+    <script src="playback-buffer.js?v=20261020-sources"></script>
+    <script src="playback-state.js?v=20261020-sources"></script>
+    <script src="listening-library.js?v=20261020-sources"></script>
+    <script src="favorites-cache.js?v=20261020-sources"></script>
+    <script src="personal-library.js?v=20261020-sources"></script>
     <script src="mobile-visualizer.js?v=20261019-spectrum"></script>
-    <script src="song-entry.js?v=20261019-details"></script>
+    <script src="song-entry.js?v=20261020-chapters"></script>
     <script src="playback-ui.js?v=20261019-fluency"></script>
     <script src="live-radio.js?v=20261019-live-fix"></script>
-    <script src="index.js?v=20261019-live-fix"></script>
-    <script src="library-ui.js?v=20261019-fluency"></script>
+    <script src="index.js?v=20261020-chapters"></script>
+    <script src="library-ui.js?v=20261020-sources"></script>
 </body>
 </html>
 

@@ -6,6 +6,7 @@
  * GET /resolve?bvid=BV17uZQBHEDo&p=1&mode=high
  * GET /valid?bvid=BV17uZQBHEDo
  * GET /info?bvid=BV17uZQBHEDo 或 /info?url=https%3A%2F%2Fb23.tv%2Fxxxx
+ * GET /chapters?bvid=BV17uZQBHEDo&p=1 （当前 P 的公开章节）
  * GET /favorites?media_id=3736153875&pn=1 （每页 20 项）
  * GET /live/status 或 /live/stream?member=diana （五位成员的状态与经过验证的音频线路）
  * /live/playlist.m3u8、/live/segment.aac 只转发提取后的 AAC 音轨，支持 TS / fMP4。
@@ -423,14 +424,15 @@ function videoParams(id) {
   return new URLSearchParams({ bvid: id });
 }
 
-async function shortVideoId(input) {
+async function shortVideoInfo(input) {
   let url;
   try { url = new URL(input); } catch (_) {}
   if (!url || url.protocol !== 'https:' || url.hostname !== 'b23.tv' || url.port || url.username || url.password ||
       !/^\/[a-zA-Z0-9]{1,32}\/?$/.test(url.pathname)) {
     throw new ApiError(400, 'INVALID_SHARE_URL', '请粘贴有效的 B 站视频分享链接。');
   }
-  for (let i = 0; i < 4; i++) {
+  const requestedPage = url.searchParams.get('p'), requestedTime = url.searchParams.get('t');
+  for (let i = 0; i < 5; i++) {
     let response;
     try { response = await fetch(url.href, { headers: BILI_HEADERS, redirect: 'manual' }); }
     catch (_) { throw new ApiError(502, 'SHARE_NETWORK_ERROR', '分享链接暂时无法打开，请重试或直接填写 BV 号。'); }
@@ -441,7 +443,11 @@ async function shortVideoId(input) {
     if (url.protocol !== 'https:' || url.username || url.password || url.port ||
         !(url.hostname === 'b23.tv' || url.hostname === 'bilibili.com' || url.hostname.endsWith('.bilibili.com'))) break;
     const match = /^\/video\/(BV[a-zA-Z0-9]{10})(?:\/|$)/i.exec(url.pathname);
-    if (match && url.hostname !== 'b23.tv') return normalizeVideoId(match[1]);
+    if (match && url.hostname !== 'b23.tv') {
+      const page = Number(requestedPage || url.searchParams.get('p') || 1), start = Number(requestedTime || url.searchParams.get('t') || 0);
+      if (!Number.isInteger(page) || page < 1 || page > 9999 || !Number.isFinite(start) || start < 0 || start > 604800) throw new ApiError(400, 'INVALID_SHARE_URL', '分享链接中的分 P 或时间无效。');
+      return { bvid: normalizeVideoId(match[1]), page, start };
+    }
     if (url.hostname !== 'b23.tv') break;
   }
   throw new ApiError(422, 'SHARE_VIDEO_NOT_FOUND', '分享链接中未找到视频，请复制视频页链接或 BV 号。');
@@ -452,11 +458,19 @@ async function getVideoInfo(id) {
   if (cached && cached.expires > Date.now()) return cached.song;
   if (VIDEO_INFO_REQUESTS.has(id)) return VIDEO_INFO_REQUESTS.get(id);
   const pending = (async () => {
-    const result = await biliJson('/x/web-interface/view', videoParams(id), 'info');
+    let result;
+    try { result = await biliJson('/x/web-interface/view', videoParams(id), 'info'); }
+    catch (error) {
+      if (error.status === 404) throw error;
+      const pages = await getPages(id);
+      result = { data: { bvid: id, title: pages[0].part || '', pages } };
+    }
     const data = result.data, bvid = data && normalizeVideoId(data.bvid);
     const name = data && typeof data.title === 'string' ? data.title.trim() : '';
     if (!bvid || !name) throw new ApiError(502, 'UPSTREAM_INVALID_DATA', '未获取到视频标题，请稍后重试。', { stage: 'info' });
     const song = { bvid, name: name.slice(0, 300) };
+    if (Array.isArray(data.pages)) song.pages = data.pages.filter(item => item && Number.isSafeInteger(item.cid) && Number.isInteger(item.page) && item.page > 0 && item.page <= 9999)
+      .slice(0, 2000).map(item => ({ page: item.page, cid: item.cid, name: String(item.part || 'P' + item.page).slice(0, 300), duration: Math.max(0, Number(item.duration) || 0) }));
     if (VIDEO_INFO_CACHE.size >= 256) VIDEO_INFO_CACHE.delete(VIDEO_INFO_CACHE.keys().next().value);
     VIDEO_INFO_CACHE.set(id, { song, expires: Date.now() + PAGE_CACHE_TTL });
     return song;
@@ -505,6 +519,33 @@ async function biliJson(path, params, stage) {
     throw new ApiError(502, "BILI_API_ERROR", "B 站暂时无法提供该内容。", details);
   }
   return data;
+}
+
+const CHAPTER_CACHE = new Map(), CHAPTER_REQUESTS = new Map();
+async function getChapters(id, page) {
+  const key = id + ':' + page, cached = CHAPTER_CACHE.get(key);
+  if (cached && cached.expires > Date.now()) return cached.value;
+  if (CHAPTER_REQUESTS.has(key)) return CHAPTER_REQUESTS.get(key);
+  const pending = (async () => {
+    const pages = await getPages(id), part = pages.find(item => Number(item.page) === page);
+    if (!part) throw new ApiError(404, 'PAGE_NOT_FOUND', '视频不存在该分 P。');
+    const params = videoParams(id); params.set('cid', String(part.cid));
+    let result;
+    try { result = await biliJson('/x/player/v2', params, 'chapters'); }
+    catch (_) { result = await biliJson('/x/player/wbi/v2', params, 'chapters'); }
+    const points = result.data && result.data.view_points;
+    if (!Array.isArray(points)) throw new ApiError(502, 'CHAPTERS_UNAVAILABLE', '暂时无法读取章节，可以手动填写起止时间。');
+    const duration = Number(part.duration) || 0;
+    const chapters = points.filter(item => item && typeof item.content === 'string' && item.content.trim() && Number.isFinite(item.from) && Number.isFinite(item.to) && item.from >= 0 && item.to > item.from && item.to <= 604800 && (!duration || item.to <= duration + 1))
+      .slice(0, 1000).map(item => ({ name: item.content.trim().slice(0, 300), start: item.from, end: duration ? Math.min(duration, item.to) : item.to }))
+      .sort((a, b) => a.start - b.start);
+    const value = { bvid: id, page, duration, chapters };
+    if (CHAPTER_CACHE.size >= 128) CHAPTER_CACHE.delete(CHAPTER_CACHE.keys().next().value);
+    CHAPTER_CACHE.set(key, { value, expires: Date.now() + PAGE_CACHE_TTL });
+    return value;
+  })();
+  CHAPTER_REQUESTS.set(key, pending);
+  try { return await pending; } finally { CHAPTER_REQUESTS.delete(key); }
 }
 
 async function getPages(id) {
@@ -720,9 +761,18 @@ async function handleRequest(request) {
     if (url.pathname === '/live/playlist.m3u8') return await livePlaylist(request, url, corsHeaders);
     if (url.pathname === '/live/segment.aac') return await liveSegment(request, url.searchParams.get('url'), corsHeaders, url.searchParams.get('init'));
     if (url.pathname === '/info') {
-      const id = url.searchParams.has('bvid') ? normalizeVideoId(url.searchParams.get('bvid')) : await shortVideoId(url.searchParams.get('url'));
+      const shared = url.searchParams.has('bvid') ? { bvid: normalizeVideoId(url.searchParams.get('bvid')), page: Number(url.searchParams.get('p') || 1), start: 0 } : await shortVideoInfo(url.searchParams.get('url'));
+      if (!shared.bvid) throw new ApiError(400, 'INVALID_VIDEO_ID', '请输入有效的 BV 号。');
+      if (!Number.isInteger(shared.page) || shared.page < 1 || shared.page > 9999) throw new ApiError(400, 'INVALID_PAGE', '分 P 序号必须是正整数。');
+      const info = await getVideoInfo(shared.bvid);
+      if (info.pages && !info.pages.some(item => item.page === shared.page)) throw new ApiError(404, 'PAGE_NOT_FOUND', '视频不存在该分 P。');
+      return json({ ...info, ...(shared.page > 1 ? { page: shared.page } : {}), ...(shared.start ? { start: shared.start } : {}) });
+    }
+    if (url.pathname === '/chapters') {
+      const id = normalizeVideoId(url.searchParams.get('bvid')), page = Number(url.searchParams.get('p') || 1);
       if (!id) throw new ApiError(400, 'INVALID_VIDEO_ID', '请输入有效的 BV 号。');
-      return json(await getVideoInfo(id));
+      if (!Number.isInteger(page) || page < 1 || page > 9999) throw new ApiError(400, 'INVALID_PAGE', '分 P 序号无效。');
+      return json(await getChapters(id, page));
     }
     if (url.pathname === "/proxy") return await proxyMedia(request, url.searchParams.get("url"), corsHeaders);
     if (url.pathname === "/hls.m3u8") return await hlsPlaylist(request, url, corsHeaders);

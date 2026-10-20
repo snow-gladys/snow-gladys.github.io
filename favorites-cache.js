@@ -16,7 +16,7 @@
             const saved = options.storage && JSON.parse(options.storage.getItem(options.key));
             if (saved && Array.isArray(saved.items)) {
                 const seen = new Set();
-                items = saved.items.filter(item => item && /^BV[0-9a-zA-Z]{10}$/.test(item.bvid) && !seen.has(item.bvid) && seen.add(item.bvid))
+                items = saved.items.filter(item => item && /^BV[0-9a-zA-Z]{10}(?:@p[1-9]\d{0,3})?(?:@t\d+(?:\.\d{1,3})?-\d+(?:\.\d{1,3})?)?$/.test(item.bvid) && !seen.has(item.bvid) && seen.add(item.bvid))
                     .slice(0, 10000).map(item => ({ bvid: item.bvid, name: String(item.name || item.bvid).slice(0, 300),
                         status: item.status === 'done' || item.status === 'failed' ? item.status : 'pending', error: String(item.error || '').slice(0, 300) }));
                 mode = ['low', 'medium', 'high'].includes(saved.mode) ? saved.mode : 'medium';
@@ -88,7 +88,7 @@
             start(songs, quality) {
                 if (running || state === 'running' || state === 'paused' && items.some(item => item.status === 'pending')) return false;
                 const seen = new Set();
-                items = songs.filter(song => /^BV[0-9a-zA-Z]{10}$/.test(song.bvid) && !seen.has(song.bvid) && seen.add(song.bvid))
+                items = songs.filter(song => /^BV[0-9a-zA-Z]{10}(?:@p[1-9]\d{0,3})?(?:@t\d+(?:\.\d{1,3})?-\d+(?:\.\d{1,3})?)?$/.test(song.bvid) && !seen.has(song.bvid) && seen.add(song.bvid))
                     .map(song => ({ bvid: song.bvid, name: song.name || song.bvid, status: 'pending', error: '' }));
                 mode = quality; state = 'running'; consecutiveFailures = 0; generation++; emit(); pump(); return true;
             },

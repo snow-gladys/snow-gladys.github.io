@@ -8,7 +8,7 @@
         return (Array.isArray(values) ? values : []).flatMap(value => {
             if (!value || typeof value.bvid !== 'string') return [];
             const bvid = value.bvid.trim().replace(/^bv/i, 'BV');
-            if (!/^BV[0-9a-zA-Z]{10}$/.test(bvid) || seen.has(bvid.toUpperCase())) return [];
+            if (!/^BV[0-9a-zA-Z]{10}(?:@p[1-9]\d{0,3})?(?:@t\d+(?:\.\d{1,3})?-\d+(?:\.\d{1,3})?)?$/.test(bvid) || seen.has(bvid.toUpperCase())) return [];
             seen.add(bvid.toUpperCase());
             return [{ bvid, name: String(value.name || value.title || bvid).trim().slice(0, 300) || bvid }];
         });

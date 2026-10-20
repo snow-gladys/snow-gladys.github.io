@@ -130,3 +130,35 @@ test('both players load buffer scheduling before initializing the player', () =>
         assert.ok(html.indexOf('playback-buffer.js?') < html.indexOf('index.js?'));
     }
 });
+
+test('a hidden page cancels an active offline download without touching audio playback', async () => {
+    const page = Object.assign(new EventTarget(), { hidden: false }), window = {}; let signal;
+    vm.runInNewContext(read('playback-buffer.js'), { window, document: page, AbortController, fetch: (_, options) => {
+        signal = options.signal;
+        return new Promise((resolve, reject) => signal.addEventListener('abort', () => reject(new Error('cancelled'))));
+    } });
+    const a = audio(); a.ranges = [[0, 60]];
+    window.SG_PLAYBACK_BUFFER.cacheWhenBuffered({ audio: a, url: 'audio', isCurrent: () => true, save: async () => assert.fail('cancelled download cannot save') });
+    assert.equal(signal.aborted, false); page.hidden = true; page.dispatchEvent(new Event('visibilitychange'));
+    assert.equal(signal.aborted, true); assert.equal(a.paused, false); await tick();
+});
+
+test('fragment preload uses the fragment boundary rather than the entire source duration', () => {
+    const a = audio(), api = setup(); a.currentTime = 10; a.ranges = [[0, 35]];
+    assert.equal(api.shouldPreload(a, 30), false); assert.equal(api.shouldPreload(a, 30, 8), true);
+});
+
+test('stall recovery is bounded and cancelled by playback progress, user pause and track changes', async () => {
+    const timers = new Map(), window = {}; let serial = 0, key = 'A', current = true, recovered = 0;
+    vm.runInNewContext(read('playback-buffer.js'), { window, setTimeout: fn => { timers.set(++serial, fn); return serial; }, clearTimeout: id => timers.delete(id) });
+    const a = audio();
+    const watch = window.SG_PLAYBACK_BUFFER.watchPlayback({ audio: a, key: () => key, isCurrent: () => current, reconnect: () => { recovered++; } });
+    const run = async () => { const queued = [...timers.values()]; timers.clear(); queued.forEach(fn => fn()); await tick(); };
+    a.dispatchEvent(new Event('waiting')); assert.equal(timers.size, 1); a.currentTime = 1; a.dispatchEvent(new Event('timeupdate')); assert.equal(timers.size, 0);
+    a.dispatchEvent(new Event('stalled')); a.paused = true; a.dispatchEvent(new Event('pause')); assert.equal(timers.size, 0); await run(); assert.equal(recovered, 0);
+    a.paused = false; a.dispatchEvent(new Event('waiting')); key = 'B'; await run(); assert.equal(recovered, 0);
+    for (let i = 0; i < 4; i++) { a.dispatchEvent(new Event('stalled')); await run(); }
+    assert.equal(recovered, 2);
+    key = 'C'; a.dispatchEvent(new Event('waiting')); current = false; await run(); assert.equal(recovered, 2);
+    watch.dispose(); a.dispatchEvent(new Event('waiting')); assert.equal(timers.size, 0);
+});

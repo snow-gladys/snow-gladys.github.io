@@ -72,7 +72,7 @@
     function readSession(storage, key) {
         try {
             const value = JSON.parse(storage.getItem(key));
-            if (!value || !/^BV[0-9a-zA-Z]{10}$/.test(value.bvid) ||
+            if (!value || !/^BV[0-9a-zA-Z]{10}(?:@p[1-9]\d{0,3})?(?:@t\d+(?:\.\d{1,3})?-\d+(?:\.\d{1,3})?)?$/.test(value.bvid) ||
                 !Number.isFinite(value.time) || value.time < 0) return null;
             return {
                 bvid: value.bvid, time: value.time,
@@ -81,6 +81,12 @@
                 order: ['list', 'single', 'random'].includes(value.order) ? value.order : 'list',
             };
         } catch (_) { return null; }
+    }
+
+    function range(source, duration) {
+        const start = source && source.start || 0;
+        const end = source && source.end ? Math.min(source.end, Number.isFinite(duration) && duration > 0 ? duration : source.end) : Number.isFinite(duration) && duration > 0 ? duration : 0;
+        return { start, end: source && source.end ? end : 0, duration: end > start ? end - start : 0 };
     }
 
     function resumeTime(time, duration) {
@@ -94,5 +100,5 @@
         return lines.map(line => ({ time: Math.max(0, Math.round((line.time + seconds) * 1000) / 1000), text: line.text }));
     }
 
-    root.SG_PLAYBACK_STATE = { createQueue, readSession, resumeTime, shiftLyrics };
+    root.SG_PLAYBACK_STATE = { createQueue, readSession, range, resumeTime, shiftLyrics };
 })(typeof window === 'undefined' ? globalThis : window);

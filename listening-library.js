@@ -1,6 +1,6 @@
 (function (root) {
     'use strict';
-    const validId = id => typeof id === 'string' && /^BV[0-9a-zA-Z]{10}$/.test(id);
+    const validId = id => typeof id === 'string' && /^BV[0-9a-zA-Z]{10}(?:@p[1-9]\d{0,3})?(?:@t\d+(?:\.\d{1,3})?-\d+(?:\.\d{1,3})?)?$/.test(id);
     function song(value) {
         return value && validId(value.bvid) ? { bvid: value.bvid, name: String(value.name || value.title || value.bvid).slice(0, 300) } : null;
     }

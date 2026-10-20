@@ -85,3 +85,37 @@
     .collection-card-icon { width: 34px; height: 34px; border-radius: 10px; font-size: 18px; }
     .wardrobe-choice strong { font-size: 12px; }
 }
+
+/* 使用同一人物焦点裁剪首页、唱片和小封面；覆盖唱片背景简写的居中规则。 */
+.play-record-area .character-img.in-play-view .character-photo { background-position: var(--portrait-position, 50% 50%); }
+.library-primary-actions { display: flex; gap: 8px; padding: 0 22px 14px; }
+.library-primary-actions button { min-height: 42px; padding: 10px 15px; border: 1px solid rgba(0,0,0,.07); border-radius: 13px; background: #fff; color: #555; font: inherit; font-size: 13px; cursor: pointer; }
+.library-primary-actions #library-add-song { background: #111; color: #fff; border-color: #111; flex: 1; }
+.music-import-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 16px 0; }
+.music-tools-dialog .custom-actions-grid { padding: 0; gap: 10px; }
+.music-tools-dialog .btn-custom-action { min-height: 72px; font-size: 12px; }
+.song-source-fields { padding: 14px; margin: 4px 0 18px; background: #f3f3f6; border: 1px solid rgba(0,0,0,.04); border-radius: 16px; }
+.song-source-fields[hidden] { display: none; }
+.custom-form-body select { box-sizing: border-box; width: 100%; min-height: 44px; padding: 10px 12px; margin: 5px 0 14px; border: 1px solid rgba(0,0,0,.08); border-radius: 10px; background: #fff; color: #222; font: inherit; font-size: 16px; text-overflow: ellipsis; }
+.custom-form-body select:disabled { color: #888; opacity: 1; }
+.song-range-details { margin: 4px 0 16px; }
+.song-range-details summary { cursor: pointer; color: #777; font-size: 12px; padding: 8px 0; }
+.song-range-fields { display: flex; gap: 10px; margin-top: 6px; }
+.song-range-fields label { flex: 1; min-width: 0; font-size: 12px; }
+.song-range-fields input { box-sizing: border-box; width: 100%; font-size: 16px; margin-top: 6px; }
+@media (max-width: 480px) { .library-primary-actions { padding-left: 16px; padding-right: 16px; } }
+
+.playback-chapter-row { width: 100%; height: 28px; flex-shrink: 0; display: flex; justify-content: center; align-items: center; }
+.playback-chapter-trigger { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; min-width: 80px; height: 32px; padding: 0 11px; border: 1px solid rgba(0,0,0,.055); border-radius: 999px; background: rgba(255,255,255,.8); color: #777; font: inherit; font-size: 11px; cursor: pointer; }
+.playback-chapter-trigger[hidden] { display: none; }
+.playback-chapter-trigger svg { width: 14px; height: 14px; flex-shrink: 0; }
+#playback-chapter-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.playback-chapters-dialog .personal-heading > div { min-width: 0; }
+#playback-chapters-heading { overflow-wrap: anywhere; }
+.playback-chapters-list { max-height: 48dvh; overflow: auto; overscroll-behavior: contain; }
+.playback-chapters-list .playback-chapter-item { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 10px; margin-bottom: 6px; text-align: left; min-height: 48px; background: #fff; }
+.playback-chapter-time { flex-shrink: 0; min-width: 38px; font-size: 11px; color: #999; font-variant-numeric: tabular-nums; }
+.playback-chapter-name { flex: 1; min-width: 0; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.playback-chapter-mark { visibility: hidden; flex-shrink: 0; color: #777; font-size: 10px; }
+.playback-chapter-item.is-current { border-color: rgba(0,0,0,.17); background: #f1f1f4; }
+.playback-chapter-item.is-current .playback-chapter-mark { visibility: visible; }

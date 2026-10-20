@@ -1,3 +1,4 @@
+import { installTimeline } from './helpers/player-timeline.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -103,6 +104,7 @@ function sessionHarness() {
         randomQueue: api.createQueue(), Date,
         getSongInfo: bvid => ({ bvid, name: bvid }), listeningLibrary: { record() {}, leaveQueue() {} },
     });
+    installTimeline(context, player);
     const start = player.indexOf('function savePlaybackSession(');
     const end = player.indexOf('async function resumeLastPlayback(', start);
     vm.runInContext(player.slice(start, end), context);
@@ -202,4 +204,19 @@ test('lyric export carries rounded centiseconds into the next second and minute'
     vm.runInContext(player.slice(start, player.indexOf('/** 更新调轴模式', start)), context);
     assert.equal(context.formatLrcTime(59.999), '01:00.00');
     assert.equal(context.formatLrcTime(5.995), '00:06.00');
+});
+
+test('native fragment positioning is not duplicated before canplay or during native seek', () => {
+    const { context, writes } = sessionHarness();
+    context.currentPlayingBvid = context.sessionAudioBvid = 'BV1Sf421Q7Rt@p2@t20-40';
+    context.pendingPlayback.bvid = context.currentPlayingBvid; context.pendingPlayback.time = 0;
+    context.bgmAudio.duration = 90;
+    let position = 0, seeks = 0;
+    Object.defineProperty(context.bgmAudio, 'currentTime', { get: () => position, set: value => { position = value; seeks++; } });
+    context.applyResumePosition(); assert.equal(seeks, 0); assert.equal(context.pendingPlayback.positionApplied, false);
+    context.bgmAudio.readyState = 4; context.bgmAudio.seeking = true; position = 20;
+    context.applyResumePosition(); assert.equal(seeks, 0);
+    context.bgmAudio.seeking = false; context.applyResumePosition(); assert.equal(seeks, 0); assert.equal(context.pendingPlayback.positionApplied, true);
+    context.pendingPlayback.started = true; position = 25; context.savePlaybackSession(true);
+    assert.equal(writes[0][1].time, 5); assert.equal(writes[0][1].duration, 20);
 });

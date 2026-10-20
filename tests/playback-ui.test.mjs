@@ -1,3 +1,4 @@
+import { installTimeline } from './helpers/player-timeline.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -53,7 +54,8 @@ test('audio events dispatch the latest progress function exactly once after rebi
  const player=readFileSync(new URL('../index.js',import.meta.url),'utf8');
  const start=player.indexOf('        function handleAudioProgress('),end=player.indexOf('        // 单独抽离 ended',start);
  let calls=0;const audio=new EventTarget(),noop=()=>{};
- const context=vm.createContext({bgmAudio:audio,updateProgressDisplay:()=>calls++,handleAudioEnded:noop,handleAudioPlay:noop,handleAudioPause:noop,handleAudioError:noop,onVisualizerWaiting:noop,onVisualizerPlaying:noop});
+ const context=vm.createContext({currentPlayingBvid:'',playbackHealth:null,bgmAudio:audio,updateProgressDisplay:()=>calls++,handleAudioEnded:noop,handleAudioPlay:noop,handleAudioPause:noop,handleAudioError:noop,onVisualizerWaiting:noop,onVisualizerPlaying:noop});
+ installTimeline(context,player);vm.runInContext(readFileSync(new URL('../playback-buffer.js',import.meta.url),'utf8'),context);
  vm.runInContext(player.slice(start,end),context);context.bindAudioEvents(audio);context.updateProgressDisplay=()=>calls+=10;context.bindAudioEvents(audio);context.bindAudioEvents(audio);
  audio.dispatchEvent(new Event('timeupdate'));assert.equal(calls,10);audio.dispatchEvent(new Event('loadedmetadata'));assert.equal(calls,20);
  context.bgmAudio=new EventTarget();audio.dispatchEvent(new Event('timeupdate'));assert.equal(calls,20);

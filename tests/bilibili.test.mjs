@@ -1,3 +1,4 @@
+import { installTimeline } from './helpers/player-timeline.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -288,7 +289,7 @@ test('actual custom-song form preserves the existing BV storage schema', async (
         isValidBvidFormat: id => !!browser().normalizeId(id),
         validateBvidExists: async () => 'valid',
         saveCustomToStorage: rows => { saved = JSON.parse(JSON.stringify(rows)); return true; }, showToast() {},
-        buildSongList() {}, renderPlaylist() {}, renderCustomSectionInSettings() {}, closeCustomForm() {},
+        buildSongList() {}, renderPlaylist() {}, renderMusicTools() {}, closeCustomForm() {},
         alert(message) { assert.fail(message); }, confirm() { assert.fail('unexpected confirmation'); },
     });
     vm.runInContext(playerSource.slice(start, end) + '\nsubmitCustomForm();', sandbox);
@@ -319,16 +320,16 @@ async function playback({ preload = false, expired = false, playError, resolveEr
     }
     const sandbox = vm.createContext({
         window: { SG_CACHE: { supported: true, getCachedBlob: async () => cachedBlob, hasCached: async () => false, saveToCache() {} } },
-        settings: { cacheEnabled: cache ? 'on' : 'off' }, Date, URL, AbortController, setImmediate,
+        document: Object.assign(new EventTarget(), { hidden: false }), iosVisualizer: false, settings: { cacheEnabled: cache ? 'on' : 'off' }, Date, URL, AbortController, setImmediate,
         liveRadio: null, listeningLibrary: { anchor: null }, bulkCache: null,
         playScope: 'all', adjustMode: false, pendingPlayback: null, sessionAudioBvid: '',
         savePlaybackSession() {}, rememberStartedPlayback() {}, applyResumePosition() {},
-        cachedBvidsSet: new Set(), updatePlayDownloadsButton() {},
+        cachedBvidsSet: new Set(cachedBlob ? [BV] : []), updatePlayDownloadsButton() {},
         fetch: async url => { downloads.push(url); return new Response('audio'); },
         playRequestVersion: 0, releaseCachedAudioUrl() {}, cancelAudioCacheDownload: null,
         clearPlaybackError() {},
         primeMobileAudioAnalyser() {}, mobileVisualizerWaiting: false, progressUI: null,
-        preloadCache: preload ? { bvid: BV, url: 'https://edge.example/old', createdAt: Date.now() - (expired ? 61000 : 0) } : null,
+        preloadCache: preload ? { bvid: BV, url: 'https://edge.example/old', createdAt: Date.now() - (expired ? 121000 : 0) } : null,
         bgmAudio: audioObject(), globalPreloadAudio: audioObject(), Audio: audioObject,
         clearPreload() {}, bindAudioEvents() {}, stopInitialPreload() {}, createPlayerAudio: audioObject,
         handleAudioEnded() {}, handleAudioPlay() {}, handleAudioPause() {}, handleAudioError() {},
@@ -352,6 +353,7 @@ async function playback({ preload = false, expired = false, playError, resolveEr
         console: { error() {} },
         releaseOld() { releaseOld(); },
     });
+    installTimeline(sandbox);
     vm.runInContext(readFileSync(new URL('../playback-buffer.js', import.meta.url), 'utf8'), sandbox);
     const action = rapidSwitch
         ? `(async () => { const old = playMusic('${BV}'); await new Promise(setImmediate); await playMusic('BV1Sf421Q7Rt'); releaseOld(); await old; })();`

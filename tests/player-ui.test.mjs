@@ -1,3 +1,4 @@
+import { installTimeline } from './helpers/player-timeline.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -78,6 +79,7 @@ test('recovery card exposes the song and safe destination without leaking opaque
         getSongNameByBvid: () => '测试歌曲', getEffectiveList: () => [{ bvid: B }],
         stopVisuals() {}, syncHomePlayer() {},
     });
+    installTimeline(sandbox, source);
     vm.runInContext(functionSource('handlePlayError', '\n        // 视觉效果联动'), sandbox);
     sandbox.handlePlayError(B, { name: 'MediaError', message: 'decoder internal error' });
     assert.equal(recovery.hidden, false);
@@ -92,6 +94,7 @@ test('recovery card exposes the song and safe destination without leaking opaque
 test('aborted playback does not show an error card', () => {
     const recovery = { hidden: true };
     const sandbox = vm.createContext({ playbackRecoveryEl: recovery });
+    installTimeline(sandbox, source);
     vm.runInContext(functionSource('handlePlayError', '\n        // 视觉效果联动'), sandbox);
     sandbox.handlePlayError(A, { name: 'AbortError' });
     assert.equal(recovery.hidden, true);

@@ -1,3 +1,4 @@
+import { installTimeline } from './helpers/player-timeline.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -190,6 +191,7 @@ test('startup prepares the previous song first, or reuses the prepared random so
             preloadGeneration: 0, globalPreloadAudio: media, getRandomIndex: () => 0,
             fetchResolveViaProxy: async id => { requested.push(id); return { url: 'https://audio.example/ready' }; },
         });
+        installTimeline(sandbox);
         vm.runInContext(playerSource.slice(playerSource.indexOf('function clearPreload()'), playerSource.indexOf('function tryPreloadNext()')), sandbox);
         sandbox.runInitialPreload(); await new Promise(resolve => setImmediate(resolve));
         assert.deepEqual(requested, [resume ? resume.bvid : 'BV17uZQBHEDo']);

@@ -233,7 +233,10 @@ function importFavoritePlaylist(songs, source) {
     return count;
 }
 
+function closeMusicTools() { const dialog = document.getElementById('music-tools-dialog'); if (dialog.open) dialog.close(); }
 (function initializePersonalLibrary() {
+    document.getElementById('library-add-song').addEventListener('click', () => openCustomForm(null, getPersonalCollection(browsedPlaylistId) ? browsedPlaylistId : ''));
+    document.getElementById('library-music-tools').addEventListener('click', () => { renderMusicTools(); document.getElementById('music-tools-dialog').showModal(); });
     for (const dialog of document.querySelectorAll('.personal-dialog')) {
         dialog.querySelectorAll('[data-close-personal]').forEach(button => button.addEventListener('click', () => dialog.close()));
     }
@@ -250,9 +253,9 @@ function importFavoritePlaylist(songs, source) {
         if (getPersonalCollection(browsedPlaylistId)) openCollectionEditor(browsedPlaylistId);
         else if (list) openCollectionEditor('', getCollectionSongs(browsedPlaylistId), list.name + ' · 我的版本');
     });
-    document.getElementById('settings-open-collections').addEventListener('click', () => { document.getElementById('settings-modal-backdrop').classList.remove('is-open'); openPlaylist(undefined, 'collections'); });
-    document.getElementById('collection-import-bili').addEventListener('click', () => favoritesImporter.open());
-    document.getElementById('collection-import-file').addEventListener('click', () => { const input = document.getElementById('collection-file-input'); input.value = ''; input.click(); });
+    document.getElementById('settings-open-collections').addEventListener('click', () => { closeMusicTools(); openPlaylist(undefined, 'collections'); });
+    document.getElementById('collection-import-bili').addEventListener('click', () => { closeMusicTools(); favoritesImporter.open(); });
+    document.getElementById('collection-import-file').addEventListener('click', () => { closeMusicTools(); const input = document.getElementById('collection-file-input'); input.value = ''; input.click(); });
     document.getElementById('collection-file-input').addEventListener('change', async event => {
         const file = event.target.files[0]; if (!file) return;
         try {

@@ -82,13 +82,13 @@ function form(info, chapterLookup = async () => ({ chapters: [{ name: '副歌', 
     const entry = context.window.SG_SONG_ENTRY.create({ input, name, status, retry, page, chapter, batch, start, end, sourcePanel,
         client: { videoInfo: async () => info, chapters: chapterLookup }, find: () => null });
     input.value = info.bvid; entry.begin();
-    return { entry, input, name, status, page, chapter, batch, start, end, sourcePanel };
+    return { entry, input, name, status, retry, page, chapter, batch, start, end, sourcePanel };
 }
 const info = { bvid: BV + '@p2', name: '合集', pages: parts.map(item => ({ page: item.page, name: item.part, duration: item.duration })) };
 
 test('form respects linked P, imports all P independently, and gives chapters their own song names', async () => {
     const h = form(info); await h.entry.read(); await tick();
-    assert.equal(h.page.value, '2'); assert.equal(h.name.value, '第二首');
+    assert.equal(h.page.value, '2'); assert.equal(h.name.value, '合集');
     h.batch.value = 'pages'; assert.deepEqual(plain((await h.entry.read()).songs), [{ bvid: BV, name: '第一首' }, { bvid: BV + '@p2', name: '第二首' }]);
     h.batch.value = 'single'; h.chapter.value = '0'; h.chapter.listeners.change();
     const saved = await h.entry.read(); assert.equal(saved.bvid, BV + '@p2@t20-40'); assert.equal(saved.name, '副歌');
@@ -129,10 +129,11 @@ test('fragment timeline, seeks and progress remain relative to the selected P se
     context.currentPlayingBvid = BV + '@p2@t20-0'; assert.equal(context.playbackDuration(), 70);
 });
 
-test('blocked title lookup can fall back to public P titles without dropping source selection', async () => {
+test('unavailable original title is explicitly marked instead of using a P filename', async () => {
     const request = edge(async url => new Response(JSON.stringify(url.includes('/pagelist') ? { code: 0, data: parts } : { code: -352, message: 'risk' })));
     const info = await (await request('/info?bvid=' + BV + '&p=2')).json();
     assert.equal(info.page, 2); assert.equal(info.pages[1].name, '第二首'); assert.equal(info.bvid, BV);
+    assert.equal(info.name, ''); assert.equal(info.titleAvailable, false);
 });
 
 test('lock-screen seeking and position metadata use the fragment-relative timeline', () => {
@@ -149,4 +150,60 @@ test('lock-screen seeking and position metadata use the fragment-relative timeli
     actions.get('seekto')({ seekTime: 8 }); assert.equal(context.bgmAudio.currentTime, 28);
     actions.get('seekforward')({ seekOffset: 100 }); assert.equal(context.bgmAudio.currentTime, 40);
     context.settings.mediaSession = 'off'; context.updateMediaSession(); assert.equal(context.navigator.mediaSession.playbackState, 'none');
+});
+
+test('the reported video uses its original Unicode title instead of its upload filename', async () => {
+    const id = 'BV1taLK6zEHY', title = '𝑷𝒍𝒂𝒚𝒍𝒊𝒔𝒕•『通勤歌单丨第二弹』', calls = [];
+    const request = edge(async url => {
+        const path = new URL(url).pathname; calls.push(path);
+        if (path === '/x/web-interface/view') return new Response('blocked', { status: 412 });
+        assert.equal(path, '/x/web-interface/wbi/view');
+        return new Response(JSON.stringify({ code: 0, data: { bvid: id, title, pages: [{ page: 1, cid: 38455018794, part: '第二弹-1', duration: 3373 }] } }));
+    });
+    const data = await (await request('/info?bvid=' + id)).json();
+    assert.equal(data.name, title); assert.equal(data.pages[0].name, '第二弹-1'); assert.equal(calls.length, 2);
+    const h = form(data); const saved = await h.entry.read();
+    assert.equal(h.name.value, title); assert.equal(saved.name, title); h.entry.close();
+});
+
+test('default imports preserve the original title until another P is explicitly selected', async () => {
+    const h = form({ ...info, bvid: BV });
+    await h.entry.read(); await tick(); assert.equal(h.name.value, '合集');
+    h.page.value = '2'; h.page.listeners.change(); assert.equal(h.name.value, '第二首');
+    h.page.value = '1'; h.page.listeners.change(); assert.equal(h.name.value, '合集');
+    h.name.value = '我自己填写的歌名'; h.name.listeners.input();
+    h.page.value = '2'; h.page.listeners.change(); assert.equal(h.name.value, '我自己填写的歌名'); h.entry.close();
+});
+
+test('an unavailable original title stays empty and the form accepts a manual name', async () => {
+    const h = form({ ...info, name: '', titleAvailable: false });
+    await assert.rejects(h.entry.read(), /手动填写歌名/);
+    assert.equal(h.name.value, ''); assert.match(h.status.textContent, /原标题/);
+    h.name.value = '手动填写的原标题'; h.name.listeners.input();
+    const song = await h.entry.read(); assert.equal(song.name, '手动填写的原标题'); assert.equal(song.verified, true); h.entry.close();
+});
+
+test('missing original titles are not cached by either endpoint or browser and retry can recover', async () => {
+    let recovered = false, calls = 0;
+    const request = edge(async url => {
+        const path = new URL(url).pathname;
+        if (path === '/x/player/pagelist') return new Response(JSON.stringify({ code: 0, data: parts }));
+        return new Response(JSON.stringify(recovered ? { code: 0, data: { bvid: BV, title: '真正的视频标题', pages: parts } } : { code: -352 }));
+    });
+    const service = client(async url => { calls++; const u = new URL(url); return request(u.pathname + u.search); }).createClient('https://edge.example');
+    const unavailable = await service.videoInfo(BV); assert.equal(unavailable.name, ''); assert.equal(unavailable.titleAvailable, false);
+    recovered = true; const available = await service.videoInfo(BV); assert.equal(available.name, '真正的视频标题'); assert.equal(calls, 2);
+    const data = { ...info, name: '', titleAvailable: false }, h = form(data);
+    await assert.rejects(h.entry.read(), /手动填写歌名/);
+    data.name = '恢复读取的原标题'; delete data.titleAvailable;
+    h.retry.listeners.click(); await tick(); assert.equal(h.name.value, '恢复读取的原标题'); h.entry.close();
+});
+
+
+test('explicit batch P import remains available when the original title cannot be read', async () => {
+    const h = form({ ...info, name: '', titleAvailable: false });
+    await assert.rejects(h.entry.read(), /手动填写歌名/);
+    h.batch.value = 'pages';
+    assert.deepEqual(plain((await h.entry.read()).songs), [{ bvid: BV, name: '第一首' }, { bvid: BV + '@p2', name: '第二首' }]);
+    h.entry.close();
 });

@@ -7,7 +7,7 @@
         const startInput = options.start, endInput = options.end, sourcePanel = options.sourcePanel;
         const api = root.SG_BILI_API;
         let version = 0, session = 0, active = false, timer = null, controller = null, pending = null;
-        let autoName = '', verified = '', manualName = false, metadata = null, chapters = [], chapterController = null, chapterVersion = 0;
+        let autoName = '', verified = '', manualName = false, pageWasChanged = false, metadata = null, chapters = [], chapterController = null, chapterVersion = 0;
         function message(text, failed) { status.textContent = text; retry.hidden = !failed; }
         function cancelChapters() { chapterVersion++; if (chapterController) chapterController.abort(); chapterController = null; }
         function cancel() {
@@ -21,7 +21,7 @@
             }));
         }
         function resetSource() {
-            metadata = null; chapters = []; if (sourcePanel) { sourcePanel.hidden = true; sourcePanel.open = false; }
+            metadata = null; chapters = []; pageWasChanged = false; if (sourcePanel) { sourcePanel.hidden = true; sourcePanel.open = false; }
             name.disabled = false; if (options.lyricsPanel) options.lyricsPanel.hidden = false;
             if (startInput) startInput.value = ''; if (endInput) endInput.value = '';
             if (batchSelect) batchSelect.value = 'single';
@@ -38,7 +38,7 @@
         function selectedPage() { return Number(pageSelect && pageSelect.value || (metadata && api.source(metadata.bvid).page) || 1); }
         function pageName(page) {
             const item = metadata && metadata.pages && metadata.pages.find(item => Number(item.page) === page);
-            return item && metadata.pages.length > 1 ? item.name : metadata.name;
+            return pageWasChanged && page > 1 && item && item.name ? item.name : metadata.name;
         }
         function batchOptions() {
             if (!batchSelect) return;
@@ -74,7 +74,7 @@
             pageSelect.value = String(item.page); pageSelect.disabled = pages.length < 2;
             sourcePanel.hidden = false; sourcePanel.open = pages.length > 1 || !!(item.start || item.end);
             startInput.value = item.start ? String(item.start) : ''; endInput.value = item.end ? String(item.end) : '';
-            fillName(pageName(item.page)); batchOptions(); loadChapters();
+            batchOptions(); loadChapters();
         }
         function lookup() {
             clearTimeout(timer); timer = null;
@@ -91,7 +91,8 @@
                 if (!active || version !== requestVersion) return null;
                 input.value = api.inputValue(song.bvid); verified = song.bvid;
                 fillName(song.name); showSource(song);
-                message(song.pages && song.pages.length > 1 ? '已读取 ' + song.pages.length + ' 个分 P，选择需要的内容再添加。' : '已填入标题，视频章节会保留在播放页，可自行修改歌名。', false);
+                if (song.titleAvailable === false) message('未能读取视频原标题，请重试或手动填写歌名；分 P 与章节仍可选择。', true);
+                else message(song.pages && song.pages.length > 1 ? '已读取 ' + song.pages.length + ' 个分 P，选择需要的内容再添加。' : '已填入标题，视频章节会保留在播放页，可自行修改歌名。', false);
                 return song;
             }).catch(error => {
                 if (active && version === requestVersion) {
@@ -110,13 +111,14 @@
             if (value.bvid || value.shortUrl) timer = setTimeout(lookup, 350);
         });
         name.addEventListener('input', () => { manualName = true; });
-        retry.addEventListener('click', () => { cancel(); lookup(); });
+        retry.addEventListener('click', () => { cancel(); verified = ''; lookup(); });
         if (batchSelect) batchSelect.addEventListener('change', () => {
             const batch = batchSelect.value !== 'single'; name.disabled = batch;
             if (options.lyricsPanel) options.lyricsPanel.hidden = batch;
             message(batch ? '将按每项的原标题分别添加，重复条目会自动合并。' : '可修改当前项的歌名和播放范围。', false);
         });
         if (pageSelect) pageSelect.addEventListener('change', () => {
+            pageWasChanged = true;
             startInput.value = endInput.value = ''; fillName(pageName(selectedPage())); loadChapters();
         });
         if (chapterSelect) chapterSelect.addEventListener('change', () => {
@@ -131,7 +133,7 @@
             if (!active || before !== version || currentSession !== session) return null;
             let bvid = parsed().bvid; const title = name.value.trim();
             if (!bvid) throw new Error('未找到 BV 号，请检查视频分享链接或直接填写 BV 号。');
-            if (!title) throw new Error('暂未获取到标题，请重试或手动填写歌名。');
+            if (!title && !(metadata && batchSelect && batchSelect.value !== 'single')) throw new Error('暂未获取到标题，请重试或手动填写歌名。');
             let songs;
             if (metadata && pageSelect) {
                 const mode = batchSelect.value, page = selectedPage();

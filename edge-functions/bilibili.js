@@ -458,21 +458,29 @@ async function getVideoInfo(id) {
   if (cached && cached.expires > Date.now()) return cached.song;
   if (VIDEO_INFO_REQUESTS.has(id)) return VIDEO_INFO_REQUESTS.get(id);
   const pending = (async () => {
-    let result;
+    let result, titleAvailable = true;
     try { result = await biliJson('/x/web-interface/view', videoParams(id), 'info'); }
     catch (error) {
       if (error.status === 404) throw error;
-      const pages = await getPages(id);
-      result = { data: { bvid: id, title: pages[0].part || '', pages } };
+      try { result = await biliJson('/x/web-interface/wbi/view', videoParams(id), 'info'); }
+      catch (fallbackError) {
+        if (fallbackError.status === 404) throw fallbackError;
+        const pages = await getPages(id);
+        // 分 P 标题可能只是上传文件名，不能将它当作视频原标题。
+        titleAvailable = false;
+        result = { data: { bvid: id, title: '', pages } };
+      }
     }
     const data = result.data, bvid = data && normalizeVideoId(data.bvid);
     const name = data && typeof data.title === 'string' ? data.title.trim() : '';
-    if (!bvid || !name) throw new ApiError(502, 'UPSTREAM_INVALID_DATA', '未获取到视频标题，请稍后重试。', { stage: 'info' });
-    const song = { bvid, name: name.slice(0, 300) };
+    if (!bvid || (titleAvailable && !name)) throw new ApiError(502, 'UPSTREAM_INVALID_DATA', '未获取到视频标题，请稍后重试。', { stage: 'info' });
+    const song = { bvid, name: name.slice(0, 300), ...(titleAvailable ? {} : { titleAvailable: false }) };
     if (Array.isArray(data.pages)) song.pages = data.pages.filter(item => item && Number.isSafeInteger(item.cid) && Number.isInteger(item.page) && item.page > 0 && item.page <= 9999)
       .slice(0, 2000).map(item => ({ page: item.page, cid: item.cid, name: String(item.part || 'P' + item.page).slice(0, 300), duration: Math.max(0, Number(item.duration) || 0) }));
-    if (VIDEO_INFO_CACHE.size >= 256) VIDEO_INFO_CACHE.delete(VIDEO_INFO_CACHE.keys().next().value);
-    VIDEO_INFO_CACHE.set(id, { song, expires: Date.now() + PAGE_CACHE_TTL });
+    if (titleAvailable) {
+      if (VIDEO_INFO_CACHE.size >= 256) VIDEO_INFO_CACHE.delete(VIDEO_INFO_CACHE.keys().next().value);
+      VIDEO_INFO_CACHE.set(id, { song, expires: Date.now() + PAGE_CACHE_TTL });
+    }
     return song;
   })();
   VIDEO_INFO_REQUESTS.set(id, pending);

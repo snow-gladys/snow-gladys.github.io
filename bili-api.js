@@ -141,18 +141,21 @@
                 if (cached && cached.expires > Date.now()) return cached.song;
                 var path = '/info?' + (parsed.bvid ? videoQuery(parsed.bvid) : 'url=' + encodeURIComponent(parsed.shortUrl));
                 var data = await (options && options.signal ? performRequest(path, options) : request(path));
-                var item = source(data.bvid), name = typeof data.name === 'string' ? data.name.trim() : '';
-                if (!item || !name) throw new Error('未获取到视频标题，请手动填写歌名。');
+                var item = source(data.bvid), titleAvailable = data.titleAvailable !== false;
+                var name = titleAvailable && typeof data.name === 'string' ? data.name.trim() : '';
+                if (!item || (titleAvailable && !name)) throw new Error('未获取到视频标题，请手动填写歌名。');
                 var requested = parsed.bvid && source(parsed.bvid);
                 var page = requested ? requested.page : Number(data.page || 1);
                 var id = trackId(item.bvid, page, requested ? requested.start : Number(data.start || 0), requested ? requested.end : 0);
                 if (!id) throw new Error('分享链接中的分 P 或时间无效。');
-                var song = { bvid: id, name: name.slice(0, 300) };
+                var song = { bvid: id, name: name.slice(0, 300), ...(titleAvailable ? {} : { titleAvailable: false }) };
                 if (Array.isArray(data.pages)) song.pages = data.pages;
                 if (typeof data.chaptersAvailable === 'boolean') song.chaptersAvailable = data.chaptersAvailable;
-                if (infoCache.size >= 128) infoCache.delete(infoCache.keys().next().value);
                 var entry = { song: song, expires: Date.now() + 10 * 60 * 1000 };
-                infoCache.set(key, entry); infoCache.set(id, entry);
+                if (titleAvailable) {
+                    if (infoCache.size >= 128) infoCache.delete(infoCache.keys().next().value);
+                    infoCache.set(key, entry); infoCache.set(id, entry);
+                }
                 return song;
             },
             chapters: async function (id, options) {

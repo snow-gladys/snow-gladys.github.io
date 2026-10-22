@@ -81,7 +81,7 @@ test('metadata missing, deleted and risk-controlled videos remain distinguishabl
  }
 });
 test('failed local save preserves the old list and concurrent submits do not add twice',async()=>{
- const player=read('index.js'),start=player.indexOf('        async function submitCustomForm()'),end=player.indexOf('        loadSongs();',start);
+ const player=read('index.js'),start=player.indexOf('        async function submitCustomForm()'),end=player.indexOf('        // LOCAL_LIBRARY_START:',start);
  const fields={'custom-form-name':{dataset:{}},'custom-form-lyrics':{value:''},'custom-form-submit':{},'custom-form-info-status':{}};
  let finish,reads=0,saves=0;
  const context=vm.createContext({customFormSaving:false,customFormTargetPlaylist:'',customList:[],document:{getElementById:id=>fields[id]},

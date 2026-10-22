@@ -103,22 +103,23 @@
         let fanRequestVersion = 0;
         async function fetchFanCount() {
             const requestVersion = ++fanRequestVersion;
+            const key = 'sg_fan_count:' + CONFIG.vmid;
+            try { fanCountElement.textContent = localStorage.getItem(key) || '---'; } catch (_) { fanCountElement.textContent = '---'; }
+            if (!window.SG_OFFLINE.online()) return;
             try {
-                const response = await fetch(`${API_BASE}/fans?vmid=${CONFIG.vmid}`);
-                if (!response.ok) throw new Error();
-                
-                const data = await response.json();
+                const data = await window.SG_OFFLINE.resource(`${API_BASE}/fans?vmid=${CONFIG.vmid}`);
                 if (requestVersion !== fanRequestVersion) return;
-                if (data.code === 0) {
-                    fanCountElement.innerText = data.data.follower.toLocaleString();
+                if (data.code === 0 && Number.isSafeInteger(data.data && data.data.follower)) {
+                    fanCountElement.textContent = data.data.follower.toLocaleString();
+                    try { localStorage.setItem(key, fanCountElement.textContent); } catch (_) {}
                 }
             } catch (error) {
                 if (requestVersion !== fanRequestVersion) return;
-                console.error("粉丝数获取失败:", error);
-                fanCountElement.innerText = '---';
+                // 保留上次的数字；可选的在线信息不影响离线播放器。
             }
         }
         fetchFanCount(); // 立即运行一次
+        window.addEventListener('online', fetchFanCount);
 
         // --- 1.5 收藏（Local Storage，容量大、无 cookie 上限）---
         const FAV_STORAGE_KEY = CONFIG.storageKeys.fav;
@@ -544,7 +545,8 @@
         }
 
         function getQueuedNext() {
-            return listeningLibrary.list('queue').find(item => playScope !== 'downloaded' || cachedBvidsSet.has(item.bvid)) || null;
+            const localOnly = playScope === 'downloaded' || typeof navigator !== 'undefined' && navigator.onLine === false;
+            return listeningLibrary.list('queue').find(item => !localOnly || cachedBvidsSet.has(item.bvid)) || null;
         }
 
         function getRandomList() {
@@ -870,7 +872,7 @@
             syncPlaybackOptions();
         }
 
-        async function loadSongs() {
+        function loadSongs() {
             const fallbackList = [
   {
     "name": "探窗",
@@ -981,25 +983,32 @@
     "bvid": "BV1fv61B4Evn"
   }
 ];
-            const lists = await Promise.all([
-                fetch('./songs.json').then(r => r.ok ? r.json() : null).catch(() => null),
-                fetch('./songs_live.json').then(r => r.ok ? r.json() : null).catch(() => null),
-                fetch('./catalogs/fiona.json').then(r => r.ok ? r.json() : null).catch(() => null),
-                fetch('./catalogs/fiona-live.json').then(r => r.ok ? r.json() : null).catch(() => null)
-            ]);
-            catalogPlaylists = [
-                { id: 'builtin-gladys', name: '思诺 · 精选', profile: 'gladys', songs: window.SG_PERSONAL.songs(Array.isArray(lists[0]) && lists[0].length ? lists[0] : fallbackList) },
-                { id: 'builtin-fiona', name: '心宜 · 精选', profile: 'fiona', songs: window.SG_PERSONAL.songs(lists[2]) },
-                { id: 'builtin-gladys-live', name: '思诺 · Live', profile: 'gladys', songs: window.SG_PERSONAL.songs(lists[1]) },
-                { id: 'builtin-fiona-live', name: '心宜 · Live', profile: 'fiona', songs: window.SG_PERSONAL.songs(lists[3]) },
-            ];
-            mainList = [...catalogPlaylists[0].songs, ...catalogPlaylists[1].songs];
-            liveList = [...catalogPlaylists[2].songs, ...catalogPlaylists[3].songs];
+            const paths = ['songs.json', 'songs_live.json', 'catalogs/fiona.json', 'catalogs/fiona-live.json'];
+            const store = window.SG_OFFLINE.catalogs(libraryStorage);
+            const lists = paths.map((path, i) => store.read(path, i === 0 ? fallbackList : []));
             customList = getCustomFromStorage();
-            buildSongList();
+            function apply() {
+                catalogPlaylists = [
+                    { id: 'builtin-gladys', name: '思诺 · 精选', profile: 'gladys', songs: window.SG_PERSONAL.songs(lists[0]) },
+                    { id: 'builtin-fiona', name: '心宜 · 精选', profile: 'fiona', songs: window.SG_PERSONAL.songs(lists[2]) },
+                    { id: 'builtin-gladys-live', name: '思诺 · Live', profile: 'gladys', songs: window.SG_PERSONAL.songs(lists[1]) },
+                    { id: 'builtin-fiona-live', name: '心宜 · Live', profile: 'fiona', songs: window.SG_PERSONAL.songs(lists[3]) },
+                ];
+                mainList = [...catalogPlaylists[0].songs, ...catalogPlaylists[1].songs];
+                liveList = [...catalogPlaylists[2].songs, ...catalogPlaylists[3].songs];
+                buildSongList();
+                renderPlaylist();
+            }
+            apply();
             if (typeof validatePlaybackPlaylist === 'function') validatePlaybackPlaylist();
-            renderPlaylist();
             runInitialPreload();
+            function refresh() {
+                paths.forEach((path, i) => store.refresh(path, songs => {
+                    if (JSON.stringify(lists[i]) === JSON.stringify(songs)) return;
+                    lists[i] = songs; apply();
+                }));
+            }
+            refresh(); window.addEventListener('online', refresh);
             if (legacyMigrationError || personalLibrary.error) showToast(legacyMigrationError || personalLibrary.error, 7000);
         }
 
@@ -1571,7 +1580,9 @@
             }
         }
 
-        loadSongs();
+        // LOCAL_LIBRARY_START: 界面监听装好后用本地数据启动，不等待网络。
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadSongs, { once: true });
+        else Promise.resolve().then(loadSongs);
 
         let hasNewVersionFlag = false;
 
@@ -2003,7 +2014,7 @@
                 if (!songList.length) return;
                 setPlaybackPlaylist(''); setPlayScope('all');
                 const bvid = getHomeRandomBvid();
-                if (!bvid) { showToast('没有可随机播放的歌曲，可在歌单的“已排除”中恢复。'); return; }
+                if (!bvid) { showToast(navigator.onLine === false ? '当前离线，没有可随机播放的本地音频，请联网后先缓存歌曲。' : '没有可随机播放的歌曲，可在歌单的“已排除”中恢复。'); return; }
                 setPlayScope('all');
                 setPlayMode('random');
                 playMusic(bvid);
@@ -2682,13 +2693,13 @@
 
         /** 当前模式下的可播列表 */
         function getEffectiveList() {
+            let list;
             if (typeof playbackPlaylistId !== 'undefined' && playbackPlaylistId && typeof getCollectionSongs === 'function') {
-                const list = getCollectionSongs(playbackPlaylistId);
-                return list.filter(song => playScope === 'favorites' ? isFavorite(song.bvid) : playScope === 'downloaded' ? cachedBvidsSet.has(song.bvid) : true);
+                list = getCollectionSongs(playbackPlaylistId).filter(song => playScope === 'favorites' ? isFavorite(song.bvid) : playScope === 'downloaded' ? cachedBvidsSet.has(song.bvid) : true);
+            } else {
+                list = playScope === 'favorites' ? getFavoritesList() : playScope === 'downloaded' ? getDownloadedList() : songList;
             }
-            if (playScope === 'favorites') return getFavoritesList();
-            if (playScope === 'downloaded') return getDownloadedList();
-            return songList;
+            return typeof navigator !== 'undefined' && navigator.onLine === false ? list.filter(song => cachedBvidsSet.has(song.bvid)) : list;
         }
 
         /** 在当前模式列表中的下标，-1 表示不在列表中 */
@@ -2743,6 +2754,9 @@
         }
 
         function getHomeRandomBvid() {
+            if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+                return randomQueue.peekNext(getDownloadedList().filter(song => !listeningLibrary.isExcluded(song.bvid)).map(song => song.bvid), currentPlayingBvid) || '';
+            }
             // 首次随机已经在进入首页时抽好，点击时复用同一首，避免白做预加载。
             const prepared = !currentPlayingBvid && !initialPreloadForResume && initialPreloadBvid;
             if (prepared && !listeningLibrary.isExcluded(prepared) && songList.some(song => song.bvid === prepared)) return prepared;
@@ -2751,6 +2765,7 @@
 
         /** 首页进入时静默预加载一首歌（不播放、不展示），以便首次播放时提速；随机选一首 */
         function runInitialPreload() {
+            if (navigator.onLine === false) return;
             if (songList.length === 0) return;
             if (currentPlayingBvid) return;
             if (playScope === 'downloaded') return;
@@ -2784,6 +2799,7 @@
          * 使用 resolve + proxy，失败后不立即重试，避免放大上游风控。
          */
         function tryPreloadNext() {
+            if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
             if (liveRadio && liveRadio.active()) return;
             if (playScope === 'downloaded') return;
             const nextBvid = getNextBvid();
@@ -2923,6 +2939,7 @@
         // 原生 HLS / 普通音频播放，复用预加载并保留失败恢复。
         async function playMusic(bvid, options) {
             if (!bvid) return;
+            const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
             if (adjustMode && adjustBvid !== bvid) {
                 if (adjustSaving) { showToast('正在保存调轴，请稍候。'); return; }
                 if (!confirm('正在调轴，是否不保存并切换歌曲？')) return;
@@ -2956,7 +2973,7 @@
             const useCache = !!(window.SG_CACHE && window.SG_CACHE.supported);
 
             // 若已开启缓存，优先尝试从 IndexedDB 读取缓存播放
-            if (useCache && cachedBvidsSet.has(bvid) && window.SG_CACHE && typeof window.SG_CACHE.getCachedBlob === 'function') {
+            if (useCache && (cachedBvidsSet.has(bvid) || offline) && window.SG_CACHE && typeof window.SG_CACHE.getCachedBlob === 'function') {
                 try {
                     const cachedBlob = await window.SG_CACHE.getCachedBlob(bvid);
                     if (requestVersion !== playRequestVersion) return;
@@ -2996,9 +3013,9 @@
                 } catch (e) { /* 缓存异常时回退到正常流程 */ }
             }
 
-            if (playScope === 'downloaded') {
+            if (offline || playScope === 'downloaded') {
                 hideLoadingInfo();
-                handlePlayError(bvid, new Error('这首歌的本地缓存已不可用，请切换下一首，或改为全部歌曲后重试。'));
+                handlePlayError(bvid, new Error(offline ? '当前处于离线状态，这首歌还没有缓存音频。可从“本地缓存”选择已下载的歌曲。' : '这首歌的本地缓存已不可用，请切换下一首，或改为全部歌曲后重试。'));
                 return;
             }
 
@@ -3931,12 +3948,9 @@
                     if (sName && sName !== '—' && sName !== '…') {
                         try {
                             var basePath = CONFIG.lyricsBasePath || './lyrics/';
-                            var fbRes = await fetch(basePath + encodeURIComponent(sName) + '.lrc');
-                            if (fbRes.ok) {
-                                const text = await fbRes.text();
-                                if (loadVersion !== lyricsLoadVersion || bvid !== currentPlayingBvid) return;
-                                availableFallbackLrc = text;
-                            }
+                            const text = await window.SG_OFFLINE.resource(basePath + encodeURIComponent(sName) + '.lrc', { type: 'text', timeout: 3000 });
+                            if (loadVersion !== lyricsLoadVersion || bvid !== currentPlayingBvid) return;
+                            availableFallbackLrc = text;
                         } catch (err) {}
                     }
                 }

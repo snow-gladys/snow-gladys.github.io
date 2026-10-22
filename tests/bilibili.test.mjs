@@ -272,7 +272,7 @@ test('browser handles network errors, malformed responses and empty audio URLs',
 
 test('actual custom-song form preserves the existing BV storage schema', async () => {
     const start = playerSource.indexOf('async function submitCustomForm()');
-    const end = playerSource.indexOf('\n        loadSongs();', start);
+    const end = playerSource.indexOf('\n        // LOCAL_LIBRARY_START:', start);
     const fields = {
         'custom-form-name': { value: '测试歌曲', dataset: {} },
         'custom-form-bvid': { value: ' ' + BV + ' ' },
@@ -305,7 +305,7 @@ test('the unified page loads the shared API before the player and retains BV inp
     }
 });
 
-async function playback({ preload = false, expired = false, playError, resolveError, retryError, rapidSwitch = false, hls = false, cache = false, cachedBlob = null } = {}) {
+async function playback({ preload = false, expired = false, playError, resolveError, retryError, rapidSwitch = false, hls = false, cache = false, cachedBlob = null, offline = false, cacheIndexReady = true } = {}) {
     const start = playerSource.indexOf('async function playMusic(bvid, options)');
     const end = playerSource.indexOf('\n        function handlePlayError(', start);
     let plays = 0, resolves = 0, refreshes = 0, visuals = 0;
@@ -320,11 +320,12 @@ async function playback({ preload = false, expired = false, playError, resolveEr
     }
     const sandbox = vm.createContext({
         window: { SG_CACHE: { supported: true, getCachedBlob: async () => cachedBlob, hasCached: async () => false, saveToCache() {} } },
+        navigator: { onLine: !offline },
         document: Object.assign(new EventTarget(), { hidden: false }), iosVisualizer: false, settings: { cacheEnabled: cache ? 'on' : 'off' }, Date, URL, AbortController, setImmediate,
         liveRadio: null, listeningLibrary: { anchor: null }, bulkCache: null,
         playScope: 'all', adjustMode: false, pendingPlayback: null, sessionAudioBvid: '',
         savePlaybackSession() {}, rememberStartedPlayback() {}, applyResumePosition() {},
-        cachedBvidsSet: new Set(cachedBlob ? [BV] : []), updatePlayDownloadsButton() {},
+        cachedBvidsSet: new Set(cachedBlob && cacheIndexReady ? [BV] : []), updatePlayDownloadsButton() {},
         fetch: async url => { downloads.push(url); return new Response('audio'); },
         playRequestVersion: 0, releaseCachedAudioUrl() {}, cancelAudioCacheDownload: null,
         clearPlaybackError() {},
@@ -369,6 +370,18 @@ test('actual playback calls play only once for a freshly resolved song', async (
     assert.equal(result.resolves, 1);
     assert.equal(result.visuals, 1);
     assert.equal(result.errors.length, 0);
+});
+
+test('offline playback reads saved audio even before cache metadata is ready, without resolving an online URL', async () => {
+    const result = await playback({ offline: true, cacheIndexReady: false, cachedBlob: new Blob(['audio']) });
+    assert.equal(result.plays, 1); assert.equal(result.resolves, 0); assert.equal(result.errors.length, 0);
+    assert.match(result.src, /^blob:/);
+});
+
+test('uncached offline playback fails promptly with a useful explanation and no network request', async () => {
+    const result = await playback({ offline: true });
+    assert.equal(result.plays, 0); assert.equal(result.resolves, 0);
+    assert.match(result.errors[0].message, /离线.*缓存/);
 });
 
 test('native HLS errors fall back once to ordinary audio without another resolve', async () => {

@@ -73,6 +73,9 @@
             }
         }
         async function refresh(force) {
+            if (root.navigator && root.navigator.onLine === false) {
+                records.clear(); status.textContent = '当前离线，联网后可查看直播；本地歌曲仍可播放。'; sync(); return;
+            }
             if (pendingStatus) return pendingStatus;
             if (!force && Date.now() - checked < 60000) return;
             const abort = new AbortController(), timeout = setTimeout(() => abort.abort(), 10000);

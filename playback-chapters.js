@@ -52,6 +52,10 @@
             const key = sourceKey(id);
             if (!key) throw new Error('无法识别当前视频。');
             const cached = entries.get(key);
+            if (root.navigator && root.navigator.onLine === false) {
+                if (cached) return { chapters: cached.chapters.map(item => ({ ...item })), warning: '离线目录，联网后可刷新。' };
+                throw new Error('当前离线，尚未保存这个视频的章节。');
+            }
             if (!requestOptions.force && cached && Date.now() - cached.savedAt < (cached.chapters.length ? TTL : EMPTY_TTL)) return { chapters: cached.chapters.map(item => ({ ...item })) };
             if (!requestOptions.signal && pending.has(key)) return pending.get(key);
             const task = (async () => {

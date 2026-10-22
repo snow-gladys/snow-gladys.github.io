@@ -155,6 +155,10 @@
     var _lyricsIndex = null; // 缓存 lyrics.json 内容
     var _indexRequest = null;
     var _builtinRequests = new Map();
+    function readResource(url, type) {
+        if (global.SG_OFFLINE) return global.SG_OFFLINE.resource(url, { type: type, timeout: 3000 });
+        return fetch(url).then(function (r) { if (!r.ok) throw new Error('Lyrics unavailable'); return type === 'text' ? r.text() : r.json(); });
+    }
 
     /** 设置 lyrics 目录路径前缀（末尾须带 /） */
     function setBasePath(path) {
@@ -168,8 +172,7 @@
         if (_lyricsIndex) return Promise.resolve(_lyricsIndex);
         if (_indexRequest) return _indexRequest;
         var basePath = _basePath;
-        var pending = fetch(basePath + 'lyrics.json')
-            .then(function (r) { if (!r.ok) throw new Error('Lyrics index unavailable'); return r.json(); })
+        var pending = readResource(basePath + 'lyrics.json', 'json')
             .then(function (data) {
                 var index = (data && data.map) ? data.map : {};
                 if (_basePath === basePath) _lyricsIndex = index;
@@ -187,8 +190,7 @@
         var pending = loadLyricsIndex().then(function (idx) {
             var filename = idx[bvid];
             if (!filename) return null;
-            return fetch(path + encodeURIComponent(filename))
-                .then(function (r) { if (!r.ok) throw new Error('Lyrics unavailable'); return r.text(); })
+            return readResource(path + encodeURIComponent(filename), 'text')
                 .then(function (text) { return text ? parseLrc(text) : null; });
         }).catch(function () { _builtinRequests.delete(key); return null; });
         if (_builtinRequests.size >= 32) _builtinRequests.delete(_builtinRequests.keys().next().value);
